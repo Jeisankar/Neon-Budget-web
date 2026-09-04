@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Budget - Personal Finance & Expense Tracker</title>
+    <style>
+        :root {
+            --text-main: #333333;
+            --text-light: #555555;
+            --bg-main: #f8f9fa;
+            --bg-card: #ffffff;
+            --primary-blue: #0056b3;
+            --border-color: #e9ecef;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-main);
+            background-color: var(--bg-main);
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        nav {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-main);
+            text-decoration: none;
+        }
+        .nav-links a {
+            margin-left: 20px;
+            text-decoration: none;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        .nav-links a:hover {
+            color: var(--primary-blue);
+        }
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        h1, h2, h3 {
+            color: var(--text-main);
+            margin-top: 0;
+        }
+        h2 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+        a {
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        .footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+        }
+        .btn {
+            display: inline-block;
+            background-color: var(--text-main);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            background-color: #000;
+            color: #fff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <nav>
+            <a href="#home" class="logo">Neon Budget</a>
+            <div class="nav-links">
+                <a href="#home">Home</a>
+                <a href="#privacy">Privacy Policy</a>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Home Section -->
+        <section id="home" class="card">
+            <h1>Welcome to Neon Budget</h1>
+            
+            <h2>What is Neon Budget?</h2>
+            <p>Neon Budget is a personal finance and expense tracking application. It allows users to quickly log expenses, categorize transactions via voice commands, and visualize their financial data through a high-performance analytics dashboard.</p>
+            <p>We believe in data privacy. Neon Budget does not transmit, store, or sell your financial data on our own servers. Every transaction you log is synced exclusively to your private Google Drive account.</p>
+            <p>Tear up your old, clunky spreadsheets. Neon Budget is the ultimate, zero-lag expense tracker built for those who want absolute control over their wealth. Engineered with extreme UI themes, Gemini Voice AI, and true cloud sync, managing your money has never been this powerful—or looked this good.</p>
+
+            <h2>Why We Request User Data (Google Drive Integration)</h2>
+            <p>Neon Budget requests access to your Google account strictly to give you complete ownership of your data. When you authorize Neon Budget, the app requests permission to access your Google Drive. This allows our application to:</p>
+            <ul>
+                <li>Create a private spreadsheet in your personal Google Drive to act as your financial database.</li>
+                <li>Read, write, and sync your transaction data directly to this specific spreadsheet across your devices.</li>
+            </ul>
+
+            <h2>Core Functionality</h2>
+            
+            <h3>Own Your Data: True Cloud Sync & Google Drive Integration</h3>
+            <ul>
+                <li>We don’t hold your financial data hostage on our servers.</li>
+                <li>Neon Budget securely links directly to your personal Google Drive.</li>
+                <li>Every transaction is synced flawlessly across all your devices into a private spreadsheet that you own and control, ensuring total privacy and absolute security.</li>
+            </ul>
+
+            <h3>Gemini Voice AI: Just Speak to Track</h3>
+            <ul>
+                <li>Why type when you can command?</li>
+                <li>Tap the mic and say, “I spent ₹150 on coffee,” or “Received $500 for freelance work.”</li>
+                <li>Our integrated Gemini AI engine instantly parses your speech, categorizes the transaction, and generates a smart ticket for you to save in milliseconds.</li>
+            </ul>
+
+            <h3>Multiplayer & Family Sharing</h3>
+            <ul>
+                <li>Managing a household or a business? Invite friends, family, or partners to your sheet.</li>
+                <li>Use the powerful User Filter to instantly swap between individual spending habits or view your combined household totals on the fly.</li>
+            </ul>
+
+            <h3>Smart Transfers & Double-Entry Ledger</h3>
+            <ul>
+                <li>Moving money between checking and savings? Our Smart Transfer system automatically handles double-entry bookkeeping in the background.</li>
+                <li>It perfectly balances sender and receiver accounts without artificially inflating your overall budget metrics.</li>
+            </ul>
+
+            <h3>The Mega Analytics Dashboard</h3>
+            <p>Visualize your wealth like never before with our hyper-fast analytics engine:</p>
+            <ul>
+                <li><strong>Time-Warp Filtering:</strong> Swap instantly between All-Time, Yearly, and Monthly views.</li>
+                <li><strong>Cash Flow Waterfall:</strong> Watch your income step down to your net balance in real-time.</li>
+                <li><strong>Cumulative Savings Trendlines:</strong> Track your wealth growth trajectory.</li>
+                <li><strong>Matrix Tables:</strong> Compare historical months side-by-side to spot spending leaks.</li>
+            </ul>
+
+            <h3>Interface & Performance</h3>
+            <ul>
+                <li><strong>Extreme Theme Engine & Notch Killer:</strong> Experience a fully immersive, edge-to-edge UI. Change the physical vibe of your app instantly with themes like Neon Cyberpunk, Premium Metals & Galaxy, and Pastel Bouncy.</li>
+                <li><strong>Global Decimal Toggle:</strong> Turn .00 on or off across the entire app instantly with perfect regional formatting.</li>
+                <li><strong>Built for Speed:</strong> Neon Budget uses aggressive local batching and intelligent caching. The app never freezes, stutters, or makes you wait while saving data; it’s instantaneous.</li>
+            </ul>
+            
+            <p>Take absolute control of your finances. Download Neon Budget now.</p>
+            <a href="#privacy" class="btn">View Privacy Policy</a>
+        </section>
+
+        <!-- Privacy Policy Section -->
+        <section id="privacy" class="card">
+            <h1>Privacy Policy for Neon Budget</h1>
+            <p><strong>Effective Date:</strong> July 19, 2026</p>
+            <p>We built the Neon Budget app (the “App”) as a Freemium app. This SERVICE is provided by us at no cost and is intended for use as is.</p>
+            <p>This page is used to inform visitors regarding our policies with the collection, use, and disclosure of Personal Information if anyone decided to use our Service.</p>
+            <p>If you choose to use our Service, then you agree to the collection and use of information in relation to this policy. The Personal Information that we collect is used for providing and improving the Service. We will not use or share your information with anyone except as described in this Privacy Policy.</p>
+
+            <h2>1. Information Collection and Use</h2>
+            <p>For a better experience while using our Service, we may require you to provide us with certain personally identifiable information. The information that we request will be retained by us and used as described in this privacy policy.</p>
+            <p>The App utilizes third-party services that may collect information used to identify you. Below is a breakdown of specific data accessed and how it is used:</p>
+            <ul>
+                <li><strong>Google Account Data (Google Sign-In):</strong> The App requires you to sign in with your Google Account. We use this strictly to authenticate you and enable the App to access your Google Drive to sync your budget spreadsheets. We do not store your Google password.</li>
+                <li><strong>Google Drive Data (Financial Information):</strong> The App reads and writes financial transaction data directly to a Google Spreadsheet hosted on your personal Google Drive. We do not collect, transmit, or store this financial data on our own servers. You maintain full ownership and control over your spreadsheet.</li>
+                <li><strong>Microphone & Audio Data (Gemini Voice AI):</strong> If you use the voice-to-transaction feature, the App requests permission to access your device’s microphone. The audio you record is securely sent to Google’s Gemini AI API solely for the purpose of transcribing and categorizing your expense. The audio data is not stored on your device or our servers after the transcription is complete.</li>
+                <li><strong>Transaction related information:</strong> When you purchase a subscription or make an in-app purchase, certain transaction-related information is collected to ensure your purchase is delivered successfully. This includes:
+                    <ul>
+                        <li><strong>Transaction Details:</strong> Purchase timestamps, currency type, pricing, product identifiers, and receipt tokens generated by the app store.</li>
+                        <li><strong>Anonymous Identifiers:</strong> A randomly generated, unique user identifier created within the app to ensure your premium status remains tied to your device account.</li>
+                    </ul>
+                </li>
+            </ul>
+            <p><em>Note:</em> Neon Budget does not collect, view, or store your credit card numbers, billing addresses, or bank details. All payment processing is handled exclusively and securely by the Google Play Store.</p>
+
+            <h2>2. Third-Party Services</h2>
+            <p>The app does use third-party services that have their own Privacy Policies. Link to the privacy policy of third-party service providers used by the app:</p>
+            <ul>
+                <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Play Services</a></li>
+                <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Drive API</a></li>
+                <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Gemini API</a></li>
+                <li><a href="https://www.revenuecat.com/privacy" target="_blank" rel="noopener noreferrer">RevenueCat</a></li>
+            </ul>
+            <p>We securely transmit transaction data and anonymous user identifiers to RevenueCat, Inc., a third-party mobile billing infrastructure service. RevenueCat acts as our data processor to validate receipts, detect transaction fraud, track subscription life cycles (such as renewals or expirations), and unlock the premium services you have purchased.</p>
+            <p>No personally identifiable information (like your email address, phone number, or name) is shared with RevenueCat unless you explicitly provide it within the application for custom account creation. RevenueCat processes this data securely in accordance with standard data safety practices and their own privacy terms.</p>
+
+            <h2>3. Log Data</h2>
+            <p>We want to inform you that whenever you use our Service, in a case of an error in the app we collect data and information (through third-party products) on your phone called Log Data. This Log Data may include information such as your device Internet Protocol (“IP”) address, device name, operating system version, the configuration of the app when utilizing our Service, the time and date of your use of the Service, and other statistics.</p>
+
+            <h2>4. Security</h2>
+            <p>We value your trust in providing us your Personal Information, thus we are striving to use commercially acceptable means of protecting it. Because Neon Budget stores your financial data directly on your personal Google Drive, the security of your data is backed by Google’s robust security infrastructure. Remember that no method of transmission over the internet, or method of electronic storage is 100% secure and reliable, and we cannot guarantee its absolute security.</p>
+
+            <h2>5. Data Retention and Deletion Policy</h2>
+            <p>Because your financial data is stored on your personal Google Drive, you have complete control over its retention and deletion.</p>
+            <ul>
+                <li><strong>Deleting Financial Data:</strong> You can permanently delete your data at any time by opening your Google Drive and deleting the spreadsheet generated by Neon Budget.</li>
+                <li><strong>Revoking Access:</strong> You can revoke the App’s access to your Google Account at any time by visiting your Google Account settings (Security > Third-party apps with account access) and removing Neon Budget.</li>
+            </ul>
+
+            <h2>6. Subscription Management and Cancellation</h2>
+            <p>All recurring subscriptions are managed directly through your personal Google Play Store account settings. You maintain absolute control over your financial transactions and retain the right to cancel or disable auto-renewal at any time by navigating to your device’s subscription management dashboard.</p>
+
+            <h2>7. Children’s Privacy</h2>
+            <p>These Services do not address anyone under the age of 13. We do not knowingly collect personally identifiable information from children under 13 years of age. In the case we discover that a child under 13 has provided us with personal information, we immediately delete this from our servers. If you are a parent or guardian and you are aware that your child has provided us with personal information, please contact us so that we will be able to do the necessary actions.</p>
+
+            <h2>8. Changes to This Privacy Policy</h2>
+            <p>We may update our Privacy Policy from time to time. Thus, you are advised to review this page periodically for any changes. We will notify you of any changes by posting the new Privacy Policy on this page.</p>
+
+            <h2>9. Contact Us</h2>
+            <p>If you have any questions or suggestions about our Privacy Policy, do not hesitate to contact us at: <a href="mailto:jeisankar1206@gmail.com">jeisankar1206@gmail.com</a></p>
+        </section>
+    </div>
+
+    <footer class="footer">
+        &copy; 2026 Neon Budget. All Rights Reserved.
+    </footer>
+
+</body>
+</html>
