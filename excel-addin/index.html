@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+
+  <!-- Unique Add-in Identifier -->
+  <Id>f47ac10b-58cc-4372-a567-0e02b2c3d479</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>NeonBudget Audit Labs</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Gemini Agentic Excel Auditor" />
+  <Description DefaultValue="Agentic Excel Task Pane powered by dynamic Gemini API model discovery, multi-turn workbook function calling, and live INR (₹) pay-as-you-go telemetry." />
+
+  <!-- HTTPS Icon & Support URLs mapped to your custom domain (neonbudget.in) -->
+  <IconUrl DefaultValue="https://neonbudget.in/excel-addin/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://neonbudget.in/excel-addin/icon-64.png" />
+  <SupportUrl DefaultValue="https://neonbudget.in" />
+
+  <!-- Allowed External Domains -->
+  <AppDomains>
+    <AppDomain>https://neonbudget.in</AppDomain>
+    <AppDomain>https://www.neonbudget.in</AppDomain>
+    <AppDomain>https://generativelanguage.googleapis.com</AppDomain>
+  </AppDomains>
+
+  <!-- Target Host Application -->
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+
+  <!-- Minimum Office.js API Requirement Set -->
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="ExcelApi" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+
+  <!-- Primary Task Pane Source Location on Your Custom Domain -->
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://neonbudget.in/excel-addin/index.html" />
+  </DefaultSettings>
+
+  <!-- Required Permissions to Read/Write Ranges & Formulas -->
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <!-- Modern Ribbon Integration (VersionOverrides 1.0 for TaskPane) -->
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
+          </GetStarted>
+          <FunctionFile resid="Commands.Url" />
+
+          <!-- Adds the "Open AI Auditor" Button to the Excel Home Tab -->
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="GeminiAgentGroup">
+                <Label resid="CommandsGroup.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="TaskpaneButton">
+                  <Label resid="TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label" />
+                    <Description resid="TaskpaneButton.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <!-- Resource Definitions -->
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://neonbudget.in/excel-addin/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://neonbudget.in/excel-addin/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://neonbudget.in/excel-addin/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://ai.google.dev/gemini-api/docs" />
+        <bt:Url id="Commands.Url" DefaultValue="https://neonbudget.in/excel-addin/index.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://neonbudget.in/excel-addin/index.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Gemini Agentic Excel Add-in Ready" />
+        <bt:String id="CommandsGroup.Label" DefaultValue="Gemini Agent" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Open AI Auditor" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Launch the Obsidian Task Pane to dynamically load Gemini models, run autonomous workbook audits, write Excel formulas, and track API spend in INR (₹)." />
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the Gemini Agentic Excel Task Pane" />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
