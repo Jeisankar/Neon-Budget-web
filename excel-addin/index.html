@@ -191,10 +191,10 @@
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
         <div class="flex items-center justify-between">
           <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Full-Spectrum Excel Agent Ready</span>
-          <span id="maxTurnsBadge" class="font-mono text-[10px] text-slate-400">9 Office.js Tools</span>
+          <span id="maxTurnsBadge" class="font-mono text-[10px] text-slate-400">10 Office.js Tools</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Equipped with native <strong>PivotTables</strong>, <strong>Excel Tables</strong>, <strong>Charts</strong>, <strong>Formulas</strong>, <strong>Sheet Management</strong>, <strong>Formatting</strong>, and <strong>Custom Office.js</strong> execution.
+          Equipped with native <strong>PivotTables</strong>, <strong>Excel Tables</strong>, <strong>Charts</strong>, <strong>Formulas</strong>, <strong>Sheet Management</strong>, <strong>Formatting</strong>, and <strong>Custom Office.js</strong> execution. Non-chat models (TTS, Image, Lyria, Robotics) are automatically filtered out.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
@@ -255,7 +255,7 @@
             <label for="modelSelect" class="sr-only">Select Gemini Model</label>
             <select
               id="modelSelect"
-              title="Active Gemini Model (Auto-fallbacks on 503/429 spikes)"
+              title="Active Agent-Capable Gemini Model"
               class="max-w-[185px] sm:max-w-[240px] w-full bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan outline-none truncate transition"
             >
               <option value="">⚡ Offline Simulator (Sync in ⚙️)</option>
@@ -302,7 +302,7 @@
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
         <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, high-demand auto-fallback, and INR (₹) tariff schedule.</p>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, multi-turn agent model filters, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -316,7 +316,7 @@
     <!-- CARD 1: GEMINI API KEY & DYNAMIC MODEL DISCOVERY -->
     <div class="bg-obsidian-900/90 rounded-xl p-3 cyber-border space-y-2.5">
       <div class="flex items-center justify-between">
-        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; High-Demand Resilience</span>
+        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; Smart Model Filter</span>
         <span id="modelCountBadge" class="font-mono text-[10px] px-2 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-600">0 synced</span>
       </div>
 
@@ -344,14 +344,14 @@
         </button>
       </div>
 
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-300 cursor-pointer">
+      <div class="flex flex-col gap-1.5 pt-1">
+        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-neon-cyan cursor-pointer">
           <input id="onlyGenContentCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
-          <span>Filter for generateContent support</span>
+          <span>Hide non-chat models (TTS, Image, Banana, Lyria, Transcribe, Robotics)</span>
         </label>
         <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 cursor-pointer">
           <input id="autoFallback429Checkbox" type="checkbox" checked class="accent-teal-400 rounded" />
-          <span>Auto-retry &amp; fallback on 503 High Demand / 429 Quota</span>
+          <span>Auto-fallback on 503 High Demand, 429 Quota, or Single-Turn restriction</span>
         </label>
       </div>
 
@@ -815,7 +815,7 @@
     }
 
     /*************************************************************************
-     * 4. FULL-SPECTRUM OFFICE.JS AGENTIC TOOL SUITE (9 INTEGRATED TOOLS)
+     * 4. FULL-SPECTRUM OFFICE.JS AGENTIC TOOL SUITE (10 INTEGRATED TOOLS)
      *************************************************************************/
     const EXCEL_AGENT_TOOLS = [
       {
@@ -1070,7 +1070,6 @@
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
 
-      // Branch A: Live Microsoft Excel Host via Office.js
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         return await window.Excel.run(async (context) => {
           const sheets = context.workbook.worksheets;
@@ -1170,7 +1169,6 @@
             const destClean = (args.destinationCellAddress || 'A1').replace(/^.*!/, '');
             const destRange = destSheet.getRange(destClean);
 
-            // Ensure unique PivotTable name to prevent duplicate-name exceptions
             const uniquePivotName = `${(args.pivotTableName || 'AI_Pivot').replace(/\s+/g, '_')}_${Math.floor(Math.random() * 900 + 100)}`;
             const pivotTable = destSheet.pivotTables.add(uniquePivotName, sourceRange, destRange);
             await context.sync();
@@ -1317,7 +1315,7 @@
         });
       }
 
-      // Branch B: Virtual Sheet Fallback (for standalone browser / Canvas preview)
+      // Branch B: Virtual Sheet Fallback
       if (name === 'audit_workbook') {
         let formulaCells = [];
         let blankCount = 0;
@@ -1450,13 +1448,81 @@
     }
 
     /*************************************************************************
-     * 5. DYNAMIC MODEL DISCOVERY (CACHED + LIVE SYNC)
+     * 5. SMART AGENT-CAPABLE MODEL FILTERING & PRIORITY RANKING
      *************************************************************************/
+    // Excludes single-turn / non-chat modality models (Image, Banana, TTS, Audio/Lyria, Transcription, Robotics, Computer-Use, Deep-Research)
+    const NON_AGENT_MODEL_REGEX = /(tts|image|banana|lyria|transcribe|robotics|computer-use|deep-research|embedding|aqa|imagen|veo|learnlm)/i;
+
+    function isMultiTurnAgentCapableModel(modelObjOrId) {
+      const id = typeof modelObjOrId === 'string'
+        ? modelObjOrId.replace(/^models\//, '')
+        : ((modelObjOrId && modelObjOrId.name) || '').replace(/^models\//, '');
+      if (!id) return false;
+      if (NON_AGENT_MODEL_REGEX.test(id)) return false;
+      // Prefer Gemini & Antigravity models that natively support multi-turn tool calling
+      return /^(gemini|antigravity)/i.test(id);
+    }
+
+    function scoreModelForExcelAgent(modelId) {
+      const id = (modelId || '').toLowerCase();
+      if (NON_AGENT_MODEL_REGEX.test(id)) return -100;
+      // Rank stable, multi-turn, function-calling Flash & Flash-Lite workhorses highest, followed by Pro / Argon / Carbon
+      if (id === 'gemini-3.8-flash') return 120;
+      if (id === 'gemini-3.7-flash') return 118;
+      if (id === 'gemini-3.6-flash') return 116;
+      if (id === 'gemini-3.5-flash') return 115;
+      if (id === 'gemini-3.5-flash-lite') return 114;
+      if (id === 'gemini-3.1-flash-lite') return 112;
+      if (id === 'gemini-2.5-flash') return 110;
+      if (id === 'gemini-2.5-flash-lite') return 108;
+      if (id === 'gemini-flash-latest') return 106;
+      if (id === 'gemini-flash-lite-latest') return 104;
+      if (id === 'gemini-4-argon') return 102;
+      if (id === 'gemini-4-carbon') return 100;
+      if (id === 'gemini-4-hydrogen') return 98;
+      if (id === 'gemini-3.1-pro-preview-customtools') return 96;
+      if (id === 'gemini-3.1-pro-preview') return 94;
+      if (id === 'gemini-2.5-pro') return 92;
+      if (id === 'gemini-pro-latest') return 90;
+      if (id.includes('flash') && !id.includes('preview')) return 85;
+      if (id.includes('flash')) return 80;
+      if (id.includes('pro')) return 75;
+      if (id.startsWith('gemini-')) return 65;
+      if (id.startsWith('antigravity')) return 55;
+      if (id.startsWith('gemma-')) return 30;
+      return 10;
+    }
+
+    function filterAndSortModelsForUI(rawModels) {
+      const hideNonChat = document.getElementById('onlyGenContentCheckbox')
+        ? document.getElementById('onlyGenContentCheckbox').checked
+        : true;
+
+      const filtered = (rawModels || []).filter(m => {
+        const methods = m.supportedGenerationMethods;
+        if (Array.isArray(methods) && methods.length > 0 && !methods.includes('generateContent')) {
+          return false;
+        }
+        if (hideNonChat) {
+          return isMultiTurnAgentCapableModel(m);
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        const idA = (a.name || '').replace(/^models\//, '');
+        const idB = (b.name || '').replace(/^models\//, '');
+        const diff = scoreModelForExcelAgent(idB) - scoreModelForExcelAgent(idA);
+        return diff !== 0 ? diff : idB.localeCompare(idA);
+      });
+
+      return filtered;
+    }
+
     async function discoverGeminiModels() {
       const apiKey = document.getElementById('apiKeyInput').value.trim();
       const statusEl = document.getElementById('discoveryStatusText');
       const countBadge = document.getElementById('modelCountBadge');
-      const onlyGenContent = document.getElementById('onlyGenContentCheckbox').checked;
 
       if (!apiKey) {
         statusEl.textContent = 'Enter your Gemini API Key above first.';
@@ -1491,19 +1557,13 @@
           pageToken = data.nextPageToken || '';
         } while (pageToken);
 
-        const filtered = allModels.filter(m => {
-          if (!onlyGenContent) return true;
-          const methods = m.supportedGenerationMethods || [];
-          return methods.includes('generateContent');
-        });
+        appState.models = allModels;
+        safeStorageSet(STORAGE_KEYS.CACHED_MODELS, allModels);
 
-        filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
-
-        appState.models = filtered;
-        safeStorageSet(STORAGE_KEYS.CACHED_MODELS, filtered);
-        populateModelDropdown(filtered);
-        countBadge.textContent = `${filtered.length} models`;
-        statusEl.textContent = `Synced ${filtered.length} live models`;
+        const visibleModels = filterAndSortModelsForUI(allModels);
+        populateModelDropdown(visibleModels);
+        countBadge.textContent = `${visibleModels.length} chat models`;
+        statusEl.textContent = `Synced ${visibleModels.length} multi-turn agent models (filtered ${allModels.length - visibleModels.length} non-chat endpoints)`;
         statusEl.className = 'text-emerald-400';
       } catch (err) {
         statusEl.textContent = `Sync error: ${err.message}`;
@@ -1533,12 +1593,15 @@
       });
 
       const saved = appState.selectedModel;
-      const exists = models.some(m => (m.name || '').replace(/^models\//, '') === saved);
-      if (exists) {
+      const savedIsValid =
+        saved &&
+        !NON_AGENT_MODEL_REGEX.test(saved) &&
+        models.some(m => (m.name || '').replace(/^models\//, '') === saved);
+
+      if (savedIsValid) {
         select.value = saved;
       } else {
-        const preferred = models.find(m => /flash-lite/i.test(m.name)) || models.find(m => /flash/i.test(m.name)) || models[0];
-        select.value = (preferred.name || '').replace(/^models\//, '');
+        select.value = (models[0].name || '').replace(/^models\//, '');
       }
       onModelSelectionChanged();
     }
@@ -1549,7 +1612,7 @@
       appState.selectedModel = modelId;
       safeStorageSet(STORAGE_KEYS.SELECTED_MODEL, modelId);
 
-      const found = appState.models.find(m => (m.name || '').replace(/^models\//, '') === modelId);
+      const found = (appState.models || []).find(m => (m.name || '').replace(/^models\//, '') === modelId);
       const limitsEl = document.getElementById('modelTokenLimits');
       if (found) {
         const inLim = (found.inputTokenLimit || 0).toLocaleString('en-IN');
@@ -1898,7 +1961,7 @@
         <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[10px] text-slate-400">9 Office.js Tools</span>
+            <span class="font-mono text-[10px] text-slate-400">10 Office.js Tools</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
             Ask Gemini to insert native PivotTables, Tables, Charts, or formulas directly into your active Excel workbook.
@@ -1974,34 +2037,61 @@
     }
 
     /*************************************************************************
-     * 8. HIGH-DEMAND (503 / 429) RESILIENT FETCH & MULTI-MODEL CASCADE
+     * 8. RESILIENT FETCH: HANDLES 503 HIGH DEMAND, 429 QUOTA, & SINGLE-TURN MODELS
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
-      const allIds = (appState.models || [])
+      // Only include true multi-turn agent-capable models in the fallback pool!
+      const agentPool = (appState.models || [])
+        .filter(m => isMultiTurnAgentCapableModel(m))
         .map(m => (m.name || '').replace(/^models\//, ''))
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort((a, b) => scoreModelForExcelAgent(b) - scoreModelForExcelAgent(a));
 
-      // Rank reliable general-availability Flash / Flash-Lite / Pro models right behind the primary model
-      const scored = allIds
-        .filter(id => id !== primaryModelId)
-        .sort((a, b) => {
-          const score = (id) => {
-            const l = id.toLowerCase();
-            if (l.includes('2.5-flash') && !l.includes('preview')) return 100;
-            if (l.includes('flash-lite')) return 90;
-            if (l.includes('flash')) return 80;
-            if (l.includes('pro')) return 70;
-            return 50;
-          };
-          return score(b) - score(a);
-        });
+      const fallbacks = agentPool.filter(id => id !== primaryModelId);
+      // Guarantee standard reliable fallbacks even if model cache is empty
+      const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      for (const df of defaultFallbacks) {
+        if (df !== primaryModelId && !fallbacks.includes(df)) {
+          fallbacks.push(df);
+        }
+      }
+      return [primaryModelId, ...fallbacks.slice(0, 5)];
+    }
 
-      return [primaryModelId, ...scored.slice(0, 4)];
+    // Compacts a multi-turn conversationHistory into a single user turn for models that disallow multi-turn chat
+    function buildSingleTurnCompactedPayload(originalPayload) {
+      const historyLines = [];
+      for (const turn of (originalPayload.contents || [])) {
+        const roleLabel = (turn.role || 'user').toUpperCase();
+        for (const p of (turn.parts || [])) {
+          if (p.text) {
+            historyLines.push(`[${roleLabel}]: ${p.text}`);
+          } else if (p.functionCall) {
+            historyLines.push(`[MODEL TOOL CALL]: ${p.functionCall.name}(${JSON.stringify(p.functionCall.args || {})})`);
+          } else if (p.functionResponse) {
+            historyLines.push(`[EXCEL TOOL RESULT for ${p.functionResponse.name}]: ${JSON.stringify(p.functionResponse.response || {})}`);
+          }
+        }
+      }
+      return {
+        ...originalPayload,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: historyLines.join('\n\n') }]
+          }
+        ]
+      };
     }
 
     async function fetchGeminiWithResilience({ apiKey, initialModelId, payload, signal }) {
       const autoFallback = document.getElementById('autoFallback429Checkbox').checked;
-      const candidates = autoFallback ? buildFallbackCandidateOrder(initialModelId) : [initialModelId];
+      // If user accidentally had a non-chat model selected (e.g. nano-banana, lyria, tts), immediately route to top agent model
+      const safeInitial = NON_AGENT_MODEL_REGEX.test(initialModelId) && autoFallback
+        ? (buildFallbackCandidateOrder(initialModelId)[1] || 'gemini-3.5-flash-lite')
+        : initialModelId;
+
+      const candidates = autoFallback ? buildFallbackCandidateOrder(safeInitial) : [safeInitial];
       let lastError = null;
 
       for (let mIdx = 0; mIdx < candidates.length; mIdx++) {
@@ -2026,6 +2116,34 @@
           const errMsg = errJson.error?.message || `Gemini HTTP ${response.status}`;
           lastError = new Error(errMsg);
 
+          // Special Case 1: "Multiturn chat is not enabled for this model"
+          const isMultiTurnNotEnabled = /multiturn chat is not enabled|multi-turn.*not supported/i.test(errMsg);
+          if (isMultiTurnNotEnabled) {
+            // First try compacting the conversation into a single turn on the same model if only 1 candidate
+            if (!autoFallback) {
+              const compactedPayload = buildSingleTurnCompactedPayload(payload);
+              const retrySingle = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(compactedPayload),
+                signal
+              });
+              if (retrySingle.ok) {
+                const data = await retrySingle.json();
+                return { data, usedModelId: candidateModel, switchedModel: false };
+              }
+            }
+            // Otherwise immediately jump to the next multi-turn agent model in candidates!
+            break;
+          }
+
+          // Special Case 2: Model does not support function calling / tools / systemInstruction
+          const isCapabilityMismatch = /function calling is not enabled|tool use.*not supported|developer instruction is not enabled|modality/i.test(errMsg);
+          if (isCapabilityMismatch && autoFallback) {
+            break;
+          }
+
+          // Special Case 3: 503 High Demand / 429 Rate Limit / 500 Server Spike
           const isTransientOrDemandSpike =
             response.status === 429 ||
             response.status === 500 ||
@@ -2039,7 +2157,7 @@
           }
 
           if (attempt < maxAttemptsPerModel) {
-            const delayMs = 1500 * attempt;
+            const delayMs = 1400 * attempt;
             updateThinkingPhase(
               `High Demand on ${candidateModel} (Retrying...)`,
               `Spikes in demand detected — waiting ${(delayMs / 1000).toFixed(1)}s before retry...`
@@ -2049,14 +2167,14 @@
             const nextModel = candidates[mIdx + 1];
             updateThinkingPhase(
               `Switching to ${nextModel}...`,
-              `${candidateModel} is experiencing high demand — routing seamlessly to ${nextModel}...`
+              `${candidateModel} unavailable — routing seamlessly to ${nextModel}...`
             );
-            await new Promise(r => setTimeout(r, 600));
+            await new Promise(r => setTimeout(r, 450));
           }
         }
       }
 
-      throw lastError || new Error('All candidate Gemini models are currently experiencing high demand.');
+      throw lastError || new Error('All candidate Gemini models are currently unavailable.');
     }
 
     /*************************************************************************
@@ -2096,7 +2214,6 @@
         return;
       }
 
-      // Save a clean checkpoint of conversationHistory so a mid-loop 503 error never leaves dangling tool calls
       const historyCheckpoint = JSON.parse(JSON.stringify(appState.conversationHistory));
 
       appState.conversationHistory.push({
@@ -2175,7 +2292,7 @@
             const fullText = textParts.join('\n\n');
             appendLogCard({
               role: 'model',
-              title: switchedModel ? `${usedModelId} (Auto-Fallback)` : usedModelId,
+              title: switchedModel ? `${usedModelId} (Auto-Selected)` : usedModelId,
               bodyHtml: escapeHtml(fullText),
               rawText: fullText,
               badgeText: costBadge,
@@ -2220,7 +2337,6 @@
           });
         }
       } catch (err) {
-        // Restore clean conversation history checkpoint so future turns never break
         appState.conversationHistory = historyCheckpoint;
         const isAborted = err.name === 'AbortError';
         appendLogCard({
@@ -2228,9 +2344,9 @@
           title: isAborted ? 'GENERATION STOPPED' : 'AGENT ERROR',
           bodyHtml: isAborted
             ? 'Request cancelled by user.'
-            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or select a stable Flash model (e.g. gemini-2.5-flash) below the chat box.`,
+            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or choose gemini-3.5-flash-lite / gemini-3.8-flash / gemini-2.5-flash below.`,
           rawText: err.message,
-          badgeText: isAborted ? 'Aborted' : 'High Demand / API',
+          badgeText: isAborted ? 'Aborted' : 'API Notice',
           badgeColor: 'text-rose-400',
           showRetry: !isAborted
         });
@@ -2400,9 +2516,11 @@
       if (appState.apiKey) {
         document.getElementById('apiKeyInput').value = appState.apiKey;
       }
+      // Immediately filter & rank any cached models on startup so non-chat models (nano-banana, lyria, tts) are purged from the selector!
       if (appState.models && appState.models.length > 0) {
-        populateModelDropdown(appState.models);
-        document.getElementById('modelCountBadge').textContent = `${appState.models.length} cached`;
+        const cleanModels = filterAndSortModelsForUI(appState.models);
+        populateModelDropdown(cleanModels);
+        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} chat models`;
       }
 
       syncPricingInputsFromState();
@@ -2454,7 +2572,9 @@
       document.getElementById('fetchModelsBtn').addEventListener('click', discoverGeminiModels);
       document.getElementById('quickSyncModelsBtn').addEventListener('click', discoverGeminiModels);
       document.getElementById('onlyGenContentCheckbox').addEventListener('change', () => {
-        if (appState.apiKey) discoverGeminiModels();
+        const cleanModels = filterAndSortModelsForUI(appState.models);
+        populateModelDropdown(cleanModels);
+        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} models`;
       });
       document.getElementById('modelSelect').addEventListener('change', onModelSelectionChanged);
       document.getElementById('insertSelectionBtn').addEventListener('click', insertActiveExcelSelection);
