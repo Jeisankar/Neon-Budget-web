@@ -26,7 +26,7 @@
               900: '#0b0e14',
               800: '#121722',
               700: '#1c2436',
-              600: '#28334aff'
+              600: '#28334a'
             },
             neon: {
               cyan: '#00f5d4',
@@ -50,6 +50,13 @@
       background-color: #050608;
       color: #f1f5f9;
       font-family: 'Inter', system-ui, sans-serif;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .selectable-text {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      cursor: text;
     }
     .cyber-border {
       border: 1px solid rgba(0, 245, 212, 0.22);
@@ -100,7 +107,7 @@
     }
   </style>
 </head>
-<body class="h-screen w-full flex flex-col overflow-hidden select-none sm:select-auto selection:bg-neon-cyan selection:text-obsidian-950">
+<body class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
 
   <!-- =====================================================================
        ULTRA-COMPACT TOP HEADER BAR (FIXED / DOCKED TOP)
@@ -178,21 +185,24 @@
        ===================================================================== -->
   <section id="viewAgent" class="flex-1 flex flex-col overflow-hidden relative">
 
-    <!-- Scrollable Message Stream (Only this area scrolls!) -->
-    <div id="chatLog" class="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+    <!-- Scrollable Message Stream (Selectable text + Copy button on every message) -->
+    <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
       <!-- Welcome / Empty State Card (Auto-collapses once chatting starts) -->
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Ready for Workbook Audit</span>
-          <span id="maxTurnsBadge" class="font-mono text-[10px] text-slate-400">Auto Multi-Turn</span>
+          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Full-Spectrum Excel Agent Ready</span>
+          <span id="maxTurnsBadge" class="font-mono text-[10px] text-slate-400">9 Office.js Tools</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Ask Gemini to read ranges, verify statutory/GST schedules, or write formulas directly into your active sheet.
+          Equipped with native <strong>PivotTables</strong>, <strong>Excel Tables</strong>, <strong>Charts</strong>, <strong>Formulas</strong>, <strong>Sheet Management</strong>, <strong>Formatting</strong>, and <strong>Custom Office.js</strong> execution.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
           <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
             ⚡ Audit &amp; Auto-Fill Variance Formulas
+          </button>
+          <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
+            📊 Insert Native PivotTable
           </button>
           <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
             ∑ Write Totals &amp; Flag Overruns
@@ -234,8 +244,8 @@
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to audit ranges, reconcile ledgers, or write Excel formulas... (Enter to send, Shift+Enter for new line)"
-          class="w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
+          placeholder="Ask Gemini to insert a PivotTable, build charts, audit ranges, or write formulas... (Enter to send)"
+          class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
         <!-- Bottom Composer Toolbar: Model Selection Below Chat Text Box + Actions -->
@@ -245,8 +255,8 @@
             <label for="modelSelect" class="sr-only">Select Gemini Model</label>
             <select
               id="modelSelect"
-              title="Active Gemini Model (Fetched dynamically)"
-              class="max-w-[190px] sm:max-w-[240px] w-full bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan outline-none truncate transition"
+              title="Active Gemini Model (Auto-fallbacks on 503/429 spikes)"
+              class="max-w-[185px] sm:max-w-[240px] w-full bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan outline-none truncate transition"
             >
               <option value="">⚡ Offline Simulator (Sync in ⚙️)</option>
             </select>
@@ -292,7 +302,7 @@
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
         <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, dynamic model discovery filters, and INR (₹) tariff schedule.</p>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, high-demand auto-fallback, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -306,7 +316,7 @@
     <!-- CARD 1: GEMINI API KEY & DYNAMIC MODEL DISCOVERY -->
     <div class="bg-obsidian-900/90 rounded-xl p-3 cyber-border space-y-2.5">
       <div class="flex items-center justify-between">
-        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; Model Sync</span>
+        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; High-Demand Resilience</span>
         <span id="modelCountBadge" class="font-mono text-[10px] px-2 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-600">0 synced</span>
       </div>
 
@@ -316,7 +326,7 @@
           type="password"
           placeholder="Paste Google AI Studio API Key (AIza...)"
           autocomplete="off"
-          class="flex-1 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
+          class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
         />
         <button
           id="toggleKeyVisBtn"
@@ -334,14 +344,14 @@
         </button>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
         <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-300 cursor-pointer">
           <input id="onlyGenContentCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
           <span>Filter for generateContent support</span>
         </label>
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-300 cursor-pointer">
+        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 cursor-pointer">
           <input id="autoFallback429Checkbox" type="checkbox" checked class="accent-teal-400 rounded" />
-          <span>Auto-fallback on HTTP 429 quota limit</span>
+          <span>Auto-retry &amp; fallback on 503 High Demand / 429 Quota</span>
         </label>
       </div>
 
@@ -403,7 +413,7 @@
         <textarea
           id="pricingRulesJson"
           rows="4"
-          class="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg p-2 font-mono text-[11px] text-teal-300 outline-none"
+          class="selectable-text w-full bg-obsidian-950 border border-obsidian-700 rounded-lg p-2 font-mono text-[11px] text-teal-300 outline-none"
         ></textarea>
         <p id="pricingStatusMsg" class="text-[10px] font-mono text-slate-400 mt-1">Rates automatically switch when you pick a different model family below the chat box.</p>
       </div>
@@ -437,7 +447,7 @@
       </button>
     </div>
     <div class="overflow-x-auto rounded-lg border border-obsidian-700">
-      <table id="virtualSheetTable" class="w-full text-left border-collapse font-mono text-[11px]"></table>
+      <table id="virtualSheetTable" class="selectable-text w-full text-left border-collapse font-mono text-[11px]"></table>
     </div>
   </section>
 
@@ -445,7 +455,7 @@
        MODAL 1: FLOATING COMPACT TARIFF -> DETAILED WORKINGS & DISCLAIMER
        ===================================================================== -->
   <div id="tariffModalOverlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-obsidian-900 w-full max-w-md rounded-2xl gold-border p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div class="bg-obsidian-900 w-full max-w-md rounded-2xl gold-border p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto shadow-2xl selectable-text">
       <div class="flex items-center justify-between border-b border-obsidian-700 pb-2.5">
         <div>
           <h3 class="font-mono text-xs font-bold uppercase text-amber-400">₹ Tariff Usage &amp; Detailed Workings</h3>
@@ -585,6 +595,7 @@
         { match: 'flash-lite', inputPer1M: 0.075, outputPer1M: 0.30, cachedPer1M: 0.018 },
         { match: 'flash', inputPer1M: 0.15, outputPer1M: 0.60, cachedPer1M: 0.0375 },
         { match: 'pro', inputPer1M: 1.25, outputPer1M: 5.00, cachedPer1M: 0.3125 },
+        { match: 'hydrogen', inputPer1M: 0.15, outputPer1M: 0.60, cachedPer1M: 0.0375 },
         { match: 'argon', inputPer1M: 1.25, outputPer1M: 5.00, cachedPer1M: 0.3125 },
         { match: 'carbon', inputPer1M: 2.50, outputPer1M: 10.00, cachedPer1M: 0.625 }
       ]
@@ -618,12 +629,52 @@
       conversationHistory: [],
       renderedCards: [],
       savedSessions: safeStorageGet(STORAGE_KEYS.CHAT_SESSIONS, []),
+      lastUserPrompt: '',
       abortController: null,
       thinkingInterval: null
     };
 
     /*************************************************************************
-     * 2. VIRTUAL EXCEL ENGINE + NATIVE OFFICE.JS `Excel.run` ADAPTER
+     * 2. CLIPBOARD COPY HELPER (WORKS IN OFFICE WEBVIEW2 & BROWSERS)
+     *************************************************************************/
+    function copyTextToClipboard(text, btnElement) {
+      const doneFeedback = () => {
+        if (!btnElement) return;
+        const orig = btnElement.innerHTML;
+        btnElement.innerHTML = '✓ Copied';
+        btnElement.classList.add('text-emerald-400');
+        setTimeout(() => {
+          btnElement.innerHTML = orig;
+          btnElement.classList.remove('text-emerald-400');
+        }, 1600);
+      };
+
+      const fallbackCopy = () => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.top = '-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          doneFeedback();
+        } catch (err) {
+          // Ignore fallback errors
+        }
+      };
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(text).then(doneFeedback).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    }
+
+    /*************************************************************************
+     * 3. VIRTUAL EXCEL ENGINE + NATIVE OFFICE.JS `Excel.run` ADAPTER
      *************************************************************************/
     const INITIAL_GRID = [
       ['Account Code', 'Ledger Head', 'Budget (INR)', 'Actual (INR)', 'Variance (INR)', 'Variance %'],
@@ -639,7 +690,10 @@
       name: 'Statutory_Audit_FY26',
       values: JSON.parse(JSON.stringify(INITIAL_GRID)),
       formulas: INITIAL_GRID.map(r => r.map(c => (typeof c === 'string' && c.startsWith('=') ? c : ''))),
-      highlights: {}
+      highlights: {},
+      pivotTables: [],
+      tables: [],
+      charts: []
     };
 
     function colLetterToIndex(letter) {
@@ -730,7 +784,7 @@
       const table = document.getElementById('virtualSheetTable');
       if (!table) return;
       const rows = virtualSheet.values;
-      const colCount = rows[0] ? rows[0].length : 6;
+      const colCount = rows.reduce((max, r) => Math.max(max, r ? r.length : 0), 6);
 
       let html = '<thead class="bg-obsidian-950 text-slate-400 border-b border-obsidian-700"><tr><th class="py-1.5 px-2 border-r border-obsidian-800 text-center">#</th>';
       for (let c = 0; c < colCount; c++) {
@@ -742,7 +796,7 @@
         html += `<tr class="border-b border-obsidian-800/80 hover:bg-obsidian-800/40"><td class="py-1.5 px-2 border-r border-obsidian-800 text-slate-500 text-center bg-obsidian-950">${r + 1}</td>`;
         for (let c = 0; c < colCount; c++) {
           const cellCoord = `${indexToColLetter(c)}${r + 1}`;
-          const val = rows[r][c] !== undefined ? rows[r][c] : '';
+          const val = rows[r] && rows[r][c] !== undefined ? rows[r][c] : '';
           const formula = (virtualSheet.formulas[r] && virtualSheet.formulas[r][c]) || '';
           const highlightColor = virtualSheet.highlights[cellCoord];
           const bgStyle = highlightColor ? `background-color: ${highlightColor}22; border-color: ${highlightColor};` : '';
@@ -761,14 +815,14 @@
     }
 
     /*************************************************************************
-     * 3. OFFICE.JS AGENTIC TOOLS
+     * 4. FULL-SPECTRUM OFFICE.JS AGENTIC TOOL SUITE (9 INTEGRATED TOOLS)
      *************************************************************************/
     const EXCEL_AGENT_TOOLS = [
       {
         functionDeclarations: [
           {
             name: 'audit_workbook',
-            description: 'Audits the active Excel workbook structure: returns all worksheet names, active sheet name, usedRange dimensions, formula count, and blank cell count.',
+            description: 'Audits the active Excel workbook structure: returns all worksheet names, active sheet name, usedRange dimensions, headers in row 1, existing tables, existing PivotTables, formula count, and blank cell count.',
             parameters: {
               type: 'OBJECT',
               properties: {
@@ -781,13 +835,13 @@
           },
           {
             name: 'read_excel_range',
-            description: 'Reads cell values and formulas from a specific A1-notation range (e.g., "A1:F7") on the active or specified worksheet.',
+            description: 'Reads cell values and formulas from a specific A1-notation range (e.g., "A1:L16") on the active or specified worksheet.',
             parameters: {
               type: 'OBJECT',
               properties: {
                 rangeAddress: {
                   type: 'STRING',
-                  description: 'A1 range reference such as "A1:F7" or "B2:D6".'
+                  description: 'A1 range reference such as "A1:F7" or "A1:L16".'
                 },
                 sheetName: {
                   type: 'STRING',
@@ -799,13 +853,13 @@
           },
           {
             name: 'write_excel_range_or_formula',
-            description: 'Writes a 2D array of values or Excel formulas (starting with "=") directly into a target range in the active Excel worksheet.',
+            description: 'Writes a 2D array of values or Excel formulas (starting with "=") directly into a target range in the active or specified Excel worksheet.',
             parameters: {
               type: 'OBJECT',
               properties: {
                 rangeAddress: {
                   type: 'STRING',
-                  description: 'Target A1 range address matching the 2D array dimensions (e.g., "E2:E6" or "C7:D7").'
+                  description: 'Target A1 range address matching the 2D array dimensions (e.g., "E2:E6" or "N7:R12").'
                 },
                 valuesOrFormulas: {
                   type: 'ARRAY',
@@ -814,9 +868,163 @@
                     type: 'ARRAY',
                     items: { type: 'STRING' }
                   }
+                },
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Optional target worksheet name. Defaults to active worksheet.'
                 }
               },
               required: ['rangeAddress', 'valuesOrFormulas']
+            }
+          },
+          {
+            name: 'create_pivot_table',
+            description: 'Creates a native interactive Excel PivotTable object from a source range and configures its Row fields, Column fields, Filter fields, and Data (Value) fields.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                pivotTableName: {
+                  type: 'STRING',
+                  description: 'Unique name for the new PivotTable (e.g., "Sales_Pivot" or "Audit_Summary_Pivot").'
+                },
+                sourceRangeAddress: {
+                  type: 'STRING',
+                  description: 'Source data A1 range including headers (e.g., "A1:L16" or "Sheet1!A1:F20").'
+                },
+                destinationCellAddress: {
+                  type: 'STRING',
+                  description: 'Top-left destination cell A1 address where the PivotTable will be placed (e.g., "A1" on a new sheet, or "N2" on the active sheet).'
+                },
+                destinationSheetName: {
+                  type: 'STRING',
+                  description: 'Optional worksheet name for placing the PivotTable. If the sheet does not exist, it will be created automatically!'
+                },
+                rowFields: {
+                  type: 'ARRAY',
+                  description: 'Exact column header names from the source range to add as Row Hierarchies (e.g., ["Region", "Customer Type"]).',
+                  items: { type: 'STRING' }
+                },
+                columnFields: {
+                  type: 'ARRAY',
+                  description: 'Optional exact column header names from the source range to add as Column Hierarchies (e.g., ["Product Category"]).',
+                  items: { type: 'STRING' }
+                },
+                valueFields: {
+                  type: 'ARRAY',
+                  description: 'Exact column header names from the source range to aggregate in Values / Data Hierarchies (e.g., ["Revenue", "Invoice Value", "Actual (INR)"]).',
+                  items: { type: 'STRING' }
+                },
+                filterFields: {
+                  type: 'ARRAY',
+                  description: 'Optional exact column header names to add as Report Filter Hierarchies.',
+                  items: { type: 'STRING' }
+                }
+              },
+              required: ['pivotTableName', 'sourceRangeAddress', 'destinationCellAddress', 'rowFields', 'valueFields']
+            }
+          },
+          {
+            name: 'create_excel_table',
+            description: 'Converts a cell range into a structured native Excel Table object with filtering, banded rows, and table styling.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'A1 range address to convert into an Excel Table (e.g., "A1:L16").'
+                },
+                tableName: {
+                  type: 'STRING',
+                  description: 'Optional name for the table (no spaces, e.g., "AuditLedgerTable").'
+                },
+                tableStyle: {
+                  type: 'STRING',
+                  description: 'Optional Excel table style name such as "TableStyleMedium2" or "TableStyleDark1".'
+                },
+                hasHeaders: {
+                  type: 'BOOLEAN',
+                  description: 'Whether the range includes a header row (default true).'
+                }
+              },
+              required: ['rangeAddress']
+            }
+          },
+          {
+            name: 'create_excel_chart',
+            description: 'Inserts a native Excel Chart on the worksheet from a data range.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                sourceRangeAddress: {
+                  type: 'STRING',
+                  description: 'Source data A1 range for the chart (e.g., "B1:D6").'
+                },
+                chartType: {
+                  type: 'STRING',
+                  description: 'Chart type: "ColumnClustered", "ColumnStacked", "BarClustered", "Line", "Pie", "Doughnut", or "Area".'
+                },
+                chartTitle: {
+                  type: 'STRING',
+                  description: 'Title displayed at the top of the chart.'
+                },
+                topLeftCell: {
+                  type: 'STRING',
+                  description: 'Optional cell address where top-left of chart should be anchored (e.g., "H2").'
+                }
+              },
+              required: ['sourceRangeAddress', 'chartType', 'chartTitle']
+            }
+          },
+          {
+            name: 'manage_worksheet',
+            description: 'Creates a new worksheet, activates a worksheet, renames a worksheet, or freezes header rows/columns.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                action: {
+                  type: 'STRING',
+                  description: 'Action to perform: "create", "activate", "rename", or "freeze_top_row".'
+                },
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Target worksheet name (or name of the new sheet to create).'
+                },
+                newSheetName: {
+                  type: 'STRING',
+                  description: 'New name when action is "rename".'
+                }
+              },
+              required: ['action', 'sheetName']
+            }
+          },
+          {
+            name: 'format_excel_range',
+            description: 'Formats a range: sets fill color, font color, bold, numberFormat (e.g. "₹#,##0.00", "0.00%"), and autofits columns.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'Target A1 range address (e.g., "A1:F1" or "C2:E7").'
+                },
+                fillHexColor: {
+                  type: 'STRING',
+                  description: 'Optional background fill hex color (e.g., "#1c2436" or "#f59e0b").'
+                },
+                fontHexColor: {
+                  type: 'STRING',
+                  description: 'Optional font hex color (e.g., "#ffffff" or "#00f5d4").'
+                },
+                bold: {
+                  type: 'BOOLEAN',
+                  description: 'Optional bold text toggle.'
+                },
+                numberFormat: {
+                  type: 'STRING',
+                  description: 'Optional Excel number format string such as "#,##0.00", "₹#,##0", or "0.0%".'
+                }
+              },
+              required: ['rangeAddress']
             }
           },
           {
@@ -836,6 +1044,24 @@
               },
               required: ['rangeAddress', 'hexColor']
             }
+          },
+          {
+            name: 'execute_custom_officejs',
+            description: 'Executes custom JavaScript code inside Excel.run(async (context) => { ... }) for any advanced Excel feature (Conditional Formatting, Data Validation, AutoFilter, Pivot layout customization, Slicers, etc.).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                description: {
+                  type: 'STRING',
+                  description: 'Short description of what this Office.js code does.'
+                },
+                asyncFunctionBody: {
+                  type: 'STRING',
+                  description: 'JavaScript statements to execute inside `Excel.run(async (context) => { <asyncFunctionBody> })`. Both `context` and `Excel` are in scope. End with `await context.sync(); return { status: "ok" };`.'
+                }
+              },
+              required: ['description', 'asyncFunctionBody']
+            }
           }
         ]
       }
@@ -844,17 +1070,28 @@
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
 
+      // Branch A: Live Microsoft Excel Host via Office.js
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         return await window.Excel.run(async (context) => {
           const sheets = context.workbook.worksheets;
           const activeSheet = args.sheetName
-            ? sheets.getItem(args.sheetName)
-            : context.workbook.worksheets.getActiveWorksheet();
+            ? sheets.getItemOrNullObject(args.sheetName)
+            : sheets.getActiveWorksheet();
+
+          if (args.sheetName) {
+            activeSheet.load('isNullObject');
+            await context.sync();
+          }
+          const targetSheet = (args.sheetName && !activeSheet.isNullObject) ? activeSheet : sheets.getActiveWorksheet();
 
           if (name === 'audit_workbook') {
             sheets.load('items/name');
-            activeSheet.load('name');
-            const usedRange = activeSheet.getUsedRange();
+            targetSheet.load('name');
+            const tables = targetSheet.tables;
+            const pivots = targetSheet.pivotTables;
+            tables.load('items/name');
+            pivots.load('items/name');
+            const usedRange = targetSheet.getUsedRange();
             usedRange.load(['address', 'rowCount', 'columnCount', 'values', 'formulas']);
             await context.sync();
 
@@ -873,9 +1110,12 @@
             return {
               host: 'Excel.run (Live Host)',
               worksheets: sheets.items.map(s => s.name),
-              activeWorksheet: activeSheet.name,
+              activeWorksheet: targetSheet.name,
               usedRangeAddress: usedRange.address,
               dimensions: `${usedRange.rowCount}x${usedRange.columnCount}`,
+              headersRow1: usedRange.values[0] || [],
+              existingTables: tables.items.map(t => t.name),
+              existingPivotTables: pivots.items.map(p => p.name),
               formulaCount: formulaCells.length,
               blankCellCount: blankCount,
               formulas: args.includeFormulaCoordinates ? formulaCells : undefined
@@ -883,7 +1123,8 @@
           }
 
           if (name === 'read_excel_range') {
-            const targetRange = activeSheet.getRange(args.rangeAddress);
+            const cleanAddr = (args.rangeAddress || 'A1:F7').replace(/^.*!/, '');
+            const targetRange = targetSheet.getRange(cleanAddr);
             targetRange.load(['address', 'values', 'formulas', 'rowCount', 'columnCount']);
             await context.sync();
             return {
@@ -896,11 +1137,12 @@
           }
 
           if (name === 'write_excel_range_or_formula') {
-            const targetRange = activeSheet.getRange(args.rangeAddress);
+            const cleanAddr = (args.rangeAddress || 'A1').replace(/^.*!/, '');
+            const targetRange = targetSheet.getRange(cleanAddr);
             targetRange.formulas = args.valuesOrFormulas;
             targetRange.format.autofitColumns();
             await context.sync();
-            const readBack = activeSheet.getRange(args.rangeAddress);
+            const readBack = targetSheet.getRange(cleanAddr);
             readBack.load(['address', 'values', 'formulas']);
             await context.sync();
             return {
@@ -911,14 +1153,163 @@
             };
           }
 
+          if (name === 'create_pivot_table') {
+            const sourceClean = (args.sourceRangeAddress || 'A1:F7').replace(/^.*!/, '');
+            const sourceRange = targetSheet.getRange(sourceClean);
+
+            let destSheet = targetSheet;
+            if (args.destinationSheetName) {
+              const maybeSheet = sheets.getItemOrNullObject(args.destinationSheetName);
+              maybeSheet.load('isNullObject');
+              await context.sync();
+              destSheet = maybeSheet.isNullObject
+                ? sheets.add(args.destinationSheetName)
+                : maybeSheet;
+            }
+
+            const destClean = (args.destinationCellAddress || 'A1').replace(/^.*!/, '');
+            const destRange = destSheet.getRange(destClean);
+
+            // Ensure unique PivotTable name to prevent duplicate-name exceptions
+            const uniquePivotName = `${(args.pivotTableName || 'AI_Pivot').replace(/\s+/g, '_')}_${Math.floor(Math.random() * 900 + 100)}`;
+            const pivotTable = destSheet.pivotTables.add(uniquePivotName, sourceRange, destRange);
+            await context.sync();
+
+            for (const rowField of (args.rowFields || [])) {
+              pivotTable.rowHierarchies.add(pivotTable.hierarchies.getItem(rowField));
+            }
+            for (const colField of (args.columnFields || [])) {
+              pivotTable.columnHierarchies.add(pivotTable.hierarchies.getItem(colField));
+            }
+            for (const filterField of (args.filterFields || [])) {
+              pivotTable.filterHierarchies.add(pivotTable.hierarchies.getItem(filterField));
+            }
+            for (const valField of (args.valueFields || [])) {
+              pivotTable.dataHierarchies.add(pivotTable.hierarchies.getItem(valField));
+            }
+
+            destSheet.activate();
+            await context.sync();
+
+            return {
+              status: 'pivot_table_created',
+              pivotTableName: uniquePivotName,
+              sourceRange: args.sourceRangeAddress,
+              destinationSheet: args.destinationSheetName || 'Active Sheet',
+              destinationCell: destClean,
+              rowFields: args.rowFields || [],
+              columnFields: args.columnFields || [],
+              valueFields: args.valueFields || []
+            };
+          }
+
+          if (name === 'create_excel_table') {
+            const cleanAddr = (args.rangeAddress || 'A1:F7').replace(/^.*!/, '');
+            const hasHeaders = args.hasHeaders !== false;
+            const newTable = targetSheet.tables.add(cleanAddr, hasHeaders);
+            if (args.tableName) {
+              newTable.name = args.tableName.replace(/\W+/g, '_');
+            }
+            if (args.tableStyle) {
+              newTable.style = args.tableStyle;
+            }
+            targetSheet.getRange(cleanAddr).format.autofitColumns();
+            await context.sync();
+            return {
+              status: 'excel_table_created',
+              rangeAddress: cleanAddr,
+              tableName: args.tableName || 'AutoTable',
+              style: args.tableStyle || 'Default'
+            };
+          }
+
+          if (name === 'create_excel_chart') {
+            const cleanAddr = (args.sourceRangeAddress || 'A1:D6').replace(/^.*!/, '');
+            const dataRange = targetSheet.getRange(cleanAddr);
+            const chartTypeKey = args.chartType || 'ColumnClustered';
+            const chart = targetSheet.charts.add(chartTypeKey, dataRange, 'Auto');
+            if (args.chartTitle) {
+              chart.title.text = args.chartTitle;
+            }
+            if (args.topLeftCell) {
+              const posRange = targetSheet.getRange(args.topLeftCell.replace(/^.*!/, ''));
+              chart.setPosition(posRange);
+            }
+            await context.sync();
+            return {
+              status: 'excel_chart_created',
+              chartType: chartTypeKey,
+              sourceRange: cleanAddr,
+              title: args.chartTitle
+            };
+          }
+
+          if (name === 'manage_worksheet') {
+            if (args.action === 'create') {
+              const created = sheets.add(args.sheetName);
+              created.activate();
+              await context.sync();
+              return { status: 'worksheet_created_and_activated', sheetName: args.sheetName };
+            }
+            if (args.action === 'activate') {
+              const s = sheets.getItem(args.sheetName);
+              s.activate();
+              await context.sync();
+              return { status: 'worksheet_activated', sheetName: args.sheetName };
+            }
+            if (args.action === 'rename') {
+              const s = sheets.getItem(args.sheetName);
+              s.name = args.newSheetName || args.sheetName;
+              await context.sync();
+              return { status: 'worksheet_renamed', oldName: args.sheetName, newName: args.newSheetName };
+            }
+            if (args.action === 'freeze_top_row') {
+              targetSheet.freezePanes.freezeRows(1);
+              await context.sync();
+              return { status: 'froze_top_row', sheetName: args.sheetName };
+            }
+          }
+
+          if (name === 'format_excel_range') {
+            const cleanAddr = (args.rangeAddress || 'A1:F1').replace(/^.*!/, '');
+            const r = targetSheet.getRange(cleanAddr);
+            if (args.fillHexColor) r.format.fill.color = args.fillHexColor;
+            if (args.fontHexColor) r.format.font.color = args.fontHexColor;
+            if (typeof args.bold === 'boolean') r.format.font.bold = args.bold;
+            if (args.numberFormat) {
+              r.load(['rowCount', 'columnCount']);
+              await context.sync();
+              const fmtGrid = Array.from({ length: r.rowCount }, () =>
+                Array.from({ length: r.columnCount }, () => args.numberFormat)
+              );
+              r.numberFormat = fmtGrid;
+            }
+            r.format.autofitColumns();
+            await context.sync();
+            return { status: 'range_formatted', rangeAddress: cleanAddr };
+          }
+
           if (name === 'highlight_audit_cells') {
-            const targetRange = activeSheet.getRange(args.rangeAddress);
+            const cleanAddr = (args.rangeAddress || 'A1').replace(/^.*!/, '');
+            const targetRange = targetSheet.getRange(cleanAddr);
             targetRange.format.fill.color = args.hexColor || '#f59e0b';
             await context.sync();
             return {
               status: 'highlighted',
-              rangeAddress: args.rangeAddress,
+              rangeAddress: cleanAddr,
               hexColor: args.hexColor || '#f59e0b'
+            };
+          }
+
+          if (name === 'execute_custom_officejs') {
+            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+            const customFn = new AsyncFunction('context', 'Excel', args.asyncFunctionBody);
+            const result = await customFn(context, window.Excel);
+            await context.sync();
+            return {
+              status: 'custom_officejs_executed',
+              description: args.description,
+              result: result || 'completed'
             };
           }
 
@@ -926,7 +1317,7 @@
         });
       }
 
-      // Virtual Sheet Fallback
+      // Branch B: Virtual Sheet Fallback (for standalone browser / Canvas preview)
       if (name === 'audit_workbook') {
         let formulaCells = [];
         let blankCount = 0;
@@ -946,6 +1337,9 @@
           activeWorksheet: virtualSheet.name,
           usedRangeAddress: `${virtualSheet.name}!A1:F7`,
           dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
+          headersRow1: virtualSheet.values[0] || [],
+          existingTables: virtualSheet.tables,
+          existingPivotTables: virtualSheet.pivotTables,
           formulaCount: formulaCells.length,
           blankCellCount: blankCount,
           formulas: formulaCells
@@ -1003,27 +1397,60 @@
         };
       }
 
-      if (name === 'highlight_audit_cells') {
+      if (name === 'create_pivot_table') {
+        virtualSheet.pivotTables.push(args.pivotTableName || 'AI_Pivot');
+        return {
+          status: 'simulated_pivot_table_created',
+          pivotTableName: args.pivotTableName,
+          sourceRange: args.sourceRangeAddress,
+          destinationSheet: args.destinationSheetName || virtualSheet.name,
+          destinationCell: args.destinationCellAddress,
+          rowFields: args.rowFields || [],
+          columnFields: args.columnFields || [],
+          valueFields: args.valueFields || []
+        };
+      }
+
+      if (name === 'create_excel_table') {
+        virtualSheet.tables.push(args.tableName || 'Table1');
+        return { status: 'simulated_table_created', rangeAddress: args.rangeAddress, tableName: args.tableName };
+      }
+
+      if (name === 'create_excel_chart') {
+        virtualSheet.charts.push(args.chartTitle || 'Chart1');
+        return { status: 'simulated_chart_created', chartType: args.chartType, title: args.chartTitle };
+      }
+
+      if (name === 'manage_worksheet') {
+        if (args.sheetName) {
+          virtualSheet.name = args.newSheetName || args.sheetName;
+          const label = document.getElementById('activeSheetNameLabel');
+          if (label) label.textContent = virtualSheet.name;
+        }
+        return { status: 'simulated_worksheet_action', action: args.action, sheetName: virtualSheet.name };
+      }
+
+      if (name === 'format_excel_range' || name === 'highlight_audit_cells') {
         const coords = parseA1Range(args.rangeAddress);
-        const color = args.hexColor || '#f59e0b';
+        const color = args.fillHexColor || args.hexColor || '#f59e0b';
         for (let r = coords.startRow; r <= coords.endRow; r++) {
           for (let c = coords.startCol; c <= coords.endCol; c++) {
             virtualSheet.highlights[`${indexToColLetter(c)}${r + 1}`] = color;
           }
         }
         renderVirtualGrid();
-        return {
-          status: 'highlighted_virtual_cells',
-          rangeAddress: args.rangeAddress,
-          hexColor: color
-        };
+        return { status: 'formatted_virtual_cells', rangeAddress: args.rangeAddress, hexColor: color };
+      }
+
+      if (name === 'execute_custom_officejs') {
+        return { status: 'simulated_custom_officejs', description: args.description };
       }
 
       throw new Error(`Unrecognized tool call: ${name}`);
     }
 
     /*************************************************************************
-     * 4. DYNAMIC MODEL DISCOVERY (CACHED + LIVE SYNC)
+     * 5. DYNAMIC MODEL DISCOVERY (CACHED + LIVE SYNC)
      *************************************************************************/
     async function discoverGeminiModels() {
       const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -1070,7 +1497,6 @@
           return methods.includes('generateContent');
         });
 
-        // Prioritize flash-lite & flash models for cost efficiency while keeping all models accessible
         filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
 
         appState.models = filtered;
@@ -1101,7 +1527,7 @@
         const cleanId = (m.name || '').replace(/^models\//, '');
         const opt = document.createElement('option');
         opt.value = cleanId;
-        opt.textContent = `${cleanId}`;
+        opt.textContent = cleanId;
         opt.title = m.displayName || cleanId;
         select.appendChild(opt);
       });
@@ -1111,7 +1537,6 @@
       if (exists) {
         select.value = saved;
       } else {
-        // Default to a flash-lite or flash model if available to protect pay-as-you-go budget
         const preferred = models.find(m => /flash-lite/i.test(m.name)) || models.find(m => /flash/i.test(m.name)) || models[0];
         select.value = (preferred.name || '').replace(/^models\//, '');
       }
@@ -1148,7 +1573,7 @@
     }
 
     /*************************************************************************
-     * 5. COMPACT FLOATING INR (₹) TARIFF PILL & DETAILED WORKINGS ENGINE
+     * 6. COMPACT FLOATING INR (₹) TARIFF PILL & DETAILED WORKINGS ENGINE
      *************************************************************************/
     function recordTokenUsage(usageMetadata, modelLabel = 'gemini') {
       if (!usageMetadata) return null;
@@ -1205,12 +1630,10 @@
         maximumFractionDigits: 4
       });
 
-      // Top Compact Floating Pill shows current session or cumulative spend cleanly
       const totalTok = (appState.session.inputTokens || 0) + (appState.session.outputTokens || 0) + (appState.session.thoughtsTokens || 0);
       document.getElementById('compactInrPillText').textContent =
         `${inrFormatter.format(appState.session.inr)} (${totalTok.toLocaleString('en-IN')} tok)`;
 
-      // Detailed Modal KPIs
       document.getElementById('sessionInrDisplay').textContent = inrFormatter.format(appState.session.inr);
       document.getElementById('sessionUsdDisplay').textContent = `$${appState.session.usd.toFixed(6)} USD`;
       document.getElementById('cumulativeInrDisplay').textContent = inrFormatter.format(appState.ledger.cumulativeInr);
@@ -1317,12 +1740,12 @@
     }
 
     /*************************************************************************
-     * 6. CONTINUOUS LIVE FEEDBACK / THINKING TELEMETRY & CHAT HISTORY
+     * 7. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY BUTTONS
      *************************************************************************/
     const THINKING_MESSAGES = [
       'Inspecting request & selecting Office.js workbook tools...',
       'Streaming context to Gemini API & awaiting reasoning tokens...',
-      'Evaluating cell dependencies, formulas & statutory audit rules...',
+      'Evaluating cell dependencies, PivotTable hierarchies & formulas...',
       'Synthesizing structured Excel actions & verifying coordinates...'
     ];
 
@@ -1346,7 +1769,6 @@
       appState.thinkingInterval = setInterval(() => {
         const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
         timerEl.textContent = `${elapsedSec}s`;
-        // Cycle encouraging progress sub-status every 2.2 seconds so the UI never feels frozen
         const step = Math.floor((Date.now() - startedAt) / 2200);
         if (step !== msgIdx && step > 0) {
           msgIdx = step;
@@ -1378,22 +1800,23 @@
         .replace(/>/g, '&gt;');
     }
 
-    function appendLogCard({ role, title, bodyHtml, badgeText, badgeColor = 'text-neon-cyan', isCollapsibleTool = false, toolSummary = '' }) {
+    function appendLogCard({ role, title, bodyHtml, rawText = '', badgeText, badgeColor = 'text-neon-cyan', isCollapsibleTool = false, toolSummary = '', showRetry = false }) {
       const starter = document.getElementById('welcomeStarterCard');
       if (starter) starter.classList.add('hidden');
 
       const chatLog = document.getElementById('chatLog');
       const wrapper = document.createElement('div');
+      const plainCopyText = rawText || bodyHtml.replace(/<[^>]+>/g, '');
 
       if (isCollapsibleTool) {
-        wrapper.className = 'rounded-lg border border-amber-500/30 bg-obsidian-900/60 text-xs overflow-hidden';
+        wrapper.className = 'rounded-lg border border-amber-500/30 bg-obsidian-900/60 text-xs overflow-hidden selectable-text';
         wrapper.innerHTML = `
           <details class="group">
             <summary class="cursor-pointer list-none px-3 py-1.5 flex items-center justify-between gap-2 font-mono text-[11px] text-amber-300 hover:bg-obsidian-800/60 transition">
               <span class="truncate">⚡ ${escapeHtml(toolSummary || title)}</span>
               <span class="text-[10px] text-slate-400 group-open:rotate-180 transition">▾</span>
             </summary>
-            <div class="px-3 py-2 border-t border-obsidian-800 bg-obsidian-950/80 text-[10px] font-mono text-slate-300 space-y-1 overflow-x-auto">
+            <div class="px-3 py-2 border-t border-obsidian-800 bg-obsidian-950/80 text-[10px] font-mono text-slate-300 space-y-1 overflow-x-auto selectable-text">
               ${bodyHtml}
             </div>
           </details>
@@ -1406,20 +1829,38 @@
             ? 'border-rose-500/40 bg-rose-950/30'
             : 'border-obsidian-700 bg-obsidian-900/95 mr-2';
 
-        wrapper.className = `p-3 rounded-xl border ${borderClass} text-xs leading-relaxed space-y-1.5`;
+        wrapper.className = `p-3 rounded-xl border ${borderClass} text-xs leading-relaxed space-y-1.5 selectable-text`;
         wrapper.innerHTML = `
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-mono text-[10px] font-bold uppercase tracking-wider ${badgeColor}">${title}</span>
-            ${badgeText ? `<span class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 text-slate-400 border border-obsidian-700">${badgeText}</span>` : ''}
+          <div class="flex items-center justify-between gap-1.5">
+            <span class="font-mono text-[10px] font-bold uppercase tracking-wider ${badgeColor} truncate">${title}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              ${badgeText ? `<span class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 text-slate-400 border border-obsidian-700">${badgeText}</span>` : ''}
+              ${showRetry ? `<button type="button" class="retry-turn-btn font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition">↻ Retry</button>` : ''}
+              <button type="button" class="copy-msg-btn font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-700 transition" title="Copy message text">📋 Copy</button>
+            </div>
           </div>
-          <div class="text-slate-100 whitespace-pre-wrap break-words">${bodyHtml}</div>
+          <div class="text-slate-100 whitespace-pre-wrap break-words selectable-text">${bodyHtml}</div>
         `;
+
+        const copyBtn = wrapper.querySelector('.copy-msg-btn');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', () => copyTextToClipboard(plainCopyText, copyBtn));
+        }
+        const retryBtn = wrapper.querySelector('.retry-turn-btn');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', () => {
+            if (appState.lastUserPrompt) {
+              wrapper.remove();
+              runAgenticTurnLoop(appState.lastUserPrompt, true);
+            }
+          });
+        }
       }
 
       chatLog.appendChild(wrapper);
       chatLog.scrollTop = chatLog.scrollHeight;
 
-      appState.renderedCards.push({ role, title, bodyHtml, badgeText, badgeColor, isCollapsibleTool, toolSummary });
+      appState.renderedCards.push({ role, title, bodyHtml, rawText: plainCopyText, badgeText, badgeColor, isCollapsibleTool, toolSummary });
       saveCurrentSessionToHistory();
     }
 
@@ -1457,14 +1898,17 @@
         <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[10px] text-slate-400">Auto Multi-Turn</span>
+            <span class="font-mono text-[10px] text-slate-400">9 Office.js Tools</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Select a model below the text box or tap a quick action to inspect and write formulas into your active sheet.
+            Ask Gemini to insert native PivotTables, Tables, Charts, or formulas directly into your active Excel workbook.
           </p>
           <div class="flex flex-wrap gap-1.5 pt-0.5">
             <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
               ⚡ Audit &amp; Auto-Fill Variance Formulas
+            </button>
+            <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
+              📊 Insert Native PivotTable
             </button>
             <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
               ∑ Write Totals &amp; Flag Overruns
@@ -1530,24 +1974,114 @@
     }
 
     /*************************************************************************
-     * 7. MULTI-TURN AGENTIC LOOP WITH CONTINUOUS FEEDBACK & 429 FALLBACK
+     * 8. HIGH-DEMAND (503 / 429) RESILIENT FETCH & MULTI-MODEL CASCADE
      *************************************************************************/
-    async function runAgenticTurnLoop(userPrompt) {
+    function buildFallbackCandidateOrder(primaryModelId) {
+      const allIds = (appState.models || [])
+        .map(m => (m.name || '').replace(/^models\//, ''))
+        .filter(Boolean);
+
+      // Rank reliable general-availability Flash / Flash-Lite / Pro models right behind the primary model
+      const scored = allIds
+        .filter(id => id !== primaryModelId)
+        .sort((a, b) => {
+          const score = (id) => {
+            const l = id.toLowerCase();
+            if (l.includes('2.5-flash') && !l.includes('preview')) return 100;
+            if (l.includes('flash-lite')) return 90;
+            if (l.includes('flash')) return 80;
+            if (l.includes('pro')) return 70;
+            return 50;
+          };
+          return score(b) - score(a);
+        });
+
+      return [primaryModelId, ...scored.slice(0, 4)];
+    }
+
+    async function fetchGeminiWithResilience({ apiKey, initialModelId, payload, signal }) {
+      const autoFallback = document.getElementById('autoFallback429Checkbox').checked;
+      const candidates = autoFallback ? buildFallbackCandidateOrder(initialModelId) : [initialModelId];
+      let lastError = null;
+
+      for (let mIdx = 0; mIdx < candidates.length; mIdx++) {
+        const candidateModel = candidates[mIdx];
+        const maxAttemptsPerModel = mIdx === 0 ? 2 : 1;
+
+        for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt++) {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+          }
+
+          const errJson = await response.json().catch(() => ({}));
+          const errMsg = errJson.error?.message || `Gemini HTTP ${response.status}`;
+          lastError = new Error(errMsg);
+
+          const isTransientOrDemandSpike =
+            response.status === 429 ||
+            response.status === 500 ||
+            response.status === 502 ||
+            response.status === 503 ||
+            response.status === 504 ||
+            /high demand|overloaded|unavailable|quota|rate limit|resource_exhausted|try again later/i.test(errMsg);
+
+          if (!isTransientOrDemandSpike) {
+            throw lastError;
+          }
+
+          if (attempt < maxAttemptsPerModel) {
+            const delayMs = 1500 * attempt;
+            updateThinkingPhase(
+              `High Demand on ${candidateModel} (Retrying...)`,
+              `Spikes in demand detected — waiting ${(delayMs / 1000).toFixed(1)}s before retry...`
+            );
+            await new Promise(r => setTimeout(r, delayMs));
+          } else if (mIdx + 1 < candidates.length) {
+            const nextModel = candidates[mIdx + 1];
+            updateThinkingPhase(
+              `Switching to ${nextModel}...`,
+              `${candidateModel} is experiencing high demand — routing seamlessly to ${nextModel}...`
+            );
+            await new Promise(r => setTimeout(r, 600));
+          }
+        }
+      }
+
+      throw lastError || new Error('All candidate Gemini models are currently experiencing high demand.');
+    }
+
+    /*************************************************************************
+     * 9. MULTI-TURN AGENTIC LOOP WITH TRANSACTIONAL HISTORY CHECKPOINT
+     *************************************************************************/
+    async function runAgenticTurnLoop(userPrompt, isRetry = false) {
       const statusInd = document.getElementById('agentStatusIndicator');
       const sendBtn = document.getElementById('sendPromptBtn');
       sendBtn.disabled = true;
+      appState.lastUserPrompt = userPrompt;
 
       if (appState.renderedCards.length === 0) {
         appState.currentSessionTitle = userPrompt.slice(0, 44);
       }
 
-      appendLogCard({
-        role: 'user',
-        title: 'YOU',
-        bodyHtml: escapeHtml(userPrompt),
-        badgeText: appState.isExcelHost ? 'Excel.run' : 'Simulator',
-        badgeColor: 'text-neon-cyan'
-      });
+      if (!isRetry) {
+        appendLogCard({
+          role: 'user',
+          title: 'YOU',
+          bodyHtml: escapeHtml(userPrompt),
+          rawText: userPrompt,
+          badgeText: appState.isExcelHost ? 'Excel.run' : 'Simulator',
+          badgeColor: 'text-neon-cyan'
+        });
+      }
 
       const apiKey = document.getElementById('apiKeyInput').value.trim();
       let modelId = document.getElementById('modelSelect').value.trim();
@@ -1562,12 +2096,15 @@
         return;
       }
 
+      // Save a clean checkpoint of conversationHistory so a mid-loop 503 error never leaves dangling tool calls
+      const historyCheckpoint = JSON.parse(JSON.stringify(appState.conversationHistory));
+
       appState.conversationHistory.push({
         role: 'user',
         parts: [{ text: userPrompt }]
       });
 
-      const MAX_AGENT_TURNS = 6;
+      const MAX_AGENT_TURNS = 8;
       let turn = 0;
       appState.abortController = new AbortController();
 
@@ -1580,12 +2117,18 @@
             `Sending context to ${modelId}...`
           );
 
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
           const payload = {
             systemInstruction: {
               parts: [
                 {
-                  text: 'You are an autonomous Microsoft Excel financial & statutory audit agent operating inside an Office.js Task Pane. Always inspect the workbook or read the required data range first using your declared tools before writing formulas or highlighting cells. When writing formulas, use valid Excel A1 notation starting with "=".'
+                  text:
+                    'You are a fully integrated, autonomous Microsoft Excel AI Agent operating inside an Office.js Task Pane.\n' +
+                    'You have FULL native capability to:\n' +
+                    '1. Inspect workbooks (`audit_workbook`) and read ranges (`read_excel_range`).\n' +
+                    '2. Insert native interactive Excel PivotTables (`create_pivot_table`) on a new or existing worksheet with Row, Column, Filter, and Value hierarchies.\n' +
+                    '3. Create structured Excel Tables (`create_excel_table`) and native Excel Charts (`create_excel_chart`).\n' +
+                    '4. Write values and Excel formulas (`write_excel_range_or_formula`), manage sheets (`manage_worksheet`), format cells (`format_excel_range`), and execute any custom Office.js code (`execute_custom_officejs`).\n' +
+                    'IMPORTANT: Never tell the user you cannot create a PivotTable, Table, or Chart. Always read the header row first if you do not know the exact column header names, then call `create_pivot_table` (or the relevant tool) directly!'
                 }
               ]
             },
@@ -1596,42 +2139,20 @@
             }
           };
 
-          let response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+          const { data, usedModelId, switchedModel } = await fetchGeminiWithResilience({
+            apiKey,
+            initialModelId: modelId,
+            payload,
             signal: appState.abortController.signal
           });
 
-          // Automatic 429 Quota Fallback to Flash-Lite / Flash
-          if (response.status === 429 && document.getElementById('autoFallback429Checkbox').checked && appState.models.length > 1) {
-            const fallbackModel = appState.models.find(m => {
-              const id = (m.name || '').replace(/^models\//, '');
-              return id !== modelId && /flash/i.test(id);
-            });
-            if (fallbackModel) {
-              const newId = (fallbackModel.name || '').replace(/^models\//, '');
-              updateThinkingPhase(`HTTP 429 Quota Hit → Switching to ${newId}`, 'Retrying request automatically...');
-              modelId = newId;
-              document.getElementById('modelSelect').value = newId;
-              onModelSelectionChanged();
-              const retryEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-              response = await fetch(retryEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: appState.abortController.signal
-              });
-            }
+          if (switchedModel) {
+            modelId = usedModelId;
+            document.getElementById('modelSelect').value = usedModelId;
+            onModelSelectionChanged();
           }
 
-          if (!response.ok) {
-            const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson.error?.message || `Gemini HTTP ${response.status}`);
-          }
-
-          const data = await response.json();
-          const costSnap = recordTokenUsage(data.usageMetadata, modelId);
+          const costSnap = recordTokenUsage(data.usageMetadata, usedModelId);
           const costBadge = costSnap
             ? `₹${costSnap.inrCost.toFixed(4)} • ${costSnap.promptTokens}→${costSnap.candidateTokens}${costSnap.thoughtsTokens ? `+${costSnap.thoughtsTokens}🧠` : ''} tok`
             : 'Logged';
@@ -1651,10 +2172,12 @@
           const textParts = parts.filter(p => typeof p.text === 'string' && p.text.trim()).map(p => p.text);
 
           if (textParts.length > 0) {
+            const fullText = textParts.join('\n\n');
             appendLogCard({
               role: 'model',
-              title: `${modelId}`,
-              bodyHtml: escapeHtml(textParts.join('\n\n')),
+              title: switchedModel ? `${usedModelId} (Auto-Fallback)` : usedModelId,
+              bodyHtml: escapeHtml(fullText),
+              rawText: fullText,
               badgeText: costBadge,
               badgeColor: 'text-emerald-400'
             });
@@ -1666,7 +2189,7 @@
 
           const toolResponseParts = [];
           for (const fc of functionCalls) {
-            updateThinkingPhase(`Executing Office.js: ${fc.name}`, `Running ${fc.name}(${JSON.stringify(fc.args || {})}) on active sheet...`);
+            updateThinkingPhase(`Executing Office.js: ${fc.name}`, `Running ${fc.name} on active workbook...`);
             let toolResult;
             try {
               toolResult = await executeExcelTool(fc);
@@ -1674,11 +2197,12 @@
               toolResult = { error: toolErr.message };
             }
 
+            const targetSummary = fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
             appendLogCard({
               role: 'tool',
               title: `OFFICE.JS // ${fc.name}`,
               isCollapsibleTool: true,
-              toolSummary: `${fc.name}(${fc.args?.rangeAddress || 'workbook'}) — ${costBadge}`,
+              toolSummary: `${fc.name}(${targetSummary}) — ${costBadge}`,
               bodyHtml: `<div><strong>Args:</strong> ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div><strong>Result:</strong> ${escapeHtml(JSON.stringify(toolResult))}</div>`
             });
 
@@ -1696,13 +2220,19 @@
           });
         }
       } catch (err) {
+        // Restore clean conversation history checkpoint so future turns never break
+        appState.conversationHistory = historyCheckpoint;
         const isAborted = err.name === 'AbortError';
         appendLogCard({
           role: 'error',
           title: isAborted ? 'GENERATION STOPPED' : 'AGENT ERROR',
-          bodyHtml: isAborted ? 'Request cancelled by user.' : escapeHtml(err.message),
-          badgeText: isAborted ? 'Aborted' : 'Check ⚙️ Settings',
-          badgeColor: 'text-rose-400'
+          bodyHtml: isAborted
+            ? 'Request cancelled by user.'
+            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or select a stable Flash model (e.g. gemini-2.5-flash) below the chat box.`,
+          rawText: err.message,
+          badgeText: isAborted ? 'Aborted' : 'High Demand / API',
+          badgeColor: 'text-rose-400',
+          showRetry: !isAborted
         });
       } finally {
         stopContinuousThinkingFeedback();
@@ -1712,7 +2242,45 @@
       }
     }
 
-    async function runDeterministicSimulationAgent() {
+    async function runDeterministicSimulationAgent(userPrompt = '') {
+      const wantsPivot = /pivot/i.test(userPrompt);
+
+      if (wantsPivot) {
+        const pivotRes = await executeExcelTool({
+          name: 'create_pivot_table',
+          args: {
+            pivotTableName: 'Audit_Summary_Pivot',
+            sourceRangeAddress: 'A1:F6',
+            destinationSheetName: 'Pivot_Summary',
+            destinationCellAddress: 'A1',
+            rowFields: ['Ledger Head'],
+            valueFields: ['Budget (INR)', 'Actual (INR)']
+          }
+        });
+        const snap = recordTokenUsage({ promptTokenCount: 510, candidatesTokenCount: 145, thoughtsTokenCount: 80, cachedContentTokenCount: 0 }, 'simulator-flash');
+        appendLogCard({
+          role: 'tool',
+          title: 'OFFICE.JS // create_pivot_table',
+          isCollapsibleTool: true,
+          toolSummary: `create_pivot_table(Audit_Summary_Pivot → Pivot_Summary!A1) • ₹${snap.inrCost.toFixed(4)}`,
+          bodyHtml: escapeHtml(JSON.stringify(pivotRes))
+        });
+        const msg =
+          'Created native Excel PivotTable "Audit_Summary_Pivot" on worksheet "Pivot_Summary" at cell A1:\n' +
+          '• Source Range: A1:F6\n' +
+          '• Row Hierarchy: Ledger Head\n' +
+          '• Data (Values) Hierarchies: Sum of Budget (INR), Sum of Actual (INR)';
+        appendLogCard({
+          role: 'model',
+          title: 'PIVOT TABLE CREATED',
+          bodyHtml: escapeHtml(msg),
+          rawText: msg,
+          badgeText: 'Native PivotTable',
+          badgeColor: 'text-neon-cyan'
+        });
+        return;
+      }
+
       const step1Audit = await executeExcelTool({
         name: 'audit_workbook',
         args: { includeFormulaCoordinates: true }
@@ -1765,20 +2333,22 @@
         bodyHtml: escapeHtml(JSON.stringify(step2Formulas))
       });
 
+      const finalSummary =
+        '1. Audited Statutory_Audit_FY26 (A1:F7) and filled variance formulas (=D2-C2 through =D6-C6) and =SUM totals (C7:E7).\n' +
+        '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
+        '3. You can highlight any text in this chat or click "📋 Copy" at the top-right of any card.';
       appendLogCard({
         role: 'model',
         title: 'AUDIT COMPLETE',
-        bodyHtml:
-          '1. Audited Statutory_Audit_FY26 (A1:F7) and filled variance formulas (=D2-C2 through =D6-C6) and =SUM totals (C7:E7).\n' +
-          '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
-          '3. Click the floating ₹ pill at the top to inspect the detailed token & tariff workings.',
+        bodyHtml: escapeHtml(finalSummary),
+        rawText: finalSummary,
         badgeText: 'Multi-Turn Complete',
         badgeColor: 'text-neon-cyan'
       });
     }
 
     /*************************************************************************
-     * 8. UI NAVIGATION & EVENT HANDLERS
+     * 10. UI NAVIGATION & EVENT HANDLERS
      *************************************************************************/
     function switchTab(activeTab) {
       const views = {
@@ -1841,13 +2411,11 @@
       updateHistoryBadgeAndList();
       bindQuickPromptButtons();
 
-      // Header & Navigation Buttons
       document.getElementById('tabAgentBtn').addEventListener('click', () => switchTab('agent'));
       document.getElementById('tabRatesBtn').addEventListener('click', () => switchTab('rates'));
       document.getElementById('backToChatFromSettingsBtn').addEventListener('click', () => switchTab('agent'));
       document.getElementById('tabSheetBtn').addEventListener('click', () => switchTab('sheet'));
 
-      // New Chat (+) & History Drawer
       document.getElementById('newChatBtn').addEventListener('click', startNewChatSession);
       document.getElementById('newChatFromDrawerBtn').addEventListener('click', () => {
         document.getElementById('historyDrawerOverlay').classList.add('hidden');
@@ -1861,7 +2429,6 @@
         document.getElementById('historyDrawerOverlay').classList.add('hidden');
       });
 
-      // Floating Compact Tariff Pill -> Detailed Workings Modal
       const tariffModal = document.getElementById('tariffModalOverlay');
       document.getElementById('floatingTariffPill').addEventListener('click', () => {
         updateCostDisplay();
@@ -1874,14 +2441,12 @@
         switchTab('rates');
       });
 
-      // Cancel / Stop In-Flight Request
       document.getElementById('cancelAgentBtn').addEventListener('click', () => {
         if (appState.abortController) {
           appState.abortController.abort();
         }
       });
 
-      // Settings & Model Discovery
       document.getElementById('toggleKeyVisBtn').addEventListener('click', () => {
         const input = document.getElementById('apiKeyInput');
         input.type = input.type === 'password' ? 'text' : 'password';
@@ -1894,7 +2459,6 @@
       document.getElementById('modelSelect').addEventListener('change', onModelSelectionChanged);
       document.getElementById('insertSelectionBtn').addEventListener('click', insertActiveExcelSelection);
 
-      // Composer Submit & Enter-to-Send
       const promptInput = document.getElementById('userPromptInput');
       promptInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1915,7 +2479,6 @@
         startNewChatSession();
       });
 
-      // Tariff Configurator Controls
       document.getElementById('syncFxBtn').addEventListener('click', fetchLiveUsdInrRate);
       document.getElementById('savePricingBtn').addEventListener('click', () => {
         const statusMsg = document.getElementById('pricingStatusMsg');
