@@ -1,116 +1,1418 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
-           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
-           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
-           xsi:type="TaskPaneApp">
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON // AUDIT — Gemini Agentic Excel Task Pane</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Unique Add-in Identifier -->
-  <Id>f47ac10b-58cc-4372-a567-0e02b2c3d479</Id>
-  <Version>1.0.0.0</Version>
-  <ProviderName>NeonBudget Audit Labs</ProviderName>
-  <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Gemini Agentic Excel Auditor" />
-  <Description DefaultValue="Agentic Excel Task Pane powered by dynamic Gemini API model discovery, multi-turn workbook function calling, and live INR (₹) pay-as-you-go telemetry." />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            obsidian: {
+              950: '#050608',
+              900: '#0a0d12',
+              800: '#111621',
+              700: '#1a2233',
+              600: '#263147'
+            },
+            neon: {
+              cyan: '#00f5d4',
+              gold: '#f59e0b',
+              magenta: '#ff2a85',
+              emerald: '#10b981'
+            }
+          }
+        }
+      }
+    };
+  </script>
 
-  <!-- HTTPS Icon & Support URLs mapped to your custom domain (neonbudget.in) -->
-  <IconUrl DefaultValue="https://neonbudget.in/excel-addin/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://neonbudget.in/excel-addin/icon-64.png" />
-  <SupportUrl DefaultValue="https://neonbudget.in" />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      background-color: #050608;
+      color: #f1f5f9;
+      font-family: 'Inter', system-ui, sans-serif;
+      background-image:
+        radial-gradient(circle at 12% 0%, rgba(0, 245, 212, 0.08), transparent 35%),
+        radial-gradient(circle at 88% 100%, rgba(245, 158, 11, 0.08), transparent 40%);
+    }
+    .cyber-border {
+      border: 1px solid rgba(0, 245, 212, 0.22);
+      box-shadow: 0 0 18px rgba(0, 245, 212, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .gold-border {
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.06);
+    }
+    .neon-glow-btn {
+      background: linear-gradient(135deg, #00f5d4 0%, #00bbf9 100%);
+      color: #050608;
+      font-weight: 700;
+      transition: all 0.18s ease;
+    }
+    .neon-glow-btn:hover:not(:disabled) {
+      box-shadow: 0 0 16px rgba(0, 245, 212, 0.55);
+      transform: translateY(-1px);
+    }
+    .neon-glow-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #050608;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1a2233;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00f5d4;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-neon-cyan selection:text-obsidian-950">
 
-  <!-- Allowed External Domains -->
-  <AppDomains>
-    <AppDomain>https://neonbudget.in</AppDomain>
-    <AppDomain>https://www.neonbudget.in</AppDomain>
-    <AppDomain>https://generativelanguage.googleapis.com</AppDomain>
-  </AppDomains>
+  <!-- TOP TELEMETRY & HOST BAR -->
+  <header class="sticky top-0 z-30 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-3.5 py-2.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-2.5 h-2.5 rounded-full bg-neon-cyan animate-pulse shadow-[0_0_8px_#00f5d4]"></div>
+        <div class="truncate">
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono text-xs font-bold tracking-wider text-neon-cyan uppercase">NEON//EXCEL</span>
+            <span id="hostBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-800 text-amber-400 border border-amber-500/30">SIMULATOR MODE</span>
+          </div>
+          <p class="text-[11px] text-slate-400 truncate">Agentic Office.js Task Pane • Dynamic Gemini API</p>
+        </div>
+      </div>
 
-  <!-- Target Host Application -->
-  <Hosts>
-    <Host Name="Workbook" />
-  </Hosts>
+      <!-- View Switcher Tabs -->
+      <div class="flex items-center bg-obsidian-900 p-0.5 rounded-lg border border-obsidian-700 text-[11px] font-mono shrink-0">
+        <button id="tabAgentBtn" type="button" class="px-2.5 py-1 rounded-md bg-neon-cyan text-obsidian-950 font-semibold transition">Agent</button>
+        <button id="tabRatesBtn" type="button" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">₹ Billing</button>
+        <button id="tabSheetBtn" type="button" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">Grid</button>
+      </div>
+    </div>
 
-  <!-- Minimum Office.js API Requirement Set -->
-  <Requirements>
-    <Sets DefaultMinVersion="1.1">
-      <Set Name="ExcelApi" MinVersion="1.1" />
-    </Sets>
-  </Requirements>
+    <!-- LIVE INR (₹) PAY-AS-YOU-GO COST RIBBON -->
+    <div class="mt-2.5 grid grid-cols-3 gap-1.5 bg-obsidian-900/90 rounded-lg p-2 gold-border">
+      <div>
+        <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Session Spend</div>
+        <div id="sessionInrDisplay" class="font-mono text-sm font-bold text-amber-400">₹0.0000</div>
+        <div id="sessionUsdDisplay" class="font-mono text-[10px] text-slate-400">$0.000000 USD</div>
+      </div>
+      <div class="border-x border-obsidian-700 px-2">
+        <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Cumulative</div>
+        <div id="cumulativeInrDisplay" class="font-mono text-sm font-bold text-neon-cyan">₹0.00</div>
+        <div id="tokenCounterDisplay" class="font-mono text-[10px] text-slate-400">0 in / 0 out</div>
+      </div>
+      <div class="pl-1 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-mono uppercase text-slate-400">Budget Cap</span>
+          <span id="budgetPctBadge" class="font-mono text-[10px] text-emerald-400">0%</span>
+        </div>
+        <div class="w-full h-1.5 bg-obsidian-800 rounded-full overflow-hidden my-1">
+          <div id="budgetProgressBar" class="h-full bg-gradient-to-r from-neon-cyan to-amber-400 transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div id="activePricingSummary" class="font-mono text-[9px] text-slate-400 truncate">Rate: $0.15/$0.60 • ₹86.5/$</div>
+      </div>
+    </div>
+  </header>
 
-  <!-- Primary Task Pane Source Location on Your Custom Domain -->
-  <DefaultSettings>
-    <SourceLocation DefaultValue="https://neonbudget.in/excel-addin/index.html" />
-  </DefaultSettings>
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 flex flex-col max-w-4xl w-full mx-auto px-3.5 py-3 gap-3 overflow-y-auto">
 
-  <!-- Required Permissions to Read/Write Ranges & Formulas -->
-  <Permissions>ReadWriteDocument</Permissions>
+    <!-- API KEY & DYNAMIC MODEL DISCOVERY PANEL -->
+    <section class="bg-obsidian-900/90 rounded-xl p-3 cyber-border">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-neon-cyan flex items-center gap-1.5">
+          <span>01 // Dynamic Model Discovery</span>
+        </span>
+        <span id="modelCountBadge" class="font-mono text-[10px] px-2 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-600">No models loaded</span>
+      </div>
 
-  <!-- Modern Ribbon Integration (VersionOverrides 1.0 for TaskPane) -->
-  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
-    <Hosts>
-      <Host xsi:type="Workbook">
-        <DesktopFormFactor>
-          <GetStarted>
-            <Title resid="GetStarted.Title" />
-            <Description resid="GetStarted.Description" />
-            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
-          </GetStarted>
-          <FunctionFile resid="Commands.Url" />
+      <!-- API Key Row -->
+      <div class="flex gap-1.5 mb-2">
+        <div class="relative flex-1">
+          <input
+            id="apiKeyInput"
+            type="password"
+            placeholder="Paste Gemini API Key (AIza...)"
+            autocomplete="off"
+            class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none transition"
+          />
+        </div>
+        <button
+          id="toggleKeyVisBtn"
+          type="button"
+          title="Show/Hide Key"
+          class="px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-xs font-mono text-slate-300 transition"
+        >
+          EYE
+        </button>
+        <button
+          id="fetchModelsBtn"
+          type="button"
+          class="px-3 py-1.5 rounded-lg neon-glow-btn text-xs font-mono shrink-0"
+        >
+          Sync Models
+        </button>
+      </div>
 
-          <!-- Adds the "Open AI Auditor" Button to the Excel Home Tab -->
-          <ExtensionPoint xsi:type="PrimaryCommandSurface">
-            <OfficeTab id="TabHome">
-              <Group id="GeminiAgentGroup">
-                <Label resid="CommandsGroup.Label" />
-                <Icon>
-                  <bt:Image size="16" resid="Icon.16x16" />
-                  <bt:Image size="32" resid="Icon.32x32" />
-                  <bt:Image size="80" resid="Icon.80x80" />
-                </Icon>
-                <Control xsi:type="Button" id="TaskpaneButton">
-                  <Label resid="TaskpaneButton.Label" />
-                  <Supertip>
-                    <Title resid="TaskpaneButton.Label" />
-                    <Description resid="TaskpaneButton.Tooltip" />
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="Icon.16x16" />
-                    <bt:Image size="32" resid="Icon.32x32" />
-                    <bt:Image size="80" resid="Icon.80x80" />
-                  </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>ButtonId1</TaskpaneId>
-                    <SourceLocation resid="Taskpane.Url" />
-                  </Action>
-                </Control>
-              </Group>
-            </OfficeTab>
-          </ExtensionPoint>
-        </DesktopFormFactor>
-      </Host>
-    </Hosts>
+      <!-- Dynamic Model Select + Capability Filter -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+        <div class="sm:col-span-8">
+          <label for="modelSelect" class="sr-only">Active Gemini Model</label>
+          <select
+            id="modelSelect"
+            class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none transition"
+          >
+            <option value="">-- Click "Sync Models" to query /v1beta/models --</option>
+          </select>
+        </div>
+        <div class="sm:col-span-4 flex items-center justify-between sm:justify-end gap-2">
+          <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-300 cursor-pointer select-none">
+            <input id="onlyGenContentCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
+            <span>generateContent only</span>
+          </label>
+        </div>
+      </div>
 
-    <!-- Resource Definitions -->
-    <Resources>
-      <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://neonbudget.in/excel-addin/icon-16.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://neonbudget.in/excel-addin/icon-32.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://neonbudget.in/excel-addin/icon-80.png" />
-      </bt:Images>
-      <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://ai.google.dev/gemini-api/docs" />
-        <bt:Url id="Commands.Url" DefaultValue="https://neonbudget.in/excel-addin/index.html" />
-        <bt:Url id="Taskpane.Url" DefaultValue="https://neonbudget.in/excel-addin/index.html" />
-      </bt:Urls>
-      <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Gemini Agentic Excel Add-in Ready" />
-        <bt:String id="CommandsGroup.Label" DefaultValue="Gemini Agent" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Open AI Auditor" />
-      </bt:ShortStrings>
-      <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Launch the Obsidian Task Pane to dynamically load Gemini models, run autonomous workbook audits, write Excel formulas, and track API spend in INR (₹)." />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the Gemini Agentic Excel Task Pane" />
-      </bt:LongStrings>
-    </Resources>
-  </VersionOverrides>
-</OfficeApp>
+      <div id="modelMetadataBar" class="mt-2 pt-2 border-t border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400">
+        <span id="modelTokenLimits">Input limit: — | Output limit: —</span>
+        <span id="discoveryStatusText" class="text-amber-400">Ready for live REST discovery</span>
+      </div>
+    </section>
+
+    <!-- VIEW 1: AGENTIC WORKBOOK CONSOLE (DEFAULT) -->
+    <section id="viewAgent" class="flex-1 flex flex-col gap-3">
+      <!-- Quick Agentic Presets -->
+      <div class="bg-obsidian-900/80 rounded-xl p-2.5 border border-obsidian-700">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-400">One-Click Autonomous Excel Actions</span>
+          <span id="maxTurnsBadge" class="font-mono text-[10px] text-neon-cyan">Max 6 Tool Turns</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" data-prompt="Audit the entire workbook structure, read A1:F8 on the active sheet, check for missing formulas or variance anomalies, and write =C2-B2 through =C6-B6 in column D and percentage variance in column E." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-neon-cyan border border-teal-500/30 transition">
+            ⚡ Audit &amp; Auto-Fill Variance Formulas
+          </button>
+          <button type="button" data-prompt="Read range A1:F8, write =SUM(B2:B6) into B7 and =SUM(C2:C6) into C7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-amber-400 border border-amber-500/30 transition">
+            ∑ Write Totals &amp; Flag Overruns
+          </button>
+          <button type="button" data-prompt="Inspect the active worksheet used range and summarize all formulas vs hardcoded values with specific cell coordinates." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 border border-obsidian-600 transition">
+            🔍 Formula Integrity Scan
+          </button>
+        </div>
+      </div>
+
+      <!-- Multi-Turn Conversation & Tool Call Trace Log -->
+      <div id="chatLog" class="flex-1 min-h-[250px] max-h-[420px] overflow-y-auto bg-obsidian-950/90 rounded-xl p-3 border border-obsidian-700 space-y-2.5">
+        <div class="p-3 rounded-lg bg-obsidian-900/90 border border-obsidian-700 text-xs leading-relaxed text-slate-300">
+          <div class="font-mono text-[11px] text-neon-cyan font-semibold mb-1">SYSTEM // AGENTIC LOOP INITIALIZED</div>
+          <p>Equipped with 4 autonomous Office.js tools: <code class="text-amber-400 font-mono">audit_workbook</code>, <code class="text-amber-400 font-mono">read_excel_range</code>, <code class="text-amber-400 font-mono">write_excel_range_or_formula</code>, and <code class="text-amber-400 font-mono">highlight_audit_cells</code>.</p>
+          <p class="mt-1 text-slate-400 text-[11px]">Enter your Gemini API key and click <strong>Sync Models</strong> for live multi-turn execution, or run a prompt right now to test the offline deterministic agent loop against the built-in worksheet grid.</p>
+        </div>
+      </div>
+
+      <!-- Prompt Composer -->
+      <form id="promptForm" class="bg-obsidian-900 rounded-xl p-2.5 cyber-border flex flex-col gap-2">
+        <textarea
+          id="userPromptInput"
+          rows="2"
+          placeholder="Ask Gemini to audit sheets, inspect ranges (e.g. A1:F8), or write formulas (=SUM, =XLOOKUP, variance checks)..."
+          class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded-lg p-2 text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans"
+        ></textarea>
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <button
+              id="clearChatBtn"
+              type="button"
+              class="px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-[11px] font-mono text-slate-400 hover:text-slate-200 border border-obsidian-600 transition"
+            >
+              Clear Log
+            </button>
+            <span id="agentStatusIndicator" class="font-mono text-[11px] text-slate-400">Idle</span>
+          </div>
+          <button
+            id="sendPromptBtn"
+            type="submit"
+            class="px-4 py-1.5 rounded-lg neon-glow-btn text-xs font-mono flex items-center gap-1.5"
+          >
+            <span>Execute Agent Loop</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- VIEW 2: DYNAMIC INR (₹) PAY-AS-YOU-GO BILLING CONFIGURATOR -->
+    <section id="viewRates" class="hidden flex-col gap-3 bg-obsidian-900/90 rounded-xl p-3.5 gold-border">
+      <div class="flex items-center justify-between border-b border-obsidian-700 pb-2.5">
+        <div>
+          <h2 class="font-mono text-xs font-bold uppercase text-amber-400">02 // Adaptive Pay-As-You-Go INR (₹) Rate Engine</h2>
+          <p class="text-[11px] text-slate-400">Zero hardcoded pricing Lock-in. Rates adapt per model family, live FX feed, or custom JSON schedule.</p>
+        </div>
+        <button
+          id="syncFxBtn"
+          type="button"
+          class="px-2.5 py-1 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-amber-500/40 text-[11px] font-mono text-amber-300 transition shrink-0"
+        >
+          ↻ Sync Live USD→INR
+        </button>
+      </div>
+
+      <!-- Editable Rate Inputs -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div>
+          <label for="usdInrRateInput" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">USD → INR Exchange Rate (₹)</label>
+          <input id="usdInrRateInput" type="number" step="0.01" min="1" value="86.50" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs font-mono text-amber-300 outline-none" />
+        </div>
+        <div>
+          <label for="inputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Input ($ / 1M Tokens)</label>
+          <input id="inputRatePerMillion" type="number" step="0.001" min="0" value="0.15" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+        </div>
+        <div>
+          <label for="outputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Output ($ / 1M Tokens)</label>
+          <input id="outputRatePerMillion" type="number" step="0.001" min="0" value="0.60" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+        </div>
+        <div>
+          <label for="cachedRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Cached Input ($ / 1M)</label>
+          <input id="cachedRatePerMillion" type="number" step="0.001" min="0" value="0.0375" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+        </div>
+        <div>
+          <label for="monthlyBudgetInrInput" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Monthly Cap Alert (₹ INR)</label>
+          <input id="monthlyBudgetInrInput" type="number" step="10" min="10" value="500" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-400 outline-none" />
+        </div>
+        <div class="flex items-end">
+          <button id="savePricingBtn" type="button" class="w-full py-1.5 px-3 rounded-lg neon-glow-btn text-xs font-mono">
+            Save Rate Profile
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Pattern Rule Matrix (JSON Editor for New Model Releases) -->
+      <div class="mt-1">
+        <div class="flex items-center justify-between mb-1">
+          <label for="pricingRulesJson" class="font-mono text-[10px] uppercase text-slate-400">Pattern-Matched Rate Rules (Auto-Applies on Model Switch)</label>
+          <button id="resetLedgerBtn" type="button" class="text-[10px] font-mono text-rose-400 hover:underline">Reset Cumulative ₹ Ledger</button>
+        </div>
+        <textarea
+          id="pricingRulesJson"
+          rows="5"
+          class="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg p-2 font-mono text-[11px] text-teal-300 outline-none"
+        ></textarea>
+        <p id="pricingStatusMsg" class="text-[10px] font-mono text-slate-400 mt-1">Rates are persisted locally and matched dynamically against model names returned by /v1beta/models.</p>
+      </div>
+    </section>
+
+    <!-- VIEW 3: VIRTUAL EXCEL GRID (FOR CANVAS PREVIEW & REAL-TIME INSPECTION) -->
+    <section id="viewSheet" class="hidden flex-col gap-2.5 bg-obsidian-900/90 rounded-xl p-3 cyber-border">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">03 // Active Worksheet Mirror (<span id="activeSheetNameLabel">Statutory_Audit_FY26</span>)</h2>
+          <p class="text-[11px] text-slate-400">In Excel Desktop/Web, tool calls mutate the live workbook via <code class="font-mono text-amber-400">Excel.run</code>. In standalone preview, they mutate this synchronized virtual sheet.</p>
+        </div>
+        <button id="resetSheetBtn" type="button" class="px-2.5 py-1 rounded bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-mono text-slate-300">
+          Reset Sample Sheet
+        </button>
+      </div>
+
+      <div class="overflow-x-auto rounded-lg border border-obsidian-700">
+        <table id="virtualSheetTable" class="w-full text-left border-collapse font-mono text-[11px]"></table>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    /*************************************************************************
+     * 1. SAFE STORAGE & DEFAULT DYNAMIC PRICING / WORKBOOK STATE
+     *************************************************************************/
+    const STORAGE_KEYS = {
+      API_KEY: 'neon_excel_gemini_api_key_v1',
+      PRICING: 'neon_excel_dynamic_pricing_v1',
+      LEDGER: 'neon_excel_inr_ledger_v1',
+      SELECTED_MODEL: 'neon_excel_selected_model_v1'
+    };
+
+    function safeStorageGet(key, fallback) {
+      try {
+        const raw = window.localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (err) {
+        return fallback;
+      }
+    }
+
+    function safeStorageSet(key, value) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      } catch (err) {
+        // Ignore storage quota / sandbox restrictions
+      }
+    }
+
+    const DEFAULT_PRICING_CONFIG = {
+      usdToInr: 86.50,
+      activeInputPer1M: 0.15,
+      activeOutputPer1M: 0.60,
+      activeCachedPer1M: 0.0375,
+      monthlyBudgetInr: 500,
+      patternRules: [
+        { match: 'flash-lite', inputPer1M: 0.075, outputPer1M: 0.30, cachedPer1M: 0.018 },
+        { match: 'flash', inputPer1M: 0.15, outputPer1M: 0.60, cachedPer1M: 0.0375 },
+        { match: 'pro', inputPer1M: 1.25, outputPer1M: 5.00, cachedPer1M: 0.3125 },
+        { match: 'ultra', inputPer1M: 2.50, outputPer1M: 10.00, cachedPer1M: 0.625 }
+      ]
+    };
+
+    const appState = {
+      isExcelHost: false,
+      apiKey: safeStorageGet(STORAGE_KEYS.API_KEY, ''),
+      models: [],
+      selectedModel: safeStorageGet(STORAGE_KEYS.SELECTED_MODEL, ''),
+      pricing: safeStorageGet(STORAGE_KEYS.PRICING, DEFAULT_PRICING_CONFIG),
+      ledger: safeStorageGet(STORAGE_KEYS.LEDGER, {
+        cumulativeInr: 0,
+        cumulativeUsd: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCachedTokens: 0
+      }),
+      session: {
+        inr: 0,
+        usd: 0,
+        inputTokens: 0,
+        outputTokens: 0
+      },
+      conversationHistory: []
+    };
+
+    /*************************************************************************
+     * 2. VIRTUAL EXCEL ENGINE (FALLBACK WHEN PREVIEWED OUTSIDE EXCEL)
+     *    + NATIVE OFFICE.JS `Excel.run` ADAPTER
+     *************************************************************************/
+    const INITIAL_GRID = [
+      ['Account Code', 'Ledger Head', 'Budget (INR)', 'Actual (INR)', 'Variance (INR)', 'Variance %'],
+      ['4001', 'Statutory Audit Fees', 450000, 485000, '', ''],
+      ['4002', 'Tax Audit & 3CD Filing', 280000, 265000, '', ''],
+      ['4003', 'GSTR-9 & 9C Reconciliation', 320000, 390000, '', ''],
+      ['4004', 'Transfer Pricing Study', 600000, 600000, '', ''],
+      ['4005', 'Cloud & Gemini API Infra', 85000, 112000, '', ''],
+      ['TOTAL', 'Consolidated Total', '', '', '', '']
+    ];
+
+    let virtualSheet = {
+      name: 'Statutory_Audit_FY26',
+      values: JSON.parse(JSON.stringify(INITIAL_GRID)),
+      formulas: INITIAL_GRID.map(r => r.map(c => (typeof c === 'string' && c.startsWith('=') ? c : ''))),
+      highlights: {}
+    };
+
+    function colLetterToIndex(letter) {
+      let col = 0;
+      const clean = letter.toUpperCase();
+      for (let i = 0; i < clean.length; i++) {
+        col = col * 26 + (clean.charCodeAt(i) - 64);
+      }
+      return col - 1;
+    }
+
+    function indexToColLetter(index) {
+      let temp = index + 1;
+      let letter = '';
+      while (temp > 0) {
+        let rem = (temp - 1) % 26;
+        letter = String.fromCharCode(65 + rem) + letter;
+        temp = Math.floor((temp - 1) / 26);
+      }
+      return letter;
+    }
+
+    function parseA1Range(address) {
+      const clean = (address || 'A1:F7').replace(/^.*!/, '').trim().toUpperCase();
+      const parts = clean.split(':');
+      const parseCell = (cellStr) => {
+        const match = cellStr.match(/^([A-Z]+)(\d+)$/);
+        if (!match) return { row: 0, col: 0 };
+        return { col: colLetterToIndex(match[1]), row: parseInt(match[2], 10) - 1 };
+      };
+      const start = parseCell(parts[0]);
+      const end = parts[1] ? parseCell(parts[1]) : { ...start };
+      return { startRow: start.row, startCol: start.col, endRow: end.row, endCol: end.col };
+    }
+
+    function getVirtualCellNumeric(r, c) {
+      const val = (virtualSheet.values[r] && virtualSheet.values[r][c]) ?? 0;
+      const num = Number(val);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function evaluateSimpleFormula(formulaStr) {
+      if (typeof formulaStr !== 'string' || !formulaStr.startsWith('=')) return formulaStr;
+      const expr = formulaStr.slice(1).trim().toUpperCase();
+
+      // Handle =SUM(B2:B6)
+      const sumMatch = expr.match(/^SUM\(([A-Z]+\d+:[A-Z]+\d+)\)$/);
+      if (sumMatch) {
+        const coords = parseA1Range(sumMatch[1]);
+        let sum = 0;
+        for (let r = coords.startRow; r <= coords.endRow; r++) {
+          for (let c = coords.startCol; c <= coords.endCol; c++) {
+            sum += getVirtualCellNumeric(r, c);
+          }
+        }
+        return sum;
+      }
+
+      // Handle binary cell math e.g. =D2-C2 or =(E2/C2)*100
+      const replaced = expr.replace(/([A-Z]+)(\d+)/g, (_, colStr, rowStr) => {
+        const r = parseInt(rowStr, 10) - 1;
+        const c = colLetterToIndex(colStr);
+        return String(getVirtualCellNumeric(r, c));
+      });
+
+      if (/^[\d.+\-*/()\s]+$/.test(replaced)) {
+        try {
+          const out = Function('"use strict"; return (' + replaced + ')')();
+          return Number.isFinite(out) ? Math.round(out * 100) / 100 : '#DIV/0!';
+        } catch (err) {
+          return '#ERROR!';
+        }
+      }
+      return formulaStr;
+    }
+
+    function recomputeVirtualSheet() {
+      for (let r = 0; r < virtualSheet.values.length; r++) {
+        for (let c = 0; c < virtualSheet.values[r].length; c++) {
+          const f = virtualSheet.formulas[r] && virtualSheet.formulas[r][c];
+          if (f && f.startsWith('=')) {
+            virtualSheet.values[r][c] = evaluateSimpleFormula(f);
+          }
+        }
+      }
+      renderVirtualGrid();
+    }
+
+    function renderVirtualGrid() {
+      const table = document.getElementById('virtualSheetTable');
+      if (!table) return;
+      const rows = virtualSheet.values;
+      const colCount = rows[0] ? rows[0].length : 6;
+
+      let html = '<thead class="bg-obsidian-950 text-slate-400 border-b border-obsidian-700"><tr><th class="py-1.5 px-2 border-r border-obsidian-800 text-center">#</th>';
+      for (let c = 0; c < colCount; c++) {
+        html += `<th class="py-1.5 px-2.5 border-r border-obsidian-800 text-center text-neon-cyan">${indexToColLetter(c)}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      for (let r = 0; r < rows.length; r++) {
+        html += `<tr class="border-b border-obsidian-800/80 hover:bg-obsidian-800/40"><td class="py-1.5 px-2 border-r border-obsidian-800 text-slate-500 text-center bg-obsidian-950">${r + 1}</td>`;
+        for (let c = 0; c < colCount; c++) {
+          const cellCoord = `${indexToColLetter(c)}${r + 1}`;
+          const val = rows[r][c] !== undefined ? rows[r][c] : '';
+          const formula = (virtualSheet.formulas[r] && virtualSheet.formulas[r][c]) || '';
+          const highlightColor = virtualSheet.highlights[cellCoord];
+          const bgStyle = highlightColor ? `background-color: ${highlightColor}22; border-color: ${highlightColor};` : '';
+          const isHeader = r === 0;
+          html += `<td style="${bgStyle}" class="py-1.5 px-2.5 border-r border-obsidian-800 ${isHeader ? 'font-bold text-amber-300 bg-obsidian-950/60' : 'text-slate-200'}" title="${formula ? 'Formula: ' + formula : cellCoord}">
+            <div class="flex items-center justify-between gap-1.5">
+              <span>${val === '' ? '<span class="text-slate-600">—</span>' : val}</span>
+              ${formula ? `<span class="text-[9px] px-1 rounded bg-teal-500/20 text-neon-cyan border border-teal-500/30">${formula}</span>` : ''}
+            </div>
+          </td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    /*************************************************************************
+     * 3. OFFICE.JS AGENTIC TOOL DEFINITIONS & EXECUTORS
+     *************************************************************************/
+    const EXCEL_AGENT_TOOLS = [
+      {
+        functionDeclarations: [
+          {
+            name: 'audit_workbook',
+            description: 'Audits the active Excel workbook structure: returns all worksheet names, active sheet name, usedRange dimensions, formula count, and blank cell count.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                includeFormulaCoordinates: {
+                  type: 'BOOLEAN',
+                  description: 'Whether to list exact cell coordinates containing formulas vs constants.'
+                }
+              }
+            }
+          },
+          {
+            name: 'read_excel_range',
+            description: 'Reads cell values and formulas from a specific A1-notation range (e.g., "A1:F7") on the active or specified worksheet.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'A1 range reference such as "A1:F7" or "B2:D6".'
+                },
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Optional worksheet name. Defaults to active worksheet.'
+                }
+              },
+              required: ['rangeAddress']
+            }
+          },
+          {
+            name: 'write_excel_range_or_formula',
+            description: 'Writes a 2D array of values or Excel formulas (starting with "=") directly into a target range in the active Excel worksheet.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'Target A1 range address matching the 2D array dimensions (e.g., "E2:E6" or "C7:D7").'
+                },
+                valuesOrFormulas: {
+                  type: 'ARRAY',
+                  description: '2D array (rows of columns) of strings or numbers. Formulas must begin with "=" (e.g. [["=D2-C2"], ["=D3-C3"]]).',
+                  items: {
+                    type: 'ARRAY',
+                    items: { type: 'STRING' }
+                  }
+                }
+              },
+              required: ['rangeAddress', 'valuesOrFormulas']
+            }
+          },
+          {
+            name: 'highlight_audit_cells',
+            description: 'Highlights specific cell range in the Excel worksheet with a background fill color to flag audit exceptions or totals.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'A1 range address to highlight (e.g., "A4:F4").'
+                },
+                hexColor: {
+                  type: 'STRING',
+                  description: 'Hex color code such as "#f59e0b" (amber warning) or "#00f5d4" (neon cyan).'
+                }
+              },
+              required: ['rangeAddress', 'hexColor']
+            }
+          }
+        ]
+      }
+    ];
+
+    async function executeExcelTool(functionCall) {
+      const { name, args = {} } = functionCall;
+
+      // Branch A: Native Microsoft Excel Host via Office.js Excel.run
+      if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
+        return await window.Excel.run(async (context) => {
+          const sheets = context.workbook.worksheets;
+          const activeSheet = args.sheetName
+            ? sheets.getItem(args.sheetName)
+            : context.workbook.worksheets.getActiveWorksheet();
+
+          if (name === 'audit_workbook') {
+            sheets.load('items/name');
+            activeSheet.load('name');
+            const usedRange = activeSheet.getUsedRange();
+            usedRange.load(['address', 'rowCount', 'columnCount', 'values', 'formulas']);
+            await context.sync();
+
+            let formulaCells = [];
+            let blankCount = 0;
+            for (let r = 0; r < usedRange.rowCount; r++) {
+              for (let c = 0; c < usedRange.columnCount; c++) {
+                const f = usedRange.formulas[r][c];
+                const v = usedRange.values[r][c];
+                if (typeof f === 'string' && f.startsWith('=')) {
+                  formulaCells.push({ cell: `${indexToColLetter(c)}${r + 1}`, formula: f, value: v });
+                }
+                if (v === '' || v === null) blankCount++;
+              }
+            }
+            return {
+              host: 'Excel.run (Live Host)',
+              worksheets: sheets.items.map(s => s.name),
+              activeWorksheet: activeSheet.name,
+              usedRangeAddress: usedRange.address,
+              dimensions: `${usedRange.rowCount}x${usedRange.columnCount}`,
+              formulaCount: formulaCells.length,
+              blankCellCount: blankCount,
+              formulas: args.includeFormulaCoordinates ? formulaCells : undefined
+            };
+          }
+
+          if (name === 'read_excel_range') {
+            const targetRange = activeSheet.getRange(args.rangeAddress);
+            targetRange.load(['address', 'values', 'formulas', 'rowCount', 'columnCount']);
+            await context.sync();
+            return {
+              address: targetRange.address,
+              rowCount: targetRange.rowCount,
+              columnCount: targetRange.columnCount,
+              values: targetRange.values,
+              formulas: targetRange.formulas
+            };
+          }
+
+          if (name === 'write_excel_range_or_formula') {
+            const targetRange = activeSheet.getRange(args.rangeAddress);
+            targetRange.formulas = args.valuesOrFormulas;
+            targetRange.format.autofitColumns();
+            await context.sync();
+            const readBack = activeSheet.getRange(args.rangeAddress);
+            readBack.load(['address', 'values', 'formulas']);
+            await context.sync();
+            return {
+              status: 'written_to_excel',
+              address: readBack.address,
+              evaluatedValues: readBack.values,
+              formulasWritten: readBack.formulas
+            };
+          }
+
+          if (name === 'highlight_audit_cells') {
+            const targetRange = activeSheet.getRange(args.rangeAddress);
+            targetRange.format.fill.color = args.hexColor || '#f59e0b';
+            await context.sync();
+            return {
+              status: 'highlighted',
+              rangeAddress: args.rangeAddress,
+              hexColor: args.hexColor || '#f59e0b'
+            };
+          }
+
+          throw new Error(`Unknown tool: ${name}`);
+        });
+      }
+
+      // Branch B: Synchronized Virtual Sheet Engine (for browser/Canvas testing)
+      if (name === 'audit_workbook') {
+        let formulaCells = [];
+        let blankCount = 0;
+        for (let r = 0; r < virtualSheet.values.length; r++) {
+          for (let c = 0; c < virtualSheet.values[r].length; c++) {
+            const f = virtualSheet.formulas[r][c];
+            const v = virtualSheet.values[r][c];
+            if (typeof f === 'string' && f.startsWith('=')) {
+              formulaCells.push({ cell: `${indexToColLetter(c)}${r + 1}`, formula: f, value: v });
+            }
+            if (v === '' || v === null) blankCount++;
+          }
+        }
+        return {
+          host: 'Virtual Workbook Mirror (Standalone Mode)',
+          worksheets: [virtualSheet.name],
+          activeWorksheet: virtualSheet.name,
+          usedRangeAddress: `${virtualSheet.name}!A1:F7`,
+          dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
+          formulaCount: formulaCells.length,
+          blankCellCount: blankCount,
+          formulas: formulaCells
+        };
+      }
+
+      if (name === 'read_excel_range') {
+        const coords = parseA1Range(args.rangeAddress || 'A1:F7');
+        const outValues = [];
+        const outFormulas = [];
+        for (let r = coords.startRow; r <= coords.endRow; r++) {
+          const vRow = [];
+          const fRow = [];
+          for (let c = coords.startCol; c <= coords.endCol; c++) {
+            vRow.push(virtualSheet.values[r] ? virtualSheet.values[r][c] : '');
+            fRow.push(virtualSheet.formulas[r] ? virtualSheet.formulas[r][c] : '');
+          }
+          outValues.push(vRow);
+          outFormulas.push(fRow);
+        }
+        return {
+          address: `${virtualSheet.name}!${args.rangeAddress}`,
+          rowCount: outValues.length,
+          columnCount: outValues[0] ? outValues[0].length : 0,
+          values: outValues,
+          formulas: outFormulas
+        };
+      }
+
+      if (name === 'write_excel_range_or_formula') {
+        const coords = parseA1Range(args.rangeAddress);
+        const matrix = Array.isArray(args.valuesOrFormulas) ? args.valuesOrFormulas : [[String(args.valuesOrFormulas)]];
+        for (let rOffset = 0; rOffset < matrix.length; rOffset++) {
+          const targetRow = coords.startRow + rOffset;
+          if (!virtualSheet.values[targetRow]) virtualSheet.values[targetRow] = [];
+          if (!virtualSheet.formulas[targetRow]) virtualSheet.formulas[targetRow] = [];
+          const rowArr = Array.isArray(matrix[rOffset]) ? matrix[rOffset] : [matrix[rOffset]];
+          for (let cOffset = 0; cOffset < rowArr.length; cOffset++) {
+            const targetCol = coords.startCol + cOffset;
+            const entry = rowArr[cOffset];
+            if (typeof entry === 'string' && entry.startsWith('=')) {
+              virtualSheet.formulas[targetRow][targetCol] = entry;
+            } else {
+              virtualSheet.formulas[targetRow][targetCol] = '';
+              const num = Number(entry);
+              virtualSheet.values[targetRow][targetCol] = Number.isFinite(num) && entry !== '' ? num : entry;
+            }
+          }
+        }
+        recomputeVirtualSheet();
+        return {
+          status: 'written_to_virtual_sheet',
+          address: args.rangeAddress,
+          formulasWritten: matrix
+        };
+      }
+
+      if (name === 'highlight_audit_cells') {
+        const coords = parseA1Range(args.rangeAddress);
+        const color = args.hexColor || '#f59e0b';
+        for (let r = coords.startRow; r <= coords.endRow; r++) {
+          for (let c = coords.startCol; c <= coords.endCol; c++) {
+            virtualSheet.highlights[`${indexToColLetter(c)}${r + 1}`] = color;
+          }
+        }
+        renderVirtualGrid();
+        return {
+          status: 'highlighted_virtual_cells',
+          rangeAddress: args.rangeAddress,
+          hexColor: color
+        };
+      }
+
+      throw new Error(`Unrecognized tool call: ${name}`);
+    }
+
+    /*************************************************************************
+     * 4. DYNAMIC MODEL DISCOVERY (ZERO HARDCODED MODEL LOCK-IN)
+     *************************************************************************/
+    async function discoverGeminiModels() {
+      const apiKey = document.getElementById('apiKeyInput').value.trim();
+      const statusEl = document.getElementById('discoveryStatusText');
+      const countBadge = document.getElementById('modelCountBadge');
+      const onlyGenContent = document.getElementById('onlyGenContentCheckbox').checked;
+
+      if (!apiKey) {
+        statusEl.textContent = 'Enter a valid Gemini API key first to query /v1beta/models.';
+        statusEl.className = 'text-rose-400';
+        return;
+      }
+
+      appState.apiKey = apiKey;
+      safeStorageSet(STORAGE_KEYS.API_KEY, apiKey);
+      statusEl.textContent = 'Querying https://generativelanguage.googleapis.com/v1beta/models ...';
+      statusEl.className = 'text-neon-cyan';
+
+      try {
+        let allModels = [];
+        let pageToken = '';
+        do {
+          const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
+          url.searchParams.set('key', apiKey);
+          url.searchParams.set('pageSize', '100');
+          if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+          const res = await fetch(url.toString(), { method: 'GET' });
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error?.message || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          if (Array.isArray(data.models)) {
+            allModels = allModels.concat(data.models);
+          }
+          pageToken = data.nextPageToken || '';
+        } while (pageToken);
+
+        const filtered = allModels.filter(m => {
+          if (!onlyGenContent) return true;
+          const methods = m.supportedGenerationMethods || [];
+          return methods.includes('generateContent');
+        });
+
+        // Sort newest / flash & pro models to top dynamically without hardcoding specific version numbers
+        filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+
+        appState.models = filtered;
+        populateModelDropdown(filtered);
+        countBadge.textContent = `${filtered.length} live models`;
+        statusEl.textContent = `Synced ${filtered.length} models dynamically from Gemini API`;
+        statusEl.className = 'text-emerald-400';
+      } catch (err) {
+        statusEl.textContent = `Discovery error: ${err.message}`;
+        statusEl.className = 'text-rose-400';
+      }
+    }
+
+    function populateModelDropdown(models) {
+      const select = document.getElementById('modelSelect');
+      select.innerHTML = '';
+
+      if (!models.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '-- No matching models returned --';
+        select.appendChild(opt);
+        return;
+      }
+
+      models.forEach((m) => {
+        const cleanId = (m.name || '').replace(/^models\//, '');
+        const opt = document.createElement('option');
+        opt.value = cleanId;
+        opt.textContent = `${m.displayName || cleanId} (${cleanId})`;
+        select.appendChild(opt);
+      });
+
+      const saved = appState.selectedModel;
+      const exists = models.some(m => (m.name || '').replace(/^models\//, '') === saved);
+      select.value = exists ? saved : (models[0].name || '').replace(/^models\//, '');
+      onModelSelectionChanged();
+    }
+
+    function onModelSelectionChanged() {
+      const select = document.getElementById('modelSelect');
+      const modelId = select.value;
+      appState.selectedModel = modelId;
+      safeStorageSet(STORAGE_KEYS.SELECTED_MODEL, modelId);
+
+      const found = appState.models.find(m => (m.name || '').replace(/^models\//, '') === modelId);
+      const limitsEl = document.getElementById('modelTokenLimits');
+      if (found) {
+        const inLim = (found.inputTokenLimit || 0).toLocaleString('en-IN');
+        const outLim = (found.outputTokenLimit || 0).toLocaleString('en-IN');
+        limitsEl.textContent = `Input limit: ${inLim} tok | Output limit: ${outLim} tok`;
+      } else {
+        limitsEl.textContent = `Active model: ${modelId || 'Offline Simulator'}`;
+      }
+
+      // Dynamically match rate schedule rules against model identifier
+      if (modelId && Array.isArray(appState.pricing.patternRules)) {
+        const lower = modelId.toLowerCase();
+        const matchedRule = appState.pricing.patternRules.find(r => lower.includes((r.match || '').toLowerCase()));
+        if (matchedRule) {
+          appState.pricing.activeInputPer1M = Number(matchedRule.inputPer1M);
+          appState.pricing.activeOutputPer1M = Number(matchedRule.outputPer1M);
+          appState.pricing.activeCachedPer1M = Number(matchedRule.cachedPer1M ?? 0);
+          syncPricingInputsFromState();
+          updateCostDisplay();
+        }
+      }
+    }
+
+    /*************************************************************************
+     * 5. LIVE INR (₹) PAY-AS-YOU-GO COST TRACKER & FX ADAPTER
+     *************************************************************************/
+    function recordTokenUsage(usageMetadata) {
+      if (!usageMetadata) return null;
+      const promptTokens = Number(usageMetadata.promptTokenCount || 0);
+      const candidateTokens = Number(usageMetadata.candidatesTokenCount || 0);
+      const cachedTokens = Number(usageMetadata.cachedContentTokenCount || 0);
+      const billableInputTokens = Math.max(0, promptTokens - cachedTokens);
+
+      const { activeInputPer1M, activeOutputPer1M, activeCachedPer1M, usdToInr } = appState.pricing;
+
+      const usdCost =
+        (billableInputTokens / 1_000_000) * activeInputPer1M +
+        (cachedTokens / 1_000_000) * activeCachedPer1M +
+        (candidateTokens / 1_000_000) * activeOutputPer1M;
+
+      const inrCost = usdCost * usdToInr;
+
+      appState.session.usd += usdCost;
+      appState.session.inr += inrCost;
+      appState.session.inputTokens += promptTokens;
+      appState.session.outputTokens += candidateTokens;
+
+      appState.ledger.cumulativeUsd += usdCost;
+      appState.ledger.cumulativeInr += inrCost;
+      appState.ledger.totalInputTokens += promptTokens;
+      appState.ledger.totalOutputTokens += candidateTokens;
+      appState.ledger.totalCachedTokens += cachedTokens;
+
+      safeStorageSet(STORAGE_KEYS.LEDGER, appState.ledger);
+      updateCostDisplay();
+
+      return { promptTokens, candidateTokens, cachedTokens, usdCost, inrCost };
+    }
+
+    function updateCostDisplay() {
+      const inrFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4
+      });
+
+      document.getElementById('sessionInrDisplay').textContent = inrFormatter.format(appState.session.inr);
+      document.getElementById('sessionUsdDisplay').textContent = `$${appState.session.usd.toFixed(6)} USD`;
+      document.getElementById('cumulativeInrDisplay').textContent = inrFormatter.format(appState.ledger.cumulativeInr);
+      document.getElementById('tokenCounterDisplay').textContent =
+        `${appState.ledger.totalInputTokens.toLocaleString('en-IN')} in / ${appState.ledger.totalOutputTokens.toLocaleString('en-IN')} out`;
+
+      const cap = Math.max(1, Number(appState.pricing.monthlyBudgetInr || 500));
+      const pct = Math.min(100, (appState.ledger.cumulativeInr / cap) * 100);
+      document.getElementById('budgetPctBadge').textContent = `${pct.toFixed(1)}% of ₹${cap}`;
+      document.getElementById('budgetProgressBar').style.width = `${pct}%`;
+
+      document.getElementById('activePricingSummary').textContent =
+        `Rate: $${appState.pricing.activeInputPer1M}/$${appState.pricing.activeOutputPer1M} • ₹${Number(appState.pricing.usdToInr).toFixed(2)}/$`;
+    }
+
+    function syncPricingInputsFromState() {
+      document.getElementById('usdInrRateInput').value = appState.pricing.usdToInr;
+      document.getElementById('inputRatePerMillion').value = appState.pricing.activeInputPer1M;
+      document.getElementById('outputRatePerMillion').value = appState.pricing.activeOutputPer1M;
+      document.getElementById('cachedRatePerMillion').value = appState.pricing.activeCachedPer1M;
+      document.getElementById('monthlyBudgetInrInput').value = appState.pricing.monthlyBudgetInr;
+      document.getElementById('pricingRulesJson').value = JSON.stringify(appState.pricing.patternRules, null, 2);
+    }
+
+    async function fetchLiveUsdInrRate() {
+      const statusMsg = document.getElementById('pricingStatusMsg');
+      statusMsg.textContent = 'Fetching live USD→INR spot rate...';
+      try {
+        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data && data.rates && data.rates.INR) {
+          const liveInr = Number(data.rates.INR.toFixed(2));
+          appState.pricing.usdToInr = liveInr;
+          document.getElementById('usdInrRateInput').value = liveInr;
+          safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
+          updateCostDisplay();
+          statusMsg.textContent = `Synced live exchange rate: ₹${liveInr} per $1 USD.`;
+          statusMsg.className = 'text-[10px] font-mono text-emerald-400 mt-1';
+        }
+      } catch (err) {
+        statusMsg.textContent = `Could not reach public FX feed (${err.message}). Using manual USD→INR rate.`;
+        statusMsg.className = 'text-[10px] font-mono text-amber-400 mt-1';
+      }
+    }
+
+    /*************************************************************************
+     * 6. MULTI-TURN AGENTIC FUNCTION CALLING LOOP
+     *************************************************************************/
+    function appendLogCard({ role, title, bodyHtml, badgeText, badgeColor = 'text-neon-cyan' }) {
+      const chatLog = document.getElementById('chatLog');
+      const wrapper = document.createElement('div');
+      const borderClass =
+        role === 'user'
+          ? 'border-teal-500/40 bg-obsidian-900'
+          : role === 'tool'
+          ? 'border-amber-500/40 bg-obsidian-900/70'
+          : 'border-obsidian-700 bg-obsidian-900/95';
+
+      wrapper.className = `p-3 rounded-lg border ${borderClass} text-xs leading-relaxed space-y-1.5`;
+      wrapper.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-mono text-[11px] font-bold ${badgeColor}">${title}</span>
+          ${badgeText ? `<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 text-slate-400 border border-obsidian-700">${badgeText}</span>` : ''}
+        </div>
+        <div class="text-slate-200 whitespace-pre-wrap break-words">${bodyHtml}</div>
+      `;
+      chatLog.appendChild(wrapper);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function runAgenticTurnLoop(userPrompt) {
+      const statusInd = document.getElementById('agentStatusIndicator');
+      const sendBtn = document.getElementById('sendPromptBtn');
+      sendBtn.disabled = true;
+
+      appendLogCard({
+        role: 'user',
+        title: 'AUDITOR // PROMPT',
+        bodyHtml: escapeHtml(userPrompt),
+        badgeText: appState.isExcelHost ? 'Excel.run' : 'Virtual Grid',
+        badgeColor: 'text-neon-cyan'
+      });
+
+      const apiKey = document.getElementById('apiKeyInput').value.trim();
+      const modelId = document.getElementById('modelSelect').value.trim();
+
+      // Offline Deterministic Agent Fallback when no API key is configured yet
+      if (!apiKey || !modelId) {
+        statusInd.textContent = 'Running local deterministic agent demo...';
+        await runDeterministicSimulationAgent(userPrompt);
+        statusInd.textContent = 'Idle';
+        sendBtn.disabled = false;
+        return;
+      }
+
+      appState.conversationHistory.push({
+        role: 'user',
+        parts: [{ text: userPrompt }]
+      });
+
+      const MAX_AGENT_TURNS = 6;
+      let turn = 0;
+
+      try {
+        while (turn < MAX_AGENT_TURNS) {
+          turn++;
+          statusInd.textContent = `Agent Turn ${turn}/${MAX_AGENT_TURNS} (${modelId})...`;
+
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const payload = {
+            systemInstruction: {
+              parts: [
+                {
+                  text: 'You are an autonomous Microsoft Excel financial & statutory audit agent operating inside an Office.js Task Pane. Always inspect the workbook or read the required data range first using your declared tools before writing formulas or highlighting cells. When writing formulas, use valid Excel A1 notation starting with "=".'
+                }
+              ]
+            },
+            contents: appState.conversationHistory,
+            tools: EXCEL_AGENT_TOOLS,
+            generationConfig: {
+              temperature: 0.1
+            }
+          };
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.error?.message || `Gemini HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          const costSnap = recordTokenUsage(data.usageMetadata);
+          const costBadge = costSnap
+            ? `₹${costSnap.inrCost.toFixed(4)} (${costSnap.promptTokens}→${costSnap.candidateTokens} tok)`
+            : 'Telemetry logged';
+
+          const candidate = data.candidates && data.candidates[0];
+          if (!candidate || !candidate.content || !Array.isArray(candidate.content.parts)) {
+            throw new Error('Model returned an empty candidate response.');
+          }
+
+          const parts = candidate.content.parts;
+          appState.conversationHistory.push({
+            role: 'model',
+            parts
+          });
+
+          const functionCalls = parts.filter(p => p.functionCall).map(p => p.functionCall);
+          const textParts = parts.filter(p => typeof p.text === 'string' && p.text.trim()).map(p => p.text);
+
+          if (textParts.length > 0) {
+            appendLogCard({
+              role: 'model',
+              title: `GEMINI // ${modelId.toUpperCase()}`,
+              bodyHtml: escapeHtml(textParts.join('\n\n')),
+              badgeText: costBadge,
+              badgeColor: 'text-emerald-400'
+            });
+          }
+
+          // If no tool calls requested, the multi-turn agentic loop is complete
+          if (functionCalls.length === 0) {
+            break;
+          }
+
+          // Execute all requested Office.js function calls and return functionResponse parts
+          const toolResponseParts = [];
+          for (const fc of functionCalls) {
+            statusInd.textContent = `Executing Office.js tool: ${fc.name}...`;
+            let toolResult;
+            try {
+              toolResult = await executeExcelTool(fc);
+            } catch (toolErr) {
+              toolResult = { error: toolErr.message };
+            }
+
+            appendLogCard({
+              role: 'tool',
+              title: `OFFICE.JS TOOL // ${fc.name}`,
+              bodyHtml: `<div class="font-mono text-[11px] text-amber-300">Args: ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div class="font-mono text-[10px] text-slate-400 mt-1">Result: ${escapeHtml(JSON.stringify(toolResult))}</div>`,
+              badgeText: costBadge,
+              badgeColor: 'text-amber-400'
+            });
+
+            toolResponseParts.push({
+              functionResponse: {
+                name: fc.name,
+                response: { result: toolResult }
+              }
+            });
+          }
+
+          appState.conversationHistory.push({
+            role: 'user',
+            parts: toolResponseParts
+          });
+        }
+      } catch (err) {
+        appendLogCard({
+          role: 'error',
+          title: 'AGENT LOOP // EXCEPTION',
+          bodyHtml: escapeHtml(err.message),
+          badgeText: 'Check API Key / Model',
+          badgeColor: 'text-rose-400'
+        });
+      } finally {
+        statusInd.textContent = 'Idle';
+        sendBtn.disabled = false;
+      }
+    }
+
+    // Offline multi-turn demonstration so the user can test Office.js tool execution and INR cost tracking immediately
+    async function runDeterministicSimulationAgent(userPrompt) {
+      const step1Audit = await executeExcelTool({
+        name: 'audit_workbook',
+        args: { includeFormulaCoordinates: true }
+      });
+      const snap1 = recordTokenUsage({ promptTokenCount: 420, candidatesTokenCount: 95, cachedContentTokenCount: 0 });
+      appendLogCard({
+        role: 'tool',
+        title: 'OFFICE.JS TOOL // audit_workbook',
+        bodyHtml: `<div class="font-mono text-[10px] text-slate-300">${escapeHtml(JSON.stringify(step1Audit))}</div>`,
+        badgeText: `₹${snap1.inrCost.toFixed(4)} (sim)`,
+        badgeColor: 'text-amber-400'
+      });
+
+      const step2Formulas = await executeExcelTool({
+        name: 'write_excel_range_or_formula',
+        args: {
+          rangeAddress: 'E2:F6',
+          valuesOrFormulas: [
+            ['=D2-C2', '=(E2/C2)*100'],
+            ['=D3-C3', '=(E3/C3)*100'],
+            ['=D4-C4', '=(E4/C4)*100'],
+            ['=D5-C5', '=(E5/C5)*100'],
+            ['=D6-C6', '=(E6/C6)*100']
+          ]
+        }
+      });
+
+      await executeExcelTool({
+        name: 'write_excel_range_or_formula',
+        args: {
+          rangeAddress: 'C7:E7',
+          valuesOrFormulas: [['=SUM(C2:C6)', '=SUM(D2:D6)', '=SUM(E2:E6)']]
+        }
+      });
+
+      await executeExcelTool({
+        name: 'highlight_audit_cells',
+        args: { rangeAddress: 'A4:F4', hexColor: '#f59e0b' }
+      });
+
+      const snap2 = recordTokenUsage({ promptTokenCount: 690, candidatesTokenCount: 180, cachedContentTokenCount: 200 });
+      appendLogCard({
+        role: 'tool',
+        title: 'OFFICE.JS TOOL // write_excel_range_or_formula + highlight_audit_cells',
+        bodyHtml: `<div class="font-mono text-[10px] text-slate-300">${escapeHtml(JSON.stringify(step2Formulas))}</div>`,
+        badgeText: `₹${snap2.inrCost.toFixed(4)} (sim)`,
+        badgeColor: 'text-amber-400'
+      });
+
+      appendLogCard({
+        role: 'model',
+        title: 'AGENTIC AUDITOR // SUMMARY',
+        bodyHtml:
+          'Completed 3-step autonomous audit:\n' +
+          '1. Audited Statutory_Audit_FY26 (A1:F7) and detected unpopulated variance & total cells.\n' +
+          '2. Wrote live variance formulas (=D2-C2 through =D6-C6), percentage formulas in F2:F6, and consolidated =SUM totals in C7:E7.\n' +
+          '3. Highlighted row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber. Click the "Grid" tab above to inspect the updated sheet.',
+        badgeText: 'Multi-Turn Complete',
+        badgeColor: 'text-neon-cyan'
+      });
+    }
+
+    /*************************************************************************
+     * 7. UI EVENT BINDINGS & OFFICE.ONREADY BOOTSTRAP
+     *************************************************************************/
+    function switchTab(activeTab) {
+      const views = {
+        agent: document.getElementById('viewAgent'),
+        rates: document.getElementById('viewRates'),
+        sheet: document.getElementById('viewSheet')
+      };
+      const buttons = {
+        agent: document.getElementById('tabAgentBtn'),
+        rates: document.getElementById('tabRatesBtn'),
+        sheet: document.getElementById('tabSheetBtn')
+      };
+
+      Object.keys(views).forEach(k => {
+        if (k === activeTab) {
+          views[k].classList.remove('hidden');
+          views[k].classList.add('flex');
+          buttons[k].className = 'px-2.5 py-1 rounded-md bg-neon-cyan text-obsidian-950 font-semibold transition';
+        } else {
+          views[k].classList.add('hidden');
+          views[k].classList.remove('flex');
+          buttons[k].className = 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition';
+        }
+      });
+    }
+
+    function initAppUI() {
+      // Populate saved key & pricing
+      if (appState.apiKey) {
+        document.getElementById('apiKeyInput').value = appState.apiKey;
+      }
+      syncPricingInputsFromState();
+      updateCostDisplay();
+      recomputeVirtualSheet();
+
+      // View Tabs
+      document.getElementById('tabAgentBtn').addEventListener('click', () => switchTab('agent'));
+      document.getElementById('tabRatesBtn').addEventListener('click', () => switchTab('rates'));
+      document.getElementById('tabSheetBtn').addEventListener('click', () => switchTab('sheet'));
+
+      // API Key Eye Toggle & Model Discovery
+      document.getElementById('toggleKeyVisBtn').addEventListener('click', () => {
+        const input = document.getElementById('apiKeyInput');
+        input.type = input.type === 'password' ? 'text' : 'password';
+      });
+      document.getElementById('fetchModelsBtn').addEventListener('click', discoverGeminiModels);
+      document.getElementById('onlyGenContentCheckbox').addEventListener('change', () => {
+        if (appState.apiKey) discoverGeminiModels();
+      });
+      document.getElementById('modelSelect').addEventListener('change', onModelSelectionChanged);
+
+      // Quick Prompt Buttons
+      document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const promptText = btn.getAttribute('data-prompt');
+          document.getElementById('userPromptInput').value = promptText;
+          runAgenticTurnLoop(promptText);
+        });
+      });
+
+      // Form Submit
+      document.getElementById('promptForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('userPromptInput');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+        runAgenticTurnLoop(text);
+      });
+
+      document.getElementById('clearChatBtn').addEventListener('click', () => {
+        appState.conversationHistory = [];
+        document.getElementById('chatLog').innerHTML = '';
+        appendLogCard({
+          role: 'system',
+          title: 'SYSTEM // LOG CLEARED',
+          bodyHtml: 'Conversation context reset. Session & cumulative INR telemetry preserved.',
+          badgeText: 'Ready'
+        });
+      });
+
+      // Billing Configurator Controls
+      document.getElementById('syncFxBtn').addEventListener('click', fetchLiveUsdInrRate);
+      document.getElementById('savePricingBtn').addEventListener('click', () => {
+        const statusMsg = document.getElementById('pricingStatusMsg');
+        try {
+          const parsedRules = JSON.parse(document.getElementById('pricingRulesJson').value);
+          appState.pricing = {
+            usdToInr: Math.max(1, Number(document.getElementById('usdInrRateInput').value) || 86.5),
+            activeInputPer1M: Math.max(0, Number(document.getElementById('inputRatePerMillion').value) || 0),
+            activeOutputPer1M: Math.max(0, Number(document.getElementById('outputRatePerMillion').value) || 0),
+            activeCachedPer1M: Math.max(0, Number(document.getElementById('cachedRatePerMillion').value) || 0),
+            monthlyBudgetInr: Math.max(1, Number(document.getElementById('monthlyBudgetInrInput').value) || 500),
+            patternRules: Array.isArray(parsedRules) ? parsedRules : DEFAULT_PRICING_CONFIG.patternRules
+          };
+          safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
+          updateCostDisplay();
+          statusMsg.textContent = 'Saved dynamic INR pricing profile and pattern rules.';
+          statusMsg.className = 'text-[10px] font-mono text-emerald-400 mt-1';
+        } catch (err) {
+          statusMsg.textContent = `Invalid JSON in pattern rules: ${err.message}`;
+          statusMsg.className = 'text-[10px] font-mono text-rose-400 mt-1';
+        }
+      });
+
+      document.getElementById('resetLedgerBtn').addEventListener('click', () => {
+        appState.ledger = {
+          cumulativeInr: 0,
+          cumulativeUsd: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalCachedTokens: 0
+        };
+        appState.session = { inr: 0, usd: 0, inputTokens: 0, outputTokens: 0 };
+        safeStorageSet(STORAGE_KEYS.LEDGER, appState.ledger);
+        updateCostDisplay();
+      });
+
+      // Virtual Sheet Reset
+      document.getElementById('resetSheetBtn').addEventListener('click', () => {
+        virtualSheet.values = JSON.parse(JSON.stringify(INITIAL_GRID));
+        virtualSheet.formulas = INITIAL_GRID.map(r => r.map(c => (typeof c === 'string' && c.startsWith('=') ? c : '')));
+        virtualSheet.highlights = {};
+        recomputeVirtualSheet();
+      });
+    }
+
+    // Dynamically load Office.js when running inside an Office Task Pane environment, with graceful standalone fallback
+    (function bootstrapOfficeOrStandalone() {
+      initAppUI();
+      const hostBadge = document.getElementById('hostBadge');
+
+      const officeScript = document.createElement('script');
+      officeScript.src = 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js';
+      officeScript.async = true;
+      officeScript.onload = () => {
+        if (window.Office && typeof window.Office.onReady === 'function') {
+          window.Office.onReady((info) => {
+            if (info && info.host === window.Office.HostType.Excel) {
+              appState.isExcelHost = true;
+              hostBadge.textContent = 'EXCEL.RUN LIVE';
+              hostBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
+            }
+          });
+        }
+      };
+      officeScript.onerror = () => {
+        // Standalone browser / Canvas preview mode
+      };
+      document.head.appendChild(officeScript);
+    })();
+  </script>
+</body>
+</html>
