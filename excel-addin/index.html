@@ -110,30 +110,28 @@
 <body class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
 
   <!-- =====================================================================
-       ULTRA-COMPACT TOP HEADER BAR (FIXED / DOCKED TOP)
+       ULTRA-COMPACT NON-OVERLAPPING TOP HEADER BAR (FIXED / DOCKED TOP)
        ===================================================================== -->
-  <header class="shrink-0 h-12 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-3 flex items-center justify-between gap-1.5 z-30">
-    <!-- Left: Brand & Host Status -->
-    <div class="flex items-center gap-2 min-w-0">
-      <button id="tabAgentBtn" type="button" title="Back to Chat" class="flex items-center gap-1.5 text-left group">
-        <span class="w-2 h-2 rounded-full bg-neon-cyan shadow-[0_0_8px_#00f5d4]"></span>
-        <span class="font-mono text-xs font-bold tracking-wider text-neon-cyan group-hover:text-white transition">NEON//AUDIT</span>
+  <header class="shrink-0 h-11 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-2.5 flex items-center justify-between gap-1 z-30">
+    <!-- Left: Compact Brand & Host Dot -->
+    <div class="flex items-center gap-1.5 min-w-0 shrink">
+      <button id="tabAgentBtn" type="button" title="Back to Chat" class="flex items-center gap-1.5 text-left group min-w-0">
+        <span class="w-2 h-2 rounded-full bg-neon-cyan shadow-[0_0_8px_#00f5d4] shrink-0"></span>
+        <span class="font-mono text-[11px] font-bold tracking-wider text-neon-cyan group-hover:text-white truncate">NEON</span>
       </button>
-      <span id="hostBadge" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-obsidian-800 text-amber-400 border border-amber-500/30 truncate">SIMULATOR</span>
+      <span id="hostBadge" class="text-[8px] font-mono px-1 py-0.5 rounded bg-obsidian-800 text-amber-400 border border-amber-500/30 truncate">SIM</span>
     </div>
 
-    <!-- Right: Compact Floating Tariff Pill + New Chat (+) + History + Grid + Settings -->
+    <!-- Right: Price-Only Tariff Pill + Compact Icon Buttons (Zero Overlap) -->
     <div class="flex items-center gap-1 shrink-0">
-      <!-- Floating Compact Tariff Pill (Click for Detailed Workings) -->
+      <!-- Price-Only Floating Compact Tariff Pill (Click for Detailed Workings) -->
       <button
         id="floatingTariffPill"
         type="button"
         title="Click to view detailed INR (₹) tariff workings & token breakdown"
-        class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-obsidian-900 hover:bg-obsidian-800 border border-amber-500/40 text-[11px] font-mono text-amber-300 transition shadow-sm"
+        class="px-2 py-0.5 h-6 rounded-full bg-obsidian-900 hover:bg-obsidian-800 border border-amber-500/40 text-[11px] font-mono font-semibold text-amber-300 flex items-center justify-center transition shadow-sm"
       >
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-        <span id="compactInrPillText">₹0.0000</span>
-        <span class="text-[9px] text-slate-400">▾</span>
+        <span id="compactInrPillText">₹0.00</span>
       </button>
 
       <!-- + New Chat Button -->
@@ -141,7 +139,7 @@
         id="newChatBtn"
         type="button"
         title="New Chat Session (+)"
-        class="w-7 h-7 rounded-lg bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan flex items-center justify-center text-neon-cyan font-mono text-sm font-bold transition"
+        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan flex items-center justify-center text-neon-cyan font-mono text-xs font-bold transition"
       >
         +
       </button>
@@ -150,8 +148,8 @@
       <button
         id="historyDrawerBtn"
         type="button"
-        title="Chat History"
-        class="px-2 h-7 rounded-lg bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-white flex items-center gap-1 transition"
+        title="Saved Chat History"
+        class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[10px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 transition"
       >
         <span>🕒</span>
         <span id="historyCountBadge" class="text-[9px] text-slate-400">0</span>
@@ -162,9 +160,9 @@
         id="tabSheetBtn"
         type="button"
         title="Inspect Active Worksheet Grid"
-        class="px-2 h-7 rounded-lg bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-white transition"
+        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-white flex items-center justify-center transition"
       >
-        Grid
+        ⊞
       </button>
 
       <!-- Dedicated Settings Page Button -->
@@ -172,10 +170,9 @@
         id="tabRatesBtn"
         type="button"
         title="Settings, API Key & Tariff Configuration"
-        class="px-2 h-7 rounded-lg bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-neon-cyan flex items-center gap-1 transition"
+        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-neon-cyan flex items-center justify-center transition"
       >
-        <span>⚙️</span>
-        <span class="hidden sm:inline">Settings</span>
+        ⚙️
       </button>
     </div>
   </header>
@@ -186,28 +183,31 @@
   <section id="viewAgent" class="flex-1 flex flex-col overflow-hidden relative">
 
     <!-- Scrollable Message Stream (Selectable text + Copy button on every message) -->
-    <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+    <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5">
       <!-- Welcome / Empty State Card (Auto-collapses once chatting starts) -->
-      <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
+      <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
         <div class="flex items-center justify-between">
-          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Full-Spectrum Excel Agent Ready</span>
-          <span id="maxTurnsBadge" class="font-mono text-[10px] text-slate-400">10 Office.js Tools</span>
+          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Full Web + Excel Agent Ready</span>
+          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">🌐 Web + 12 Tools</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Equipped with native <strong>PivotTables</strong>, <strong>Excel Tables</strong>, <strong>Charts</strong>, <strong>Formulas</strong>, <strong>Sheet Management</strong>, <strong>Formatting</strong>, and <strong>Custom Office.js</strong> execution. Non-chat models (TTS, Image, Lyria, Robotics) are automatically filtered out.
+          Equipped with <strong>Live Google Web Search</strong> (for GSTINs, HSN/SAC codes, company lookups), <strong>Live URL/API Fetching</strong>, native <strong>PivotTables</strong>, <strong>Tables</strong>, <strong>Charts</strong>, and <strong>Formulas</strong>.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
-          <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
+          <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
             ⚡ Audit &amp; Auto-Fill Variance Formulas
           </button>
-          <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
+          <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
             📊 Insert Native PivotTable
           </button>
-          <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
+          <button type="button" data-prompt="Read the party/company names in the active sheet, search the web using google_web_search for their registered Indian GSTIN and state details, and write the verified GSTIN candidates into the sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-sky-300 border border-sky-500/30 transition">
+            🌐 Web Search GSTINs &amp; Fill Sheet
+          </button>
+          <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
             ∑ Write Totals &amp; Flag Overruns
           </button>
-          <button type="button" data-prompt="Inspect the active worksheet used range and list all formulas vs hardcoded values with exact cell coordinates." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-600 transition">
+          <button type="button" data-prompt="Inspect the active worksheet used range and list all formulas vs hardcoded values with exact cell coordinates." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-600 transition">
             🔍 Formula Integrity Scan
           </button>
         </div>
@@ -215,7 +215,7 @@
     </div>
 
     <!-- LIVE THINKING & CONTINUOUS TELEMETRY BAR (Visible whenever model is processing) -->
-    <div id="liveThinkingBanner" class="hidden shrink-0 mx-3 mb-1.5 p-2.5 rounded-xl bg-obsidian-900/95 cyber-border relative overflow-hidden">
+    <div id="liveThinkingBanner" class="hidden shrink-0 mx-3 mb-1.5 p-2 rounded-xl bg-obsidian-900/95 cyber-border relative overflow-hidden">
       <div class="thinking-shimmer"></div>
       <div class="relative z-10 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0">
@@ -225,7 +225,7 @@
               <span id="thinkingPhaseTitle" class="font-mono text-[11px] font-bold text-neon-cyan truncate">Thinking...</span>
               <span id="thinkingElapsedTimer" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 text-amber-300 border border-amber-500/30">0.0s</span>
             </div>
-            <p id="thinkingSubStatus" class="text-[11px] text-slate-300 truncate mt-0.5">Preparing workbook context &amp; Office.js tools...</p>
+            <p id="thinkingSubStatus" class="text-[10px] text-slate-300 truncate mt-0.5">Preparing workbook context &amp; tools...</p>
           </div>
         </div>
         <button
@@ -238,28 +238,61 @@
       </div>
     </div>
 
-    <!-- DOCKED BOTTOM COMPOSER (Never scrolls out of view; Model selector sits directly below text box) -->
-    <form id="promptForm" class="shrink-0 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 px-3 pt-2 pb-2.5 z-20">
-      <div class="rounded-xl bg-obsidian-950 border border-obsidian-600 focus-within:border-neon-cyan transition p-2 flex flex-col gap-2">
+    <!-- DOCKED BOTTOM COMPOSER (With Custom Instant-Click Model Popover Menu!) -->
+    <form id="promptForm" class="shrink-0 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 px-2.5 pt-2 pb-2 z-20 relative">
+
+      <!-- CUSTOM INSTANT-CLICK UPWARD MODEL DROPDOWN POPOVER (Fixes WebView2 press-and-hold bug) -->
+      <div
+        id="customModelPopover"
+        class="hidden absolute left-2.5 right-2.5 bottom-[52px] z-50 bg-obsidian-900 border border-neon-cyan/50 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-64"
+      >
+        <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-obsidian-700">
+          <input
+            id="modelFilterInput"
+            type="text"
+            placeholder="Search model (e.g. flash, pro, argon)..."
+            autocomplete="off"
+            class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-500 outline-none"
+          />
+          <button
+            id="closeModelPopoverBtn"
+            type="button"
+            class="w-6 h-6 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-mono text-xs flex items-center justify-center shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+        <div id="customModelListContainer" class="overflow-y-auto divide-y divide-obsidian-800/60 pr-0.5 space-y-0.5"></div>
+      </div>
+
+      <div class="rounded-xl bg-obsidian-950 border border-obsidian-600 focus-within:border-neon-cyan transition p-2 flex flex-col gap-1.5">
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to insert a PivotTable, build charts, audit ranges, or write formulas... (Enter to send)"
+          placeholder="Ask Gemini to search the web for GSTINs, insert PivotTables, or write formulas... (Enter to send)"
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
-        <!-- Bottom Composer Toolbar: Model Selection Below Chat Text Box + Actions -->
-        <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-obsidian-800/90">
-          <!-- Model Selector Dropdown + Quick Sync Button -->
+        <!-- Bottom Composer Toolbar: Instant-Click Model Selector + Range + Send -->
+        <div class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
           <div class="flex items-center gap-1 min-w-0 flex-1">
+            <!-- Hidden native select kept in sync for state compatibility -->
             <label for="modelSelect" class="sr-only">Select Gemini Model</label>
-            <select
-              id="modelSelect"
-              title="Active Agent-Capable Gemini Model"
-              class="max-w-[185px] sm:max-w-[240px] w-full bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan outline-none truncate transition"
-            >
-              <option value="">⚡ Offline Simulator (Sync in ⚙️)</option>
+            <select id="modelSelect" class="sr-only">
+              <option value="">⚡ Offline Simulator</option>
             </select>
+
+            <!-- Custom Instant-Click Model Selector Button -->
+            <button
+              id="customModelTriggerBtn"
+              type="button"
+              title="Click once to open model list, click a model to select"
+              class="max-w-[165px] sm:max-w-[220px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1.5 truncate transition"
+            >
+              <span id="customModelTriggerLabel" class="truncate">⚡ Offline Simulator</span>
+              <span class="text-[9px] text-slate-400 shrink-0">▴</span>
+            </button>
+
             <button
               id="quickSyncModelsBtn"
               type="button"
@@ -284,7 +317,7 @@
             <button
               id="sendPromptBtn"
               type="submit"
-              class="px-3 py-1 rounded-lg neon-glow-btn text-xs font-mono flex items-center gap-1"
+              class="px-2.5 py-1 rounded-lg neon-glow-btn text-xs font-mono flex items-center gap-1"
             >
               <span>Send</span>
               <span>↵</span>
@@ -302,7 +335,7 @@
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
         <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, multi-turn agent model filters, and INR (₹) tariff schedule.</p>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, web grounding, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -519,7 +552,7 @@
       <!-- Official Google Pricing Disclaimer -->
       <div class="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-200/90 leading-relaxed">
         <strong class="font-mono text-[10px] uppercase text-amber-400 block mb-0.5">⚠️ Tariff Disclaimer</strong>
-        Actual billed amounts may vary based on Google Cloud / AI Studio billing tiers, context caching, thinking tokens, and currency conversion. Always verify current rates on
+        Actual billed amounts may vary based on Google Cloud / AI Studio billing tiers, context caching, thinking tokens, Google Search grounding queries, and currency conversion. Always verify current rates on
         <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener noreferrer" class="text-neon-cyan underline hover:text-white font-mono">Google's Official Gemini API Pricing Page ↗</a>.
       </div>
 
@@ -605,6 +638,7 @@
       isExcelHost: false,
       apiKey: safeStorageGet(STORAGE_KEYS.API_KEY, ''),
       models: safeStorageGet(STORAGE_KEYS.CACHED_MODELS, []),
+      visibleModels: [],
       selectedModel: safeStorageGet(STORAGE_KEYS.SELECTED_MODEL, ''),
       pricing: safeStorageGet(STORAGE_KEYS.PRICING, DEFAULT_PRICING_CONFIG),
       ledger: safeStorageGet(STORAGE_KEYS.LEDGER, {
@@ -815,11 +849,39 @@
     }
 
     /*************************************************************************
-     * 4. FULL-SPECTRUM OFFICE.JS AGENTIC TOOL SUITE (10 INTEGRATED TOOLS)
+     * 4. FULL-SPECTRUM WEB + OFFICE.JS AGENTIC TOOL SUITE (12 INTEGRATED TOOLS)
      *************************************************************************/
     const EXCEL_AGENT_TOOLS = [
       {
         functionDeclarations: [
+          {
+            name: 'google_web_search',
+            description: 'Performs a live Google Web Search using Gemini Search Grounding to look up real-world facts, Indian company GSTIN numbers, CINs, HSN/SAC codes, tax rates, addresses, financial news, or live web data.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                query: {
+                  type: 'STRING',
+                  description: 'Detailed search query (e.g., "CRESCENT SURGICALS GSTIN number India state", "MOULI ENTERPRISES GSTIN", or multiple company names in one search query).'
+                }
+              },
+              required: ['query']
+            }
+          },
+          {
+            name: 'fetch_web_page_or_api',
+            description: 'Fetches live text, JSON, or HTML content from any public URL or REST API endpoint (automatically uses a markdown reader fallback if direct CORS is blocked).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                url: {
+                  type: 'STRING',
+                  description: 'Full https:// URL to fetch or read.'
+                }
+              },
+              required: ['url']
+            }
+          },
           {
             name: 'audit_workbook',
             description: 'Audits the active Excel workbook structure: returns all worksheet names, active sheet name, usedRange dimensions, headers in row 1, existing tables, existing PivotTables, formula count, and blank cell count.',
@@ -1067,9 +1129,147 @@
       }
     ];
 
+    /*************************************************************************
+     * 4B. LIVE GOOGLE WEB SEARCH GROUNDING & URL FETCHER EXECUTORS
+     *************************************************************************/
+    async function executeGoogleGroundedWebSearch(query) {
+      const apiKey = document.getElementById('apiKeyInput').value.trim();
+      if (!apiKey) {
+        return {
+          status: 'simulated_web_search',
+          query,
+          findings: 'Configure a live Gemini API Key in Settings (⚙️) to execute real-time Google Search grounding queries.'
+        };
+      }
+
+      // Try grounded search using a fast search-grounding-compatible Flash model
+      const searchCandidates = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', appState.selectedModel].filter(Boolean);
+      let lastSearchErr = null;
+
+      for (const searchModel of searchCandidates) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(searchModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const searchPayload = {
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text:
+                      `Search the web and provide exact, verified facts (such as 15-character Indian GSTIN numbers, legal entity names, state codes, HSN/SAC codes, addresses, or official registration details) for the following query:\n\n` +
+                      `${query}\n\n` +
+                      `List every matching entity clearly with its exact 15-digit GSTIN (if found), State, Legal/Trade Name, and source website.`
+                  }
+                ]
+              }
+            ],
+            tools: [{ googleSearch: {} }],
+            generationConfig: { temperature: 0.1 }
+          };
+
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchPayload),
+            signal: appState.abortController ? appState.abortController.signal : undefined
+          });
+
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error?.message || `HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          recordTokenUsage(data.usageMetadata, `${searchModel} (WebSearch)`);
+
+          const candidate = data.candidates && data.candidates[0];
+          const answerText = (candidate?.content?.parts || [])
+            .map(p => p.text || '')
+            .join('\n')
+            .trim();
+
+          const gm = candidate?.groundingMetadata || {};
+          const sources = (gm.groundingChunks || [])
+            .map(c => c.web ? { title: c.web.title, url: c.web.uri } : null)
+            .filter(Boolean);
+
+          return {
+            status: 'live_google_search_complete',
+            modelUsed: searchModel,
+            webSearchQueries: gm.webSearchQueries || [query],
+            answer: answerText || 'No text returned from grounded search.',
+            sources: sources.slice(0, 8)
+          };
+        } catch (err) {
+          lastSearchErr = err;
+        }
+      }
+
+      return {
+        status: 'web_search_error',
+        query,
+        error: lastSearchErr ? lastSearchErr.message : 'Unable to complete Google Search grounding request.'
+      };
+    }
+
+    async function executeLiveWebPageFetch(targetUrl) {
+      const cleanUrl = (targetUrl || '').trim();
+      if (!/^https?:\/\//i.test(cleanUrl)) {
+        return { error: 'URL must begin with https:// or http://' };
+      }
+
+      // Attempt 1: Jina Reader API (returns clean LLM-ready Markdown from any live webpage with CORS enabled)
+      try {
+        const jinaUrl = `https://r.jina.ai/${cleanUrl}`;
+        const res = await fetch(jinaUrl, {
+          headers: { 'Accept': 'text/plain' },
+          signal: appState.abortController ? appState.abortController.signal : undefined
+        });
+        if (res.ok) {
+          const text = await res.text();
+          return {
+            status: 'fetched_via_reader',
+            url: cleanUrl,
+            contentSnippet: text.slice(0, 10000)
+          };
+        }
+      } catch (err) {
+        // Fallback to direct fetch
+      }
+
+      // Attempt 2: Direct browser fetch (for public JSON APIs)
+      try {
+        const res = await fetch(cleanUrl, {
+          signal: appState.abortController ? appState.abortController.signal : undefined
+        });
+        const text = await res.text();
+        return {
+          status: 'fetched_direct',
+          url: cleanUrl,
+          httpStatus: res.status,
+          contentSnippet: text.slice(0, 10000)
+        };
+      } catch (err) {
+        return {
+          status: 'fetch_failed',
+          url: cleanUrl,
+          error: `Direct fetch blocked or unreachable (${err.message}). Try using google_web_search instead.`
+        };
+      }
+    }
+
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
 
+      // Web Tools (Run in both Live Excel and Standalone Simulator!)
+      if (name === 'google_web_search') {
+        return await executeGoogleGroundedWebSearch(args.query || '');
+      }
+      if (name === 'fetch_web_page_or_api') {
+        return await executeLiveWebPageFetch(args.url || '');
+      }
+
+      // Branch A: Live Microsoft Excel Host via Office.js
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         return await window.Excel.run(async (context) => {
           const sheets = context.workbook.worksheets;
@@ -1448,9 +1648,8 @@
     }
 
     /*************************************************************************
-     * 5. SMART AGENT-CAPABLE MODEL FILTERING & PRIORITY RANKING
+     * 5. SMART AGENT-CAPABLE MODEL FILTERING & INSTANT-CLICK CUSTOM POPOVER
      *************************************************************************/
-    // Excludes single-turn / non-chat modality models (Image, Banana, TTS, Audio/Lyria, Transcription, Robotics, Computer-Use, Deep-Research)
     const NON_AGENT_MODEL_REGEX = /(tts|image|banana|lyria|transcribe|robotics|computer-use|deep-research|embedding|aqa|imagen|veo|learnlm)/i;
 
     function isMultiTurnAgentCapableModel(modelObjOrId) {
@@ -1459,14 +1658,12 @@
         : ((modelObjOrId && modelObjOrId.name) || '').replace(/^models\//, '');
       if (!id) return false;
       if (NON_AGENT_MODEL_REGEX.test(id)) return false;
-      // Prefer Gemini & Antigravity models that natively support multi-turn tool calling
       return /^(gemini|antigravity)/i.test(id);
     }
 
     function scoreModelForExcelAgent(modelId) {
       const id = (modelId || '').toLowerCase();
       if (NON_AGENT_MODEL_REGEX.test(id)) return -100;
-      // Rank stable, multi-turn, function-calling Flash & Flash-Lite workhorses highest, followed by Pro / Argon / Carbon
       if (id === 'gemini-3.8-flash') return 120;
       if (id === 'gemini-3.7-flash') return 118;
       if (id === 'gemini-3.6-flash') return 116;
@@ -1572,14 +1769,17 @@
     }
 
     function populateModelDropdown(models) {
+      appState.visibleModels = models || [];
       const select = document.getElementById('modelSelect');
       select.innerHTML = '';
 
       if (!models || !models.length) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = '⚡ Offline Simulator (Sync in ⚙️)';
+        opt.textContent = '⚡ Offline Simulator';
         select.appendChild(opt);
+        document.getElementById('customModelTriggerLabel').textContent = '⚡ Offline Simulator';
+        renderCustomModelPopoverList('');
         return;
       }
 
@@ -1588,7 +1788,6 @@
         const opt = document.createElement('option');
         opt.value = cleanId;
         opt.textContent = cleanId;
-        opt.title = m.displayName || cleanId;
         select.appendChild(opt);
       });
 
@@ -1604,6 +1803,60 @@
         select.value = (models[0].name || '').replace(/^models\//, '');
       }
       onModelSelectionChanged();
+      renderCustomModelPopoverList('');
+    }
+
+    // Renders the custom instant-click upward model menu (Click dropdown -> Click model -> Done!)
+    function renderCustomModelPopoverList(searchFilter = '') {
+      const container = document.getElementById('customModelListContainer');
+      if (!container) return;
+
+      const models = appState.visibleModels || [];
+      const q = (searchFilter || '').trim().toLowerCase();
+      const filtered = q
+        ? models.filter(m => ((m.name || '') + ' ' + (m.displayName || '')).toLowerCase().includes(q))
+        : models;
+
+      if (!filtered.length) {
+        container.innerHTML = `<div class="py-3 px-2 text-center font-mono text-[11px] text-slate-500">${models.length ? 'No models match filter.' : 'No API models synced yet. Click ⚙️ Settings → Sync Models.'}</div>`;
+        return;
+      }
+
+      const activeId = document.getElementById('modelSelect').value;
+      container.innerHTML = filtered
+        .map((m) => {
+          const cleanId = (m.name || '').replace(/^models\//, '');
+          const isSelected = cleanId === activeId;
+          const isFlash = /flash/i.test(cleanId);
+          const tag = isFlash ? 'FAST' : /pro|argon|carbon|hydrogen/i.test(cleanId) ? 'REASONING' : 'CHAT';
+          const tagColor = isFlash ? 'text-neon-cyan border-teal-500/30' : 'text-amber-300 border-amber-500/30';
+
+          return `
+            <button
+              type="button"
+              data-pick-model="${escapeHtml(cleanId)}"
+              class="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 font-mono text-[11px] transition ${
+                isSelected
+                  ? 'bg-teal-500/20 text-neon-cyan font-bold border border-teal-500/40'
+                  : 'text-slate-200 hover:bg-obsidian-800'
+              }"
+            >
+              <span class="truncate">${isSelected ? '✓ ' : ''}${escapeHtml(cleanId)}</span>
+              <span class="text-[9px] px-1 py-0.5 rounded bg-obsidian-950 border ${tagColor} shrink-0">${tag}</span>
+            </button>
+          `;
+        })
+        .join('');
+
+      container.querySelectorAll('[data-pick-model]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const picked = btn.getAttribute('data-pick-model');
+          const select = document.getElementById('modelSelect');
+          select.value = picked;
+          onModelSelectionChanged();
+          document.getElementById('customModelPopover').classList.add('hidden');
+        });
+      });
     }
 
     function onModelSelectionChanged() {
@@ -1611,6 +1864,11 @@
       const modelId = select.value;
       appState.selectedModel = modelId;
       safeStorageSet(STORAGE_KEYS.SELECTED_MODEL, modelId);
+
+      const triggerLabel = document.getElementById('customModelTriggerLabel');
+      if (triggerLabel) {
+        triggerLabel.textContent = modelId || '⚡ Offline Simulator';
+      }
 
       const found = (appState.models || []).find(m => (m.name || '').replace(/^models\//, '') === modelId);
       const limitsEl = document.getElementById('modelTokenLimits');
@@ -1636,7 +1894,7 @@
     }
 
     /*************************************************************************
-     * 6. COMPACT FLOATING INR (₹) TARIFF PILL & DETAILED WORKINGS ENGINE
+     * 6. PRICE-ONLY COMPACT FLOATING INR (₹) PILL & DETAILED WORKINGS ENGINE
      *************************************************************************/
     function recordTokenUsage(usageMetadata, modelLabel = 'gemini') {
       if (!usageMetadata) return null;
@@ -1686,20 +1944,26 @@
     }
 
     function updateCostDisplay() {
-      const inrFormatter = new Intl.NumberFormat('en-IN', {
+      const inrFormatter4 = new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
         minimumFractionDigits: 4,
         maximumFractionDigits: 4
       });
 
-      const totalTok = (appState.session.inputTokens || 0) + (appState.session.outputTokens || 0) + (appState.session.thoughtsTokens || 0);
-      document.getElementById('compactInrPillText').textContent =
-        `${inrFormatter.format(appState.session.inr)} (${totalTok.toLocaleString('en-IN')} tok)`;
+      // Compact Top Pill: Shows ONLY the price (e.g. ₹0.0421 or ₹0.00) so header never overlaps!
+      const sInr = appState.session.inr || 0;
+      const compactPriceStr = sInr === 0
+        ? '₹0.00'
+        : sInr < 0.01
+        ? `₹${sInr.toFixed(4)}`
+        : `₹${sInr.toFixed(2)}`;
+      document.getElementById('compactInrPillText').textContent = compactPriceStr;
 
-      document.getElementById('sessionInrDisplay').textContent = inrFormatter.format(appState.session.inr);
+      // Detailed Modal KPIs
+      document.getElementById('sessionInrDisplay').textContent = inrFormatter4.format(appState.session.inr);
       document.getElementById('sessionUsdDisplay').textContent = `$${appState.session.usd.toFixed(6)} USD`;
-      document.getElementById('cumulativeInrDisplay').textContent = inrFormatter.format(appState.ledger.cumulativeInr);
+      document.getElementById('cumulativeInrDisplay').textContent = inrFormatter4.format(appState.ledger.cumulativeInr);
       document.getElementById('tokenCounterDisplay').textContent =
         `${(appState.ledger.totalInputTokens || 0).toLocaleString('en-IN')} in / ${((appState.ledger.totalOutputTokens || 0) + (appState.ledger.totalThoughtsTokens || 0)).toLocaleString('en-IN')} out`;
 
@@ -1711,7 +1975,7 @@
       document.getElementById('activePricingSummary').textContent =
         `Rate: $${appState.pricing.activeInputPer1M}/$${appState.pricing.activeOutputPer1M} per 1M • ₹${Number(appState.pricing.usdToInr).toFixed(2)}/$`;
 
-      renderDetailedTariffWorkingsTable(inrFormatter);
+      renderDetailedTariffWorkingsTable(inrFormatter4);
     }
 
     function renderDetailedTariffWorkingsTable(inrFormatter) {
@@ -1806,9 +2070,9 @@
      * 7. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY BUTTONS
      *************************************************************************/
     const THINKING_MESSAGES = [
-      'Inspecting request & selecting Office.js workbook tools...',
+      'Inspecting request & selecting Web / Office.js workbook tools...',
       'Streaming context to Gemini API & awaiting reasoning tokens...',
-      'Evaluating cell dependencies, PivotTable hierarchies & formulas...',
+      'Searching live web / evaluating cell dependencies & formulas...',
       'Synthesizing structured Excel actions & verifying coordinates...'
     ];
 
@@ -1958,23 +2222,23 @@
 
       const chatLog = document.getElementById('chatLog');
       chatLog.innerHTML = `
-        <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2.5">
+        <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[10px] text-slate-400">10 Office.js Tools</span>
+            <span class="font-mono text-[9px] text-emerald-400">🌐 Web + 12 Tools</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Ask Gemini to insert native PivotTables, Tables, Charts, or formulas directly into your active Excel workbook.
+            Ask Gemini to search the live web for GSTINs/HSN codes, insert native PivotTables, or write formulas into your active Excel workbook.
           </p>
           <div class="flex flex-wrap gap-1.5 pt-0.5">
-            <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
+            <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
               ⚡ Audit &amp; Auto-Fill Variance Formulas
             </button>
-            <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
+            <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
               📊 Insert Native PivotTable
             </button>
-            <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
-              ∑ Write Totals &amp; Flag Overruns
+            <button type="button" data-prompt="Read the party/company names in the active sheet, search the web using google_web_search for their registered Indian GSTIN and state details, and write the verified GSTIN candidates into the sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-sky-300 border border-sky-500/30 transition">
+              🌐 Web Search GSTINs &amp; Fill Sheet
             </button>
           </div>
         </div>
@@ -2040,7 +2304,6 @@
      * 8. RESILIENT FETCH: HANDLES 503 HIGH DEMAND, 429 QUOTA, & SINGLE-TURN MODELS
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
-      // Only include true multi-turn agent-capable models in the fallback pool!
       const agentPool = (appState.models || [])
         .filter(m => isMultiTurnAgentCapableModel(m))
         .map(m => (m.name || '').replace(/^models\//, ''))
@@ -2048,7 +2311,6 @@
         .sort((a, b) => scoreModelForExcelAgent(b) - scoreModelForExcelAgent(a));
 
       const fallbacks = agentPool.filter(id => id !== primaryModelId);
-      // Guarantee standard reliable fallbacks even if model cache is empty
       const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
       for (const df of defaultFallbacks) {
         if (df !== primaryModelId && !fallbacks.includes(df)) {
@@ -2058,7 +2320,6 @@
       return [primaryModelId, ...fallbacks.slice(0, 5)];
     }
 
-    // Compacts a multi-turn conversationHistory into a single user turn for models that disallow multi-turn chat
     function buildSingleTurnCompactedPayload(originalPayload) {
       const historyLines = [];
       for (const turn of (originalPayload.contents || [])) {
@@ -2086,7 +2347,6 @@
 
     async function fetchGeminiWithResilience({ apiKey, initialModelId, payload, signal }) {
       const autoFallback = document.getElementById('autoFallback429Checkbox').checked;
-      // If user accidentally had a non-chat model selected (e.g. nano-banana, lyria, tts), immediately route to top agent model
       const safeInitial = NON_AGENT_MODEL_REGEX.test(initialModelId) && autoFallback
         ? (buildFallbackCandidateOrder(initialModelId)[1] || 'gemini-3.5-flash-lite')
         : initialModelId;
@@ -2116,10 +2376,8 @@
           const errMsg = errJson.error?.message || `Gemini HTTP ${response.status}`;
           lastError = new Error(errMsg);
 
-          // Special Case 1: "Multiturn chat is not enabled for this model"
           const isMultiTurnNotEnabled = /multiturn chat is not enabled|multi-turn.*not supported/i.test(errMsg);
           if (isMultiTurnNotEnabled) {
-            // First try compacting the conversation into a single turn on the same model if only 1 candidate
             if (!autoFallback) {
               const compactedPayload = buildSingleTurnCompactedPayload(payload);
               const retrySingle = await fetch(endpoint, {
@@ -2133,17 +2391,14 @@
                 return { data, usedModelId: candidateModel, switchedModel: false };
               }
             }
-            // Otherwise immediately jump to the next multi-turn agent model in candidates!
             break;
           }
 
-          // Special Case 2: Model does not support function calling / tools / systemInstruction
           const isCapabilityMismatch = /function calling is not enabled|tool use.*not supported|developer instruction is not enabled|modality/i.test(errMsg);
           if (isCapabilityMismatch && autoFallback) {
             break;
           }
 
-          // Special Case 3: 503 High Demand / 429 Rate Limit / 500 Server Spike
           const isTransientOrDemandSpike =
             response.status === 429 ||
             response.status === 500 ||
@@ -2178,7 +2433,7 @@
     }
 
     /*************************************************************************
-     * 9. MULTI-TURN AGENTIC LOOP WITH TRANSACTIONAL HISTORY CHECKPOINT
+     * 9. MULTI-TURN AGENTIC LOOP WITH FULL WEB + EXCEL ACCESS
      *************************************************************************/
     async function runAgenticTurnLoop(userPrompt, isRetry = false) {
       const statusInd = document.getElementById('agentStatusIndicator');
@@ -2221,7 +2476,7 @@
         parts: [{ text: userPrompt }]
       });
 
-      const MAX_AGENT_TURNS = 8;
+      const MAX_AGENT_TURNS = 10;
       let turn = 0;
       appState.abortController = new AbortController();
 
@@ -2239,13 +2494,13 @@
               parts: [
                 {
                   text:
-                    'You are a fully integrated, autonomous Microsoft Excel AI Agent operating inside an Office.js Task Pane.\n' +
-                    'You have FULL native capability to:\n' +
-                    '1. Inspect workbooks (`audit_workbook`) and read ranges (`read_excel_range`).\n' +
-                    '2. Insert native interactive Excel PivotTables (`create_pivot_table`) on a new or existing worksheet with Row, Column, Filter, and Value hierarchies.\n' +
-                    '3. Create structured Excel Tables (`create_excel_table`) and native Excel Charts (`create_excel_chart`).\n' +
-                    '4. Write values and Excel formulas (`write_excel_range_or_formula`), manage sheets (`manage_worksheet`), format cells (`format_excel_range`), and execute any custom Office.js code (`execute_custom_officejs`).\n' +
-                    'IMPORTANT: Never tell the user you cannot create a PivotTable, Table, or Chart. Always read the header row first if you do not know the exact column header names, then call `create_pivot_table` (or the relevant tool) directly!'
+                    'You are a fully integrated, autonomous Microsoft Excel & Web Research AI Agent operating inside an Office.js Task Pane.\n' +
+                    'You have FULL LIVE ACCESS to BOTH the internet AND the Excel workbook:\n' +
+                    '1. LIVE INTERNET & GSTIN/WEB SEARCH: Call `google_web_search` to search Google in real time for Indian GSTIN numbers, company registrations (KnowYourGST, ClearTax, ZaubaCorp, GST portal records), HSN/SAC codes, tax rules, or live market data. Call `fetch_web_page_or_api` to read any specific URL or API.\n' +
+                    '2. FULL WORKBOOK ACCESS: Read cells (`read_excel_range`, `audit_workbook`), write values/formulas (`write_excel_range_or_formula`), insert native PivotTables (`create_pivot_table`), Excel Tables (`create_excel_table`), Charts (`create_excel_chart`), manage sheets (`manage_worksheet`), format cells (`format_excel_range`), and execute any custom Office.js code (`execute_custom_officejs`).\n' +
+                    'CRITICAL RULES:\n' +
+                    '• NEVER tell the user you lack internet access or cannot search the web! Always call `google_web_search` when external facts, GSTINs, or company details are requested.\n' +
+                    '• When looking up GSTINs for party names in a sheet (e.g., IMD, CRESCENT SURGICALS, MOULI ENTERPRISES), read the party names from the sheet first, call `google_web_search` to find their registered GSTINs, and write the found GSTINs (and state/verification notes if multiple state registrations exist) directly into the sheet!'
                 }
               ]
             },
@@ -2306,7 +2561,11 @@
 
           const toolResponseParts = [];
           for (const fc of functionCalls) {
-            updateThinkingPhase(`Executing Office.js: ${fc.name}`, `Running ${fc.name} on active workbook...`);
+            const isWebTool = fc.name === 'google_web_search' || fc.name === 'fetch_web_page_or_api';
+            updateThinkingPhase(
+              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing Office.js: ${fc.name}`,
+              isWebTool ? `Querying live web for "${fc.args?.query || fc.args?.url || ''}"...` : `Running ${fc.name} on active workbook...`
+            );
             let toolResult;
             try {
               toolResult = await executeExcelTool(fc);
@@ -2314,12 +2573,12 @@
               toolResult = { error: toolErr.message };
             }
 
-            const targetSummary = fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
+            const targetSummary = fc.args?.query || fc.args?.url || fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
             appendLogCard({
               role: 'tool',
-              title: `OFFICE.JS // ${fc.name}`,
+              title: `${isWebTool ? 'WEB' : 'OFFICE.JS'} // ${fc.name}`,
               isCollapsibleTool: true,
-              toolSummary: `${fc.name}(${targetSummary}) — ${costBadge}`,
+              toolSummary: `${fc.name}(${String(targetSummary).slice(0, 38)}) — ${costBadge}`,
               bodyHtml: `<div><strong>Args:</strong> ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div><strong>Result:</strong> ${escapeHtml(JSON.stringify(toolResult))}</div>`
             });
 
@@ -2452,7 +2711,7 @@
       const finalSummary =
         '1. Audited Statutory_Audit_FY26 (A1:F7) and filled variance formulas (=D2-C2 through =D6-C6) and =SUM totals (C7:E7).\n' +
         '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
-        '3. You can highlight any text in this chat or click "📋 Copy" at the top-right of any card.';
+        '3. Equipped with live google_web_search & fetch_web_page_or_api tools when your API key is active.';
       appendLogCard({
         role: 'model',
         title: 'AUDIT COMPLETE',
@@ -2516,11 +2775,12 @@
       if (appState.apiKey) {
         document.getElementById('apiKeyInput').value = appState.apiKey;
       }
-      // Immediately filter & rank any cached models on startup so non-chat models (nano-banana, lyria, tts) are purged from the selector!
       if (appState.models && appState.models.length > 0) {
         const cleanModels = filterAndSortModelsForUI(appState.models);
         populateModelDropdown(cleanModels);
         document.getElementById('modelCountBadge').textContent = `${cleanModels.length} chat models`;
+      } else {
+        renderCustomModelPopoverList('');
       }
 
       syncPricingInputsFromState();
@@ -2528,6 +2788,41 @@
       recomputeVirtualSheet();
       updateHistoryBadgeAndList();
       bindQuickPromptButtons();
+
+      // Custom Instant-Click Model Popover Toggle (Click button -> Click model -> Done!)
+      const modelPopover = document.getElementById('customModelPopover');
+      const modelTriggerBtn = document.getElementById('customModelTriggerBtn');
+      const modelFilterInput = document.getElementById('modelFilterInput');
+
+      modelTriggerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = modelPopover.classList.contains('hidden');
+        if (isHidden) {
+          modelFilterInput.value = '';
+          renderCustomModelPopoverList('');
+          modelPopover.classList.remove('hidden');
+          setTimeout(() => modelFilterInput.focus(), 40);
+        } else {
+          modelPopover.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('closeModelPopoverBtn').addEventListener('click', () => {
+        modelPopover.classList.add('hidden');
+      });
+
+      modelFilterInput.addEventListener('input', () => {
+        renderCustomModelPopoverList(modelFilterInput.value);
+      });
+
+      // Close popover if user clicks outside
+      document.addEventListener('click', (e) => {
+        if (!modelPopover.classList.contains('hidden')) {
+          if (!modelPopover.contains(e.target) && !modelTriggerBtn.contains(e.target)) {
+            modelPopover.classList.add('hidden');
+          }
+        }
+      });
 
       document.getElementById('tabAgentBtn').addEventListener('click', () => switchTab('agent'));
       document.getElementById('tabRatesBtn').addEventListener('click', () => switchTab('rates'));
@@ -2656,8 +2951,8 @@
           window.Office.onReady((info) => {
             if (info && info.host === window.Office.HostType.Excel) {
               appState.isExcelHost = true;
-              hostBadge.textContent = 'EXCEL LIVE';
-              hostBadge.className = 'text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
+              hostBadge.textContent = 'LIVE';
+              hostBadge.className = 'text-[8px] font-mono px-1 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
             }
           });
         }
