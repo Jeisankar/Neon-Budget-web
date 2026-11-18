@@ -203,10 +203,10 @@
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
         <div class="flex items-center justify-between">
           <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Multi-Workbook + Live Web Agent</span>
-          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">16 Enterprise Tools</span>
+          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">17 Enterprise Tools</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Reconcile across <strong>multiple workbooks</strong> (click <strong>📎</strong> below or drag-and-drop any external <code class="text-amber-300">.xlsx</code>/<code class="text-amber-300">.csv</code>/<code class="text-amber-300">.json</code> like GSTR-1/2B/3B, or open the add-in in both Excel windows for automatic Cross-Workbook Sync), run <strong>live Google Web Searches</strong>, and build <strong>PivotTables</strong> &amp; <strong>Charts</strong>.
+          Full-workbook 1-pass scanner, batch range writer, <strong>multi-workbook reconciliation</strong> (click <strong>📎</strong> or drop <code class="text-amber-300">.xlsx</code>/<code class="text-amber-300">.csv</code>/<code class="text-amber-300">.json</code>), <strong>live Google Web Search</strong>, and native <strong>PivotTables</strong>.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
@@ -232,7 +232,7 @@
       </div>
     </div>
 
-    <!-- CONNECTED / ATTACHED EXTERNAL WORKBOOKS BAR (Shows when external files or sibling Excel instances are linked) -->
+    <!-- CONNECTED / ATTACHED EXTERNAL WORKBOOKS BAR -->
     <div id="connectedWorkbooksStrip" class="hidden shrink-0 mx-3 mb-1 px-2.5 py-1.5 rounded-lg bg-obsidian-900/95 border border-teal-500/30 flex items-center justify-between gap-2">
       <div id="connectedWorkbooksBadges" class="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-neon-cyan py-0.5"></div>
       <button id="syncCurrentWorkbookBtn" type="button" title="Broadcast active workbook to other open Excel windows" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 shrink-0">
@@ -240,7 +240,7 @@
       </button>
     </div>
 
-    <!-- LIVE THINKING & CONTINUOUS TELEMETRY BAR (Visible whenever model is processing) -->
+    <!-- LIVE THINKING & CONTINUOUS TELEMETRY BAR -->
     <div id="liveThinkingBanner" class="hidden shrink-0 mx-3 mb-1.5 p-2 rounded-xl bg-obsidian-900/95 cyber-border relative overflow-hidden">
       <div class="thinking-shimmer"></div>
       <div class="relative z-10 flex items-center justify-between gap-2">
@@ -264,7 +264,7 @@
       </div>
     </div>
 
-    <!-- DOCKED BOTTOM COMPOSER (With Custom Instant-Click Model Popover + Multi-Workbook Attachment!) -->
+    <!-- DOCKED BOTTOM COMPOSER -->
     <form id="promptForm" class="shrink-0 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 px-2.5 pt-2 pb-2 z-20 relative">
 
       <!-- CUSTOM INSTANT-CLICK UPWARD MODEL DROPDOWN POPOVER -->
@@ -295,14 +295,13 @@
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to read another workbook (click 📎 or drop .xlsx/.csv), search GSTINs online, or build PivotTables..."
+          placeholder="Ask Gemini to fill checklists, reconcile workbooks (📎), search GSTINs online, or build PivotTables..."
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
-        <!-- Bottom Composer Toolbar: Instant-Click Model Selector + 📎 Attach Workbook + 📍 Range + Send -->
+        <!-- Bottom Composer Toolbar -->
         <div class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
           <div class="flex items-center gap-1 min-w-0 flex-1">
-            <!-- Hidden native select kept in sync for state compatibility -->
             <label for="modelSelect" class="sr-only">Select Gemini Model</label>
             <select id="modelSelect" class="sr-only">
               <option value="">⚡ Offline Simulator</option>
@@ -373,7 +372,7 @@
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
         <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, cross-workbook sync, and INR (₹) tariff schedule.</p>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, max tool turns, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -698,7 +697,6 @@
         cachedTokens: 0,
         turnBreakdown: []
       },
-      // Multi-Workbook Hub: Stores parsed external workbooks (.xlsx, .xls, .csv, .json) + Cross-Window live workbooks
       externalWorkbooks: {},
       undoStack: [],
       currentSessionId: 'sess_' + Date.now(),
@@ -712,11 +710,58 @@
     };
 
     /*************************************************************************
-     * 2. MULTI-WORKBOOK ENGINE:
-     *    (A) SheetJS (.xlsx/.xls/.csv/.json) Instant In-Memory Parser
-     *    (B) Live Cross-Window BroadcastChannel & Shared Registry Bridge
-     *    (C) Excel Cross-Workbook Formula Link Resolver (`='[File.xlsx]Sheet'!A1`)
+     * 2. MULTI-WORKBOOK ENGINE & COMPACT ROW SERIALIZER
      *************************************************************************/
+    // Compresses a 2D sheet matrix into a compact representation of non-empty rows with exact 1-based row numbers & A1 coordinates
+    function buildCompactSheetRowsRepresentation(values, formulas, maxRows = 120) {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const compactRows = [];
+      for (let r = 0; r < values.length && compactRows.length < maxRows; r++) {
+        const vRow = values[r] || [];
+        const fRow = (formulas && formulas[r]) || [];
+        // Find last non-empty column in this row
+        let lastNonEmptyCol = -1;
+        for (let c = vRow.length - 1; c >= 0; c--) {
+          if (vRow[c] !== '' && vRow[c] !== null && vRow[c] !== undefined) {
+            lastNonEmptyCol = c;
+            break;
+          }
+        }
+        if (lastNonEmptyCol >= 0) {
+          const cellsObj = {};
+          for (let c = 0; c <= lastNonEmptyCol; c++) {
+            const val = vRow[c];
+            const form = fRow[c];
+            if ((val !== '' && val !== null && val !== undefined) || (typeof form === 'string' && form.startsWith('='))) {
+              const coord = `${indexToColLetter(c)}${r + 1}`;
+              cellsObj[coord] = typeof form === 'string' && form.startsWith('=') && form !== String(val)
+                ? { v: val, f: form }
+                : val;
+            }
+          }
+          compactRows.push({ row: r + 1, cells: cellsObj });
+        }
+      }
+      return compactRows;
+    }
+
+    // Parses "SheetName!A1:G20" or "'My Sheet'!A1:G20" into { sheetName, address }
+    function extractSheetAndCleanAddress(explicitSheetName, rawRangeAddress) {
+      const raw = String(rawRangeAddress || 'A1:F7').trim();
+      let parsedSheet = explicitSheetName ? String(explicitSheetName).trim() : '';
+      let cleanAddress = raw;
+
+      if (raw.includes('!')) {
+        const bangIdx = raw.lastIndexOf('!');
+        const sheetPart = raw.slice(0, bangIdx).trim().replace(/^'+|'+$/g, '');
+        cleanAddress = raw.slice(bangIdx + 1).trim();
+        if (!parsedSheet && sheetPart) {
+          parsedSheet = sheetPart;
+        }
+      }
+      return { sheetName: parsedSheet, cleanAddress: cleanAddress || 'A1' };
+    }
+
     let crossWorkbookChannel = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
@@ -738,7 +783,6 @@
       // Ignore if BroadcastChannel is restricted
     }
 
-    // Load any previously synced open workbooks from shared localStorage bridge
     function loadSharedWorkbookBridge() {
       const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
       Object.keys(bridge).forEach((wbName) => {
@@ -749,7 +793,6 @@
       renderConnectedWorkbooksStrip();
     }
 
-    // Snapshots the current active Excel workbook and broadcasts it to all other open Excel instances on the same domain
     async function broadcastCurrentWorkbookSnapshot() {
       if (!appState.isExcelHost || !window.Excel || typeof window.Excel.run !== 'function') return;
       try {
@@ -773,7 +816,6 @@
           for (const sName of Object.keys(sheetRanges)) {
             const ur = sheetRanges[sName];
             if (!ur.isNullObject && Array.isArray(ur.values)) {
-              // Store up to 500 rows per sheet in the shared cross-window registry
               serializedSheets[sName] = {
                 rowCount: ur.rowCount,
                 columnCount: ur.columnCount,
@@ -804,7 +846,6 @@
       }
     }
 
-    // Parses attached .xlsx, .xls, .csv, or GST Portal .json files using SheetJS
     async function handleExternalWorkbookFiles(fileList) {
       if (!fileList || !fileList.length) return;
       for (const file of Array.from(fileList)) {
@@ -813,7 +854,6 @@
           if (ext === 'json') {
             const text = await file.text();
             const jsonObj = JSON.parse(text);
-            // Convert GST Portal JSON (GSTR-1 / GSTR-2B / GSTR-3B) or generic JSON into tabular sheet rows
             const sheetsMap = {};
             if (Array.isArray(jsonObj)) {
               const headers = Object.keys(jsonObj[0] || {});
@@ -1158,11 +1198,60 @@
     }
 
     /*************************************************************************
-     * 5. FULL-SPECTRUM MULTI-WORKBOOK + WEB + OFFICE.JS TOOL SUITE (16 TOOLS)
+     * 5. FULL-SPECTRUM MULTI-WORKBOOK + WEB + OFFICE.JS TOOL SUITE (17 TOOLS)
      *************************************************************************/
     const EXCEL_AGENT_TOOLS = [
       {
         functionDeclarations: [
+          {
+            name: 'audit_workbook',
+            description: 'Audits the ENTIRE active Excel workbook in one single pass: returns all worksheet names, active sheet name, AND a compact map of all non-empty rows and cell coordinates across EVERY worksheet in the workbook so you do NOT need to call read_excel_range repeatedly.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                includeFormulaCoordinates: {
+                  type: 'BOOLEAN',
+                  description: 'Whether to include formula strings alongside evaluated cell values.'
+                }
+              }
+            }
+          },
+          {
+            name: 'batch_write_excel_ranges',
+            description: 'Writes multiple cell ranges or checklist entries across one or more worksheets in a single atomic batch call (ideal for filling checklists, audit schedules, or multi-cell updates in 1 step).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                writes: {
+                  type: 'ARRAY',
+                  description: 'List of range write operations to execute in one batch.',
+                  items: {
+                    type: 'OBJECT',
+                    properties: {
+                      sheetName: {
+                        type: 'STRING',
+                        description: 'Optional worksheet name (defaults to active sheet).'
+                      },
+                      rangeAddress: {
+                        type: 'STRING',
+                        description: 'Target A1 cell or range address (e.g. "C5", "D10:D15", or "Sheet2!B4").'
+                      },
+                      valuesOrFormulas: {
+                        type: 'ARRAY',
+                        description: '2D array of values or formulas starting with "=" matching the rangeAddress.',
+                        items: {
+                          type: 'ARRAY',
+                          items: { type: 'STRING' }
+                        }
+                      }
+                    },
+                    required: ['rangeAddress', 'valuesOrFormulas']
+                  }
+                }
+              },
+              required: ['writes']
+            }
+          },
           {
             name: 'list_all_workbooks',
             description: 'Lists the active workbook PLUS all external workbooks currently available via File Attachment (📎 .xlsx/.csv/.json) or Live Cross-Window Sync (other open Excel instances), including their worksheet names and dimensions.',
@@ -1287,31 +1376,18 @@
             }
           },
           {
-            name: 'audit_workbook',
-            description: 'Audits the active Excel workbook structure: returns all worksheet names, active sheet name, usedRange dimensions, headers in row 1, existing tables, existing PivotTables, formula count, and blank cell count.',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                includeFormulaCoordinates: {
-                  type: 'BOOLEAN',
-                  description: 'Whether to list exact cell coordinates containing formulas vs constants.'
-                }
-              }
-            }
-          },
-          {
             name: 'read_excel_range',
-            description: 'Reads cell values and formulas from a specific A1-notation range (e.g., "A1:L16") on the active or specified worksheet.',
+            description: 'Reads cell values and formulas from a specific A1-notation range (supports "SheetName!A1:L16" or separate sheetName parameter) on any worksheet in the active workbook.',
             parameters: {
               type: 'OBJECT',
               properties: {
                 rangeAddress: {
                   type: 'STRING',
-                  description: 'A1 range reference such as "A1:F7" or "A1:L16".'
+                  description: 'A1 range reference such as "A1:F7", "Sheet2!A1:H20", or "B21:G65".'
                 },
                 sheetName: {
                   type: 'STRING',
-                  description: 'Optional worksheet name. Defaults to active worksheet.'
+                  description: 'Optional worksheet name. If omitted, uses sheet prefix in rangeAddress or active worksheet.'
                 }
               },
               required: ['rangeAddress']
@@ -1325,7 +1401,7 @@
               properties: {
                 rangeAddress: {
                   type: 'STRING',
-                  description: 'Target A1 range address matching the 2D array dimensions (e.g., "E2:E6" or "N7:R12").'
+                  description: 'Target A1 range address matching the 2D array dimensions (e.g., "E2:E6", "Sheet2!C4:C10", or "N7:R12").'
                 },
                 valuesOrFormulas: {
                   type: 'ARRAY',
@@ -1337,7 +1413,7 @@
                 },
                 sheetName: {
                   type: 'STRING',
-                  description: 'Optional target worksheet name. Defaults to active worksheet.'
+                  description: 'Optional target worksheet name. Defaults to sheet prefix in rangeAddress or active worksheet.'
                 }
               },
               required: ['rangeAddress', 'valuesOrFormulas']
@@ -1659,7 +1735,6 @@
       }
     }
 
-    // Helper to locate a matching external workbook by full or partial name
     function findExternalWorkbookMatch(queryName) {
       loadSharedWorkbookBridge();
       const q = (queryName || '').trim().toLowerCase().replace(/\.xlsx$|\.xls$|\.csv$|\.json$/i, '');
@@ -1670,7 +1745,6 @@
       return partial ? appState.externalWorkbooks[partial] : null;
     }
 
-    // Attempts to read an open workbook in the same desktop Excel instance via dynamic external link formula resolution
     async function tryReadOpenExcelWorkbookViaFormulaLink(workbookName, sheetName = 'Sheet1', rangeAddr = 'A1:K35') {
       if (!appState.isExcelHost || !window.Excel || typeof window.Excel.run !== 'function') {
         return null;
@@ -1712,7 +1786,6 @@
           probeSheet.delete();
           await context.sync();
 
-          // Check if Excel resolved the link or returned #REF!
           const firstCell = readValues[0] && readValues[0][0];
           if (typeof firstCell === 'string' && /^#(REF|NAME|VALUE)!/i.test(firstCell)) {
             return null;
@@ -1741,7 +1814,7 @@
         return await executeLiveWebPageFetch(args.url || '');
       }
 
-      // 2. Multi-Workbook Tools (`list_all_workbooks`, `read_external_workbook`, `import_external_sheet`, `reconcile_workbooks_or_sheets`)
+      // 2. Multi-Workbook Tools
       if (name === 'list_all_workbooks') {
         await broadcastCurrentWorkbookSnapshot();
         loadSharedWorkbookBridge();
@@ -1800,11 +1873,10 @@
             availableSheets: sheetNames,
             sheetRead: targetSheetName,
             rowCountReturned: rows.length,
-            values: rows
+            compactRows: buildCompactSheetRowsRepresentation(rows, null, 200)
           };
         }
 
-        // Try live Excel formula link probe if running in Excel Desktop
         const linkProbe = await tryReadOpenExcelWorkbookViaFormulaLink(
           args.workbookName,
           args.sheetName || 'Sheet1',
@@ -1865,7 +1937,6 @@
       }
 
       if (name === 'reconcile_workbooks_or_sheets') {
-        // Read Source A
         let rowsA = [];
         if (/^active$/i.test(args.sourceA_Workbook || 'ACTIVE')) {
           const resA = await executeExcelTool({
@@ -1878,11 +1949,10 @@
             name: 'read_external_workbook',
             args: { workbookName: args.sourceA_Workbook, sheetName: args.sourceA_Sheet }
           });
-          if (!resA.values) return resA;
-          rowsA = resA.values;
+          if (!resA.values && !resA.compactRows) return resA;
+          rowsA = resA.values || [];
         }
 
-        // Read Source B
         let rowsB = [];
         if (/^active$/i.test(args.sourceB_Workbook || '')) {
           const resB = await executeExcelTool({
@@ -1895,11 +1965,10 @@
             name: 'read_external_workbook',
             args: { workbookName: args.sourceB_Workbook, sheetName: args.sourceB_Sheet }
           });
-          if (!resB.values) return resB;
-          rowsB = resB.values;
+          if (!resB.values && !resB.compactRows) return resB;
+          rowsB = resB.values || [];
         }
 
-        // Compute numeric column sums for both datasets to assist reconciliation
         const summarizeGrid = (grid) => {
           const headers = (grid[0] || []).map((h, i) => String(h || `Col_${indexToColLetter(i)}`));
           const colTotals = headers.map(() => 0);
@@ -1919,7 +1988,7 @@
           status: 'datasets_loaded_for_reconciliation',
           sourceA: { workbook: args.sourceA_Workbook, sheet: args.sourceA_Sheet, summary: summarizeGrid(rowsA) },
           sourceB: { workbook: args.sourceB_Workbook, sheet: args.sourceB_Sheet, summary: summarizeGrid(rowsB) },
-          nextStepInstruction: `Now create or write the detailed reconciliation table into worksheet "${args.outputSheetName}" using write_excel_range_or_formula.`
+          nextStepInstruction: `Now create or write the detailed reconciliation table into worksheet "${args.outputSheetName}" using write_excel_range_or_formula or batch_write_excel_ranges.`
         };
       }
 
@@ -1952,100 +2021,156 @@
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         return await window.Excel.run(async (context) => {
           const sheets = context.workbook.worksheets;
-          const activeSheet = args.sheetName
-            ? sheets.getItemOrNullObject(args.sheetName)
-            : sheets.getActiveWorksheet();
 
-          if (args.sheetName) {
-            activeSheet.load('isNullObject');
+          // Resolve sheet name from EITHER args.sheetName OR "SheetName!A1:G20" prefix in rangeAddress!
+          const parsedAddr = extractSheetAndCleanAddress(
+            args.sheetName,
+            args.rangeAddress || args.sourceRangeAddress || 'A1'
+          );
+
+          const activeSheetObj = sheets.getActiveWorksheet();
+          let candidateSheet = parsedAddr.sheetName
+            ? sheets.getItemOrNullObject(parsedAddr.sheetName)
+            : activeSheetObj;
+
+          if (parsedAddr.sheetName) {
+            candidateSheet.load('isNullObject');
             await context.sync();
           }
-          const targetSheet = (args.sheetName && !activeSheet.isNullObject) ? activeSheet : sheets.getActiveWorksheet();
+          const targetSheet = (parsedAddr.sheetName && !candidateSheet.isNullObject)
+            ? candidateSheet
+            : activeSheetObj;
 
+          // 1-PASS FULL WORKBOOK AUDIT: Loads usedRange across ALL sheets at once so the agent never wastes 10 turns reading slice by slice!
           if (name === 'audit_workbook') {
             const wb = context.workbook;
             wb.load('name');
             sheets.load('items/name');
-            targetSheet.load('name');
-            const tables = targetSheet.tables;
-            const pivots = targetSheet.pivotTables;
-            tables.load('items/name');
-            pivots.load('items/name');
-            const usedRange = targetSheet.getUsedRange();
-            usedRange.load(['address', 'rowCount', 'columnCount', 'values', 'formulas']);
+            activeSheetObj.load('name');
             await context.sync();
 
             appState.currentWorkbookName = wb.name || appState.currentWorkbookName;
 
-            let formulaCells = [];
-            let blankCount = 0;
-            for (let r = 0; r < usedRange.rowCount; r++) {
-              for (let c = 0; c < usedRange.columnCount; c++) {
-                const f = usedRange.formulas[r][c];
-                const v = usedRange.values[r][c];
-                if (typeof f === 'string' && f.startsWith('=')) {
-                  formulaCells.push({ cell: `${indexToColLetter(c)}${r + 1}`, formula: f, value: v });
-                }
-                if (v === '' || v === null) blankCount++;
-              }
+            const sheetUsedRanges = {};
+            for (const s of sheets.items) {
+              const ur = s.getUsedRangeOrNullObject();
+              ur.load(['isNullObject', 'address', 'rowCount', 'columnCount', 'values', 'formulas']);
+              sheetUsedRanges[s.name] = ur;
             }
-            // Also broadcast snapshot so sibling Excel windows can see this workbook
+            await context.sync();
+
+            const allSheetsOverview = {};
+            let activeSheetFormulasCount = 0;
+
+            for (const s of sheets.items) {
+              const ur = sheetUsedRanges[s.name];
+              if (ur.isNullObject) {
+                allSheetsOverview[s.name] = { empty: true };
+                continue;
+              }
+              const isActive = s.name === activeSheetObj.name;
+              // Include up to 120 non-empty rows for the active sheet, and up to 45 non-empty rows for every other sheet in the workbook!
+              const compactRows = buildCompactSheetRowsRepresentation(
+                ur.values,
+                ur.formulas,
+                isActive ? 120 : 45
+              );
+
+              if (isActive) {
+                for (let r = 0; r < ur.rowCount; r++) {
+                  for (let c = 0; c < ur.columnCount; c++) {
+                    const f = ur.formulas[r][c];
+                    if (typeof f === 'string' && f.startsWith('=')) activeSheetFormulasCount++;
+                  }
+                }
+              }
+
+              allSheetsOverview[s.name] = {
+                isActive,
+                usedRangeAddress: ur.address,
+                dimensions: `${ur.rowCount}x${ur.columnCount}`,
+                nonEmptyRowCount: compactRows.length,
+                rows: compactRows
+              };
+            }
+
             setTimeout(broadcastCurrentWorkbookSnapshot, 50);
 
             return {
-              host: 'Excel.run (Live Host)',
+              host: 'Excel.run (Live Host - Full Workbook 1-Pass Scan)',
               activeWorkbookName: appState.currentWorkbookName,
               worksheets: sheets.items.map(s => s.name),
-              activeWorksheet: targetSheet.name,
-              usedRangeAddress: usedRange.address,
-              dimensions: `${usedRange.rowCount}x${usedRange.columnCount}`,
-              headersRow1: usedRange.values[0] || [],
-              existingTables: tables.items.map(t => t.name),
-              existingPivotTables: pivots.items.map(p => p.name),
+              activeWorksheet: activeSheetObj.name,
+              activeSheetFormulaCount: activeSheetFormulasCount,
               connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
-              formulaCount: formulaCells.length,
-              blankCellCount: blankCount,
-              formulas: args.includeFormulaCoordinates ? formulaCells : undefined
+              sheetsDataMap: allSheetsOverview
+            };
+          }
+
+          if (name === 'batch_write_excel_ranges') {
+            const writes = Array.isArray(args.writes) ? args.writes : [];
+            const results = [];
+            for (const w of writes) {
+              const resolved = extractSheetAndCleanAddress(w.sheetName, w.rangeAddress);
+              let wSheet = resolved.sheetName
+                ? sheets.getItemOrNullObject(resolved.sheetName)
+                : activeSheetObj;
+              if (resolved.sheetName) {
+                wSheet.load('isNullObject');
+                await context.sync();
+                if (wSheet.isNullObject) wSheet = activeSheetObj;
+              }
+              const r = wSheet.getRange(resolved.cleanAddress);
+              r.formulas = w.valuesOrFormulas;
+              results.push(`${resolved.sheetName || 'Active'}!${resolved.cleanAddress}`);
+            }
+            activeSheetObj.getUsedRangeOrNullObject().format.autofitColumns();
+            await context.sync();
+            setTimeout(broadcastCurrentWorkbookSnapshot, 80);
+            return {
+              status: 'batch_written_to_excel',
+              rangesUpdatedCount: results.length,
+              rangesUpdated: results
             };
           }
 
           if (name === 'read_excel_range') {
-            const cleanAddr = (args.rangeAddress || 'A1:F7').replace(/^.*!/, '');
-            const targetRange = targetSheet.getRange(cleanAddr);
+            const targetRange = targetSheet.getRange(parsedAddr.cleanAddress);
+            targetSheet.load('name');
             targetRange.load(['address', 'values', 'formulas', 'rowCount', 'columnCount']);
             await context.sync();
             return {
+              sheetName: targetSheet.name,
               address: targetRange.address,
               rowCount: targetRange.rowCount,
               columnCount: targetRange.columnCount,
-              values: targetRange.values,
-              formulas: targetRange.formulas
+              compactRows: buildCompactSheetRowsRepresentation(targetRange.values, targetRange.formulas, 180),
+              values: targetRange.rowCount <= 35 ? targetRange.values : undefined
             };
           }
 
           if (name === 'write_excel_range_or_formula') {
-            const cleanAddr = (args.rangeAddress || 'A1').replace(/^.*!/, '');
-            const targetRange = targetSheet.getRange(cleanAddr);
-            // Save undo snapshot before mutating
+            const targetRange = targetSheet.getRange(parsedAddr.cleanAddress);
             targetSheet.load('name');
             targetRange.load('formulas');
             await context.sync();
             appState.undoStack.push({
               isExcel: true,
               sheetName: targetSheet.name,
-              rangeAddress: cleanAddr,
+              rangeAddress: parsedAddr.cleanAddress,
               formulas: targetRange.formulas
             });
 
             targetRange.formulas = args.valuesOrFormulas;
             targetRange.format.autofitColumns();
             await context.sync();
-            const readBack = targetSheet.getRange(cleanAddr);
+            const readBack = targetSheet.getRange(parsedAddr.cleanAddress);
             readBack.load(['address', 'values', 'formulas']);
             await context.sync();
             setTimeout(broadcastCurrentWorkbookSnapshot, 80);
             return {
               status: 'written_to_excel',
+              sheetName: targetSheet.name,
               address: readBack.address,
               evaluatedValues: readBack.values,
               formulasWritten: readBack.formulas
@@ -2053,8 +2178,16 @@
           }
 
           if (name === 'create_pivot_table') {
-            const sourceClean = (args.sourceRangeAddress || 'A1:F7').replace(/^.*!/, '');
-            const sourceRange = targetSheet.getRange(sourceClean);
+            const sourceResolved = extractSheetAndCleanAddress(args.sheetName, args.sourceRangeAddress || 'A1:F7');
+            let srcSheet = sourceResolved.sheetName
+              ? sheets.getItemOrNullObject(sourceResolved.sheetName)
+              : targetSheet;
+            if (sourceResolved.sheetName) {
+              srcSheet.load('isNullObject');
+              await context.sync();
+              if (srcSheet.isNullObject) srcSheet = targetSheet;
+            }
+            const sourceRange = srcSheet.getRange(sourceResolved.cleanAddress);
 
             let destSheet = targetSheet;
             if (args.destinationSheetName) {
@@ -2102,28 +2235,26 @@
           }
 
           if (name === 'create_excel_table') {
-            const cleanAddr = (args.rangeAddress || 'A1:F7').replace(/^.*!/, '');
             const hasHeaders = args.hasHeaders !== false;
-            const newTable = targetSheet.tables.add(cleanAddr, hasHeaders);
+            const newTable = targetSheet.tables.add(parsedAddr.cleanAddress, hasHeaders);
             if (args.tableName) {
               newTable.name = args.tableName.replace(/\W+/g, '_');
             }
             if (args.tableStyle) {
               newTable.style = args.tableStyle;
             }
-            targetSheet.getRange(cleanAddr).format.autofitColumns();
+            targetSheet.getRange(parsedAddr.cleanAddress).format.autofitColumns();
             await context.sync();
             return {
               status: 'excel_table_created',
-              rangeAddress: cleanAddr,
+              rangeAddress: parsedAddr.cleanAddress,
               tableName: args.tableName || 'AutoTable',
               style: args.tableStyle || 'Default'
             };
           }
 
           if (name === 'create_excel_chart') {
-            const cleanAddr = (args.sourceRangeAddress || 'A1:D6').replace(/^.*!/, '');
-            const dataRange = targetSheet.getRange(cleanAddr);
+            const dataRange = targetSheet.getRange(parsedAddr.cleanAddress);
             const chartTypeKey = args.chartType || 'ColumnClustered';
             const chart = targetSheet.charts.add(chartTypeKey, dataRange, 'Auto');
             if (args.chartTitle) {
@@ -2137,7 +2268,7 @@
             return {
               status: 'excel_chart_created',
               chartType: chartTypeKey,
-              sourceRange: cleanAddr,
+              sourceRange: parsedAddr.cleanAddress,
               title: args.chartTitle
             };
           }
@@ -2172,8 +2303,7 @@
           }
 
           if (name === 'format_excel_range') {
-            const cleanAddr = (args.rangeAddress || 'A1:F1').replace(/^.*!/, '');
-            const r = targetSheet.getRange(cleanAddr);
+            const r = targetSheet.getRange(parsedAddr.cleanAddress);
             if (args.fillHexColor) r.format.fill.color = args.fillHexColor;
             if (args.fontHexColor) r.format.font.color = args.fontHexColor;
             if (typeof args.bold === 'boolean') r.format.font.bold = args.bold;
@@ -2187,17 +2317,16 @@
             }
             r.format.autofitColumns();
             await context.sync();
-            return { status: 'range_formatted', rangeAddress: cleanAddr };
+            return { status: 'range_formatted', rangeAddress: parsedAddr.cleanAddress };
           }
 
           if (name === 'highlight_audit_cells') {
-            const cleanAddr = (args.rangeAddress || 'A1').replace(/^.*!/, '');
-            const targetRange = targetSheet.getRange(cleanAddr);
+            const targetRange = targetSheet.getRange(parsedAddr.cleanAddress);
             targetRange.format.fill.color = args.hexColor || '#f59e0b';
             await context.sync();
             return {
               status: 'highlighted',
-              rangeAddress: cleanAddr,
+              rangeAddress: parsedAddr.cleanAddress,
               hexColor: args.hexColor || '#f59e0b'
             };
           }
@@ -2220,32 +2349,31 @@
 
       // Branch B: Virtual Sheet Fallback
       if (name === 'audit_workbook') {
-        let formulaCells = [];
-        let blankCount = 0;
-        for (let r = 0; r < virtualSheet.values.length; r++) {
-          for (let c = 0; c < virtualSheet.values[r].length; c++) {
-            const f = virtualSheet.formulas[r][c];
-            const v = virtualSheet.values[r][c];
-            if (typeof f === 'string' && f.startsWith('=')) {
-              formulaCells.push({ cell: `${indexToColLetter(c)}${r + 1}`, formula: f, value: v });
-            }
-            if (v === '' || v === null) blankCount++;
-          }
-        }
         return {
           host: 'Virtual Workbook Mirror',
           worksheets: [virtualSheet.name],
           activeWorksheet: virtualSheet.name,
-          usedRangeAddress: `${virtualSheet.name}!A1:F7`,
-          dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
-          headersRow1: virtualSheet.values[0] || [],
-          existingTables: virtualSheet.tables,
-          existingPivotTables: virtualSheet.pivotTables,
           connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
-          formulaCount: formulaCells.length,
-          blankCellCount: blankCount,
-          formulas: formulaCells
+          sheetsDataMap: {
+            [virtualSheet.name]: {
+              isActive: true,
+              usedRangeAddress: `${virtualSheet.name}!A1:F7`,
+              dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
+              rows: buildCompactSheetRowsRepresentation(virtualSheet.values, virtualSheet.formulas, 100)
+            }
+          }
         };
+      }
+
+      if (name === 'batch_write_excel_ranges') {
+        const writes = Array.isArray(args.writes) ? args.writes : [];
+        for (const w of writes) {
+          await executeExcelTool({
+            name: 'write_excel_range_or_formula',
+            args: { rangeAddress: w.rangeAddress, valuesOrFormulas: w.valuesOrFormulas, sheetName: w.sheetName }
+          });
+        }
+        return { status: 'batch_written_to_virtual_sheet', count: writes.length };
       }
 
       if (name === 'read_excel_range') {
@@ -2772,9 +2900,9 @@
      * 8. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY/EXPORT BUTTONS
      *************************************************************************/
     const THINKING_MESSAGES = [
-      'Inspecting request & selecting Multi-Workbook / Web / Office.js tools...',
+      'Inspecting full workbook map & selecting Office.js tools...',
       'Streaming context to Gemini API & awaiting reasoning tokens...',
-      'Cross-referencing workbooks, GSTINs, PivotTables & formulas...',
+      'Cross-referencing checklist rows, sheets, GSTINs & formulas...',
       'Synthesizing structured Excel actions & verifying coordinates...'
     ];
 
@@ -2932,7 +3060,7 @@
         <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[9px] text-emerald-400">16 Enterprise Tools</span>
+            <span class="font-mono text-[9px] text-emerald-400">17 Enterprise Tools</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
             Attach external workbooks via <strong>📎</strong> (or drag-and-drop), search GSTINs online, or insert PivotTables &amp; formulas.
@@ -3008,7 +3136,7 @@
     }
 
     /*************************************************************************
-     * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP
+     * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP (GUARANTEED COMPLETION)
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
       const agentPool = (appState.models || [])
@@ -3184,37 +3312,42 @@
         parts: [{ text: userPrompt }]
       });
 
-      const MAX_AGENT_TURNS = 10;
+      const MAX_AGENT_TURNS = 20;
       let turn = 0;
+      let producedFinalText = false;
       appState.abortController = new AbortController();
 
       try {
         while (turn < MAX_AGENT_TURNS) {
           turn++;
-          statusInd.textContent = `Turn ${turn}/${MAX_AGENT_TURNS}`;
+          const isFinalForcedSynthesisTurn = turn === MAX_AGENT_TURNS;
+          statusInd.textContent = `Step ${turn}`;
           startContinuousThinkingFeedback(
-            `Gemini Thinking (Turn ${turn}/${MAX_AGENT_TURNS})`,
-            `Sending context to ${modelId}...`
+            isFinalForcedSynthesisTurn ? `Synthesizing Final Output...` : `Gemini Thinking (Step ${turn})`,
+            `Active model: ${modelId}...`
           );
 
+          const isThinkingModel = /argon|carbon|hydrogen|pro|3\.|4\./i.test(modelId);
           const payload = {
             systemInstruction: {
               parts: [
                 {
                   text:
-                    'You are a market-leading, fully integrated Microsoft Excel & Multi-Workbook AI Agent operating inside an Office.js Task Pane.\n' +
-                    `Currently connected external workbooks in Multi-Workbook Hub: ${connectedNames.length ? connectedNames.join(', ') : 'None yet (can still probe via read_external_workbook or list_all_workbooks)'}.\n` +
-                    'You have FULL CAPABILITY across 3 domains:\n' +
-                    '1. MULTI-WORKBOOK ACCESS & RECONCILIATION: NEVER claim that Office.js prevents you from reading another workbook! Always call `read_external_workbook` (or `list_all_workbooks`, `import_external_sheet`, `reconcile_workbooks_or_sheets`) first—it automatically reads attached .xlsx/.csv/.json files, sibling Excel windows via Cross-Window Sync, and live Excel external formula links (`=\'[Workbook.xlsx]Sheet\'!A1`).\n' +
-                    '2. LIVE INTERNET & GSTIN SEARCH: Call `google_web_search` to look up Indian GSTINs, HSN/SAC codes, company registrations, or tax rules in real time, and `fetch_web_page_or_api` to read any URL.\n' +
-                    '3. FULL WORKBOOK AUTOMATION: Call `audit_workbook`, `read_excel_range`, `write_excel_range_or_formula`, `create_pivot_table`, `create_excel_table`, `create_excel_chart`, `manage_worksheet`, `format_excel_range`, `diagnose_and_fix_formula_errors`, and `execute_custom_officejs`.'
+                    'You are a market-leading, autonomous Microsoft Excel & Multi-Workbook AI Agent operating inside an Office.js Task Pane.\n' +
+                    `Connected external workbooks in Multi-Workbook Hub: ${connectedNames.length ? connectedNames.join(', ') : 'None yet'}.\n` +
+                    'CRITICAL EFFICIENCY & EXECUTION RULES:\n' +
+                    '1. ONE-PASS WORKBOOK SCAN: Calling `audit_workbook` returns the non-empty rows and cell coordinates for EVERY worksheet in the active workbook at once! Do NOT waste turns calling `read_excel_range` repeatedly on ranges already returned by `audit_workbook`.\n' +
+                    '2. MULTI-SHEET ADDRESSING: When reading or writing a specific worksheet, always pass `sheetName: "ExactSheetName"` or prefix `rangeAddress: "SheetName!A1:G20"`.\n' +
+                    '3. BATCH WRITES: When filling a checklist or updating multiple cells/rows, use `batch_write_excel_ranges` (or a single `write_excel_range_or_formula` call) to write all known values/formulas in ONE turn.\n' +
+                    '4. ALWAYS PROVIDE A COMPLETE FINAL RESPONSE: After reading and/or writing the cells, ALWAYS output a clear summary of what you filled in the sheet and explicitly list any questions or ambiguous items that need the user\'s confirmation.'
                 }
               ]
             },
             contents: appState.conversationHistory,
-            tools: EXCEL_AGENT_TOOLS,
+            tools: isFinalForcedSynthesisTurn ? undefined : EXCEL_AGENT_TOOLS,
             generationConfig: {
-              temperature: 0.1
+              // Thinking models (Argon, Carbon, Pro, Gemini 3/4) require higher temperature (0.7) to prevent repetitive tool-calling loops
+              temperature: isThinkingModel ? 0.7 : 0.2
             }
           };
 
@@ -3248,9 +3381,13 @@
           });
 
           const functionCalls = parts.filter(p => p.functionCall).map(p => p.functionCall);
-          const textParts = parts.filter(p => typeof p.text === 'string' && p.text.trim()).map(p => p.text);
+          // Exclude internal `thought: true` parts from visible chat text if returned separately
+          const textParts = parts
+            .filter(p => !p.thought && typeof p.text === 'string' && p.text.trim())
+            .map(p => p.text);
 
           if (textParts.length > 0) {
+            producedFinalText = true;
             const fullText = textParts.join('\n\n');
             appendLogCard({
               role: 'model',
@@ -3269,9 +3406,12 @@
           const toolResponseParts = [];
           for (const fc of functionCalls) {
             const isWebTool = fc.name === 'google_web_search' || fc.name === 'fetch_web_page_or_api';
+            const sheetPrefix = fc.args?.sheetName ? `${fc.args.sheetName}!` : '';
+            const rawTarget = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || (sheetPrefix + (fc.args?.rangeAddress || fc.args?.sourceRangeAddress || '')) || (fc.args?.writes ? `${fc.args.writes.length} ranges` : 'workbook');
+
             updateThinkingPhase(
-              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing Tool: ${fc.name}`,
-              `Running ${fc.name}...`
+              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing: ${fc.name}`,
+              `Target: ${rawTarget}...`
             );
             let toolResult;
             try {
@@ -3280,12 +3420,11 @@
               toolResult = { error: toolErr.message };
             }
 
-            const targetSummary = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
             appendLogCard({
               role: 'tool',
               title: `${isWebTool ? 'WEB' : 'EXCEL'} // ${fc.name}`,
               isCollapsibleTool: true,
-              toolSummary: `${fc.name}(${String(targetSummary).slice(0, 38)}) — ${costBadge}`,
+              toolSummary: `${fc.name}(${String(rawTarget).slice(0, 42)}) — ${costBadge}`,
               bodyHtml: `<div><strong>Args:</strong> ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div><strong>Result:</strong> ${escapeHtml(JSON.stringify(toolResult))}</div>`
             });
 
@@ -3301,6 +3440,44 @@
             role: 'user',
             parts: toolResponseParts
           });
+        }
+
+        // Safety Guarantee: If the loop ended without visible text, request an immediate summary response
+        if (!producedFinalText) {
+          updateThinkingPhase('Finalizing Summary...', 'Generating completion report & ambiguity questions...');
+          const finalPayload = {
+            contents: [
+              ...appState.conversationHistory,
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: 'Please provide your complete response now based on the workbook data gathered above: state what you have filled or found, and ask any clarifying questions for ambiguous checklist items.'
+                  }
+                ]
+              }
+            ]
+          };
+          const { data, usedModelId } = await fetchGeminiWithResilience({
+            apiKey,
+            initialModelId: modelId,
+            payload: finalPayload,
+            signal: appState.abortController.signal
+          });
+          const costSnap = recordTokenUsage(data.usageMetadata, usedModelId);
+          const parts = data.candidates?.[0]?.content?.parts || [];
+          const textOut = parts.filter(p => !p.thought && p.text).map(p => p.text).join('\n\n').trim();
+          if (textOut) {
+            appState.conversationHistory.push({ role: 'model', parts: [{ text: textOut }] });
+            appendLogCard({
+              role: 'model',
+              title: usedModelId,
+              bodyHtml: escapeHtml(textOut),
+              rawText: textOut,
+              badgeText: costSnap ? `₹${costSnap.inrCost.toFixed(4)}` : 'Complete',
+              badgeColor: 'text-emerald-400'
+            });
+          }
         }
       } catch (err) {
         appState.conversationHistory = historyCheckpoint;
@@ -3372,32 +3549,32 @@
         role: 'tool',
         title: 'OFFICE.JS // audit_workbook',
         isCollapsibleTool: true,
-        toolSummary: `audit_workbook(Statutory_Audit_FY26) • ₹${snap1.inrCost.toFixed(4)}`,
+        toolSummary: `audit_workbook(All Sheets 1-Pass Scan) • ₹${snap1.inrCost.toFixed(4)}`,
         bodyHtml: escapeHtml(JSON.stringify(step1Audit))
       });
 
-      updateThinkingPhase('Writing Formulas to Sheet...', 'Populating E2:F6 and C7:E7...');
+      updateThinkingPhase('Batch Writing Formulas to Sheet...', 'Populating E2:F6 and C7:E7 in one batch...');
       await new Promise(r => setTimeout(r, 350));
 
       const step2Formulas = await executeExcelTool({
-        name: 'write_excel_range_or_formula',
+        name: 'batch_write_excel_ranges',
         args: {
-          rangeAddress: 'E2:F6',
-          valuesOrFormulas: [
-            ['=D2-C2', '=(E2/C2)*100'],
-            ['=D3-C3', '=(E3/C3)*100'],
-            ['=D4-C4', '=(E4/C4)*100'],
-            ['=D5-C5', '=(E5/C5)*100'],
-            ['=D6-C6', '=(E6/C6)*100']
+          writes: [
+            {
+              rangeAddress: 'E2:F6',
+              valuesOrFormulas: [
+                ['=D2-C2', '=(E2/C2)*100'],
+                ['=D3-C3', '=(E3/C3)*100'],
+                ['=D4-C4', '=(E4/C4)*100'],
+                ['=D5-C5', '=(E5/C5)*100'],
+                ['=D6-C6', '=(E6/C6)*100']
+              ]
+            },
+            {
+              rangeAddress: 'C7:E7',
+              valuesOrFormulas: [['=SUM(C2:C6)', '=SUM(D2:D6)', '=SUM(E2:E6)']]
+            }
           ]
-        }
-      });
-
-      await executeExcelTool({
-        name: 'write_excel_range_or_formula',
-        args: {
-          rangeAddress: 'C7:E7',
-          valuesOrFormulas: [['=SUM(C2:C6)', '=SUM(D2:D6)', '=SUM(E2:E6)']]
         }
       });
 
@@ -3409,16 +3586,16 @@
       const snap2 = recordTokenUsage({ promptTokenCount: 690, candidatesTokenCount: 180, thoughtsTokenCount: 110, cachedContentTokenCount: 200 }, 'simulator-flash');
       appendLogCard({
         role: 'tool',
-        title: 'OFFICE.JS // write_excel_range_or_formula',
+        title: 'OFFICE.JS // batch_write_excel_ranges',
         isCollapsibleTool: true,
-        toolSummary: `Wrote variance & =SUM formulas (E2:F6, C7:E7) • ₹${snap2.inrCost.toFixed(4)}`,
+        toolSummary: `batch_write_excel_ranges(2 ranges) • ₹${snap2.inrCost.toFixed(4)}`,
         bodyHtml: escapeHtml(JSON.stringify(step2Formulas))
       });
 
       const finalSummary =
-        '1. Audited Statutory_Audit_FY26 (A1:F7) and filled variance formulas (=D2-C2 through =D6-C6) and =SUM totals (C7:E7).\n' +
+        '1. Scanned all sheets in 1 pass via audit_workbook and batch-wrote variance formulas (E2:F6) and =SUM totals (C7:E7).\n' +
         '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
-        '3. Click "📎" below to attach any external GSTR-1 / 2B / 3B workbook (.xlsx/.csv/.json) for cross-workbook reconciliation.';
+        '3. Multi-sheet addressing ("SheetName!Range") and guaranteed final synthesis are active.';
       appendLogCard({
         role: 'model',
         title: 'AUDIT COMPLETE',
@@ -3497,7 +3674,6 @@
       updateHistoryBadgeAndList();
       bindQuickPromptButtons();
 
-      // Attach External Workbook (.xlsx / .csv / .json) & Drag-and-Drop
       const fileInput = document.getElementById('externalWorkbookFileInput');
       document.getElementById('attachWorkbookBtn').addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', (e) => {
@@ -3519,7 +3695,6 @@
       document.getElementById('syncCurrentWorkbookBtn').addEventListener('click', broadcastCurrentWorkbookSnapshot);
       document.getElementById('undoLastAiBtn').addEventListener('click', undoLastAiMutation);
 
-      // Custom Instant-Click Model Popover Toggle
       const modelPopover = document.getElementById('customModelPopover');
       const modelTriggerBtn = document.getElementById('customModelTriggerBtn');
       const modelFilterInput = document.getElementById('modelFilterInput');
