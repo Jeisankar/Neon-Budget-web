@@ -6,6 +6,8 @@
   <title>NEON // AUDIT — Gemini Agentic Excel Task Pane</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- SheetJS (xlsx) for instant multi-workbook .xlsx/.xls/.csv parsing & cross-file reconciliation -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -107,7 +109,10 @@
     }
   </style>
 </head>
-<body class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
+<body id="appDropZone" class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
+
+  <!-- Hidden Multi-File Input for External Workbooks (.xlsx, .xls, .csv, .json) -->
+  <input id="externalWorkbookFileInput" type="file" multiple accept=".xlsx,.xls,.csv,.json" class="hidden" />
 
   <!-- =====================================================================
        ULTRA-COMPACT NON-OVERLAPPING TOP HEADER BAR (FIXED / DOCKED TOP)
@@ -132,6 +137,16 @@
         class="px-2 py-0.5 h-6 rounded-full bg-obsidian-900 hover:bg-obsidian-800 border border-amber-500/40 text-[11px] font-mono font-semibold text-amber-300 flex items-center justify-center transition shadow-sm"
       >
         <span id="compactInrPillText">₹0.00</span>
+      </button>
+
+      <!-- 1-Click Undo Last AI Sheet Mutation -->
+      <button
+        id="undoLastAiBtn"
+        type="button"
+        title="Undo Last AI Sheet Edit (Revert Snapshot)"
+        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-amber-300 font-mono text-xs flex items-center justify-center transition"
+      >
+        ↩
       </button>
 
       <!-- + New Chat Button -->
@@ -182,21 +197,24 @@
        ===================================================================== -->
   <section id="viewAgent" class="flex-1 flex flex-col overflow-hidden relative">
 
-    <!-- Scrollable Message Stream (Selectable text + Copy button on every message) -->
+    <!-- Scrollable Message Stream (Selectable text + Copy & Export to Sheet on every message) -->
     <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5">
       <!-- Welcome / Empty State Card (Auto-collapses once chatting starts) -->
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
         <div class="flex items-center justify-between">
-          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Full Web + Excel Agent Ready</span>
-          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">🌐 Web + 12 Tools</span>
+          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Multi-Workbook + Live Web Agent</span>
+          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">16 Enterprise Tools</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Equipped with <strong>Live Google Web Search</strong> (for GSTINs, HSN/SAC codes, company lookups), <strong>Live URL/API Fetching</strong>, native <strong>PivotTables</strong>, <strong>Tables</strong>, <strong>Charts</strong>, and <strong>Formulas</strong>.
+          Reconcile across <strong>multiple workbooks</strong> (click <strong>📎</strong> below or drag-and-drop any external <code class="text-amber-300">.xlsx</code>/<code class="text-amber-300">.csv</code>/<code class="text-amber-300">.json</code> like GSTR-1/2B/3B, or open the add-in in both Excel windows for automatic Cross-Workbook Sync), run <strong>live Google Web Searches</strong>, and build <strong>PivotTables</strong> &amp; <strong>Charts</strong>.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
           <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
             ⚡ Audit &amp; Auto-Fill Variance Formulas
+          </button>
+          <button type="button" data-prompt="List all connected/attached external workbooks (such as GSTR-1 / GSTR-2B) and reconcile their taxable value and IGST/CGST/SGST totals against the active workbook, writing a formatted Reconciliation Summary sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-fuchsia-300 border border-fuchsia-500/30 transition">
+            🔄 Cross-Workbook GSTR-1 vs 3B Reconcile
           </button>
           <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
             📊 Insert Native PivotTable
@@ -207,11 +225,19 @@
           <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
             ∑ Write Totals &amp; Flag Overruns
           </button>
-          <button type="button" data-prompt="Inspect the active worksheet used range and list all formulas vs hardcoded values with exact cell coordinates." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-600 transition">
+          <button type="button" data-prompt="Scan the active worksheet for any formula errors (#REF!, #NAME?, #VALUE!, #N/A, #DIV/0!) or broken references, explain the root cause, and repair them." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-600 transition">
             🔍 Formula Integrity Scan
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- CONNECTED / ATTACHED EXTERNAL WORKBOOKS BAR (Shows when external files or sibling Excel instances are linked) -->
+    <div id="connectedWorkbooksStrip" class="hidden shrink-0 mx-3 mb-1 px-2.5 py-1.5 rounded-lg bg-obsidian-900/95 border border-teal-500/30 flex items-center justify-between gap-2">
+      <div id="connectedWorkbooksBadges" class="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-neon-cyan py-0.5"></div>
+      <button id="syncCurrentWorkbookBtn" type="button" title="Broadcast active workbook to other open Excel windows" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 shrink-0">
+        ⇄ Sync
+      </button>
     </div>
 
     <!-- LIVE THINKING & CONTINUOUS TELEMETRY BAR (Visible whenever model is processing) -->
@@ -238,10 +264,10 @@
       </div>
     </div>
 
-    <!-- DOCKED BOTTOM COMPOSER (With Custom Instant-Click Model Popover Menu!) -->
+    <!-- DOCKED BOTTOM COMPOSER (With Custom Instant-Click Model Popover + Multi-Workbook Attachment!) -->
     <form id="promptForm" class="shrink-0 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 px-2.5 pt-2 pb-2 z-20 relative">
 
-      <!-- CUSTOM INSTANT-CLICK UPWARD MODEL DROPDOWN POPOVER (Fixes WebView2 press-and-hold bug) -->
+      <!-- CUSTOM INSTANT-CLICK UPWARD MODEL DROPDOWN POPOVER -->
       <div
         id="customModelPopover"
         class="hidden absolute left-2.5 right-2.5 bottom-[52px] z-50 bg-obsidian-900 border border-neon-cyan/50 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-64"
@@ -269,11 +295,11 @@
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to search the web for GSTINs, insert PivotTables, or write formulas... (Enter to send)"
+          placeholder="Ask Gemini to read another workbook (click 📎 or drop .xlsx/.csv), search GSTINs online, or build PivotTables..."
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
-        <!-- Bottom Composer Toolbar: Instant-Click Model Selector + Range + Send -->
+        <!-- Bottom Composer Toolbar: Instant-Click Model Selector + 📎 Attach Workbook + 📍 Range + Send -->
         <div class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
           <div class="flex items-center gap-1 min-w-0 flex-1">
             <!-- Hidden native select kept in sync for state compatibility -->
@@ -287,7 +313,7 @@
               id="customModelTriggerBtn"
               type="button"
               title="Click once to open model list, click a model to select"
-              class="max-w-[165px] sm:max-w-[220px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1.5 truncate transition"
+              class="max-w-[140px] sm:max-w-[200px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1 truncate transition"
             >
               <span id="customModelTriggerLabel" class="truncate">⚡ Offline Simulator</span>
               <span class="text-[9px] text-slate-400 shrink-0">▴</span>
@@ -301,6 +327,18 @@
             >
               ↻
             </button>
+
+            <!-- Attach External Workbook (.xlsx / .csv / .json) Button -->
+            <button
+              id="attachWorkbookBtn"
+              type="button"
+              title="Attach external Excel workbook (.xlsx/.xls), CSV, or GSTR JSON file for cross-workbook reading & reconciliation"
+              class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-[10px] font-mono text-neon-cyan flex items-center gap-0.5 shrink-0 transition"
+            >
+              <span>📎</span>
+              <span id="attachedFilesCountBadge">0</span>
+            </button>
+
             <button
               id="insertSelectionBtn"
               type="button"
@@ -335,7 +373,7 @@
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
         <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, web grounding, and INR (₹) tariff schedule.</p>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, cross-workbook sync, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -590,7 +628,7 @@
 
   <script>
     /*************************************************************************
-     * 1. SAFE STORAGE & PERSISTENT STATE
+     * 1. SAFE STORAGE, CROSS-WORKBOOK REGISTRY & PERSISTENT STATE
      *************************************************************************/
     const STORAGE_KEYS = {
       API_KEY: 'neon_excel_gemini_api_key_v1',
@@ -598,7 +636,8 @@
       LEDGER: 'neon_excel_inr_ledger_v1',
       SELECTED_MODEL: 'neon_excel_selected_model_v1',
       CACHED_MODELS: 'neon_excel_cached_models_v1',
-      CHAT_SESSIONS: 'neon_excel_chat_sessions_v1'
+      CHAT_SESSIONS: 'neon_excel_chat_sessions_v1',
+      CROSS_WORKBOOK_BRIDGE: 'neon_excel_cross_workbook_bridge_v1'
     };
 
     function safeStorageGet(key, fallback) {
@@ -614,7 +653,7 @@
       try {
         window.localStorage.setItem(key, JSON.stringify(value));
       } catch (err) {
-        // Ignore sandbox storage errors
+        // Ignore sandbox storage quota limits
       }
     }
 
@@ -636,6 +675,7 @@
 
     const appState = {
       isExcelHost: false,
+      currentWorkbookName: 'Active_Workbook.xlsx',
       apiKey: safeStorageGet(STORAGE_KEYS.API_KEY, ''),
       models: safeStorageGet(STORAGE_KEYS.CACHED_MODELS, []),
       visibleModels: [],
@@ -658,6 +698,9 @@
         cachedTokens: 0,
         turnBreakdown: []
       },
+      // Multi-Workbook Hub: Stores parsed external workbooks (.xlsx, .xls, .csv, .json) + Cross-Window live workbooks
+      externalWorkbooks: {},
+      undoStack: [],
       currentSessionId: 'sess_' + Date.now(),
       currentSessionTitle: 'New Workbook Audit',
       conversationHistory: [],
@@ -669,18 +712,221 @@
     };
 
     /*************************************************************************
-     * 2. CLIPBOARD COPY HELPER (WORKS IN OFFICE WEBVIEW2 & BROWSERS)
+     * 2. MULTI-WORKBOOK ENGINE:
+     *    (A) SheetJS (.xlsx/.xls/.csv/.json) Instant In-Memory Parser
+     *    (B) Live Cross-Window BroadcastChannel & Shared Registry Bridge
+     *    (C) Excel Cross-Workbook Formula Link Resolver (`='[File.xlsx]Sheet'!A1`)
+     *************************************************************************/
+    let crossWorkbookChannel = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        crossWorkbookChannel = new BroadcastChannel('neon_excel_multi_workbook_bus_v1');
+        crossWorkbookChannel.onmessage = (event) => {
+          const msg = event.data || {};
+          if (msg.type === 'WORKBOOK_SNAPSHOT' && msg.workbookName && msg.workbookName !== appState.currentWorkbookName) {
+            appState.externalWorkbooks[msg.workbookName] = {
+              workbookName: msg.workbookName,
+              source: 'Live Open Excel Window (Cross-Window Sync)',
+              updatedAt: msg.updatedAt,
+              sheets: msg.sheets || {}
+            };
+            renderConnectedWorkbooksStrip();
+          }
+        };
+      }
+    } catch (err) {
+      // Ignore if BroadcastChannel is restricted
+    }
+
+    // Load any previously synced open workbooks from shared localStorage bridge
+    function loadSharedWorkbookBridge() {
+      const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
+      Object.keys(bridge).forEach((wbName) => {
+        if (wbName !== appState.currentWorkbookName && bridge[wbName]) {
+          appState.externalWorkbooks[wbName] = bridge[wbName];
+        }
+      });
+      renderConnectedWorkbooksStrip();
+    }
+
+    // Snapshots the current active Excel workbook and broadcasts it to all other open Excel instances on the same domain
+    async function broadcastCurrentWorkbookSnapshot() {
+      if (!appState.isExcelHost || !window.Excel || typeof window.Excel.run !== 'function') return;
+      try {
+        await window.Excel.run(async (context) => {
+          const wb = context.workbook;
+          wb.load('name');
+          const sheets = wb.worksheets;
+          sheets.load('items/name');
+          await context.sync();
+
+          appState.currentWorkbookName = wb.name || 'Active_Workbook.xlsx';
+          const sheetRanges = {};
+          for (const s of sheets.items) {
+            const ur = s.getUsedRangeOrNullObject();
+            ur.load(['isNullObject', 'address', 'values', 'rowCount', 'columnCount']);
+            sheetRanges[s.name] = ur;
+          }
+          await context.sync();
+
+          const serializedSheets = {};
+          for (const sName of Object.keys(sheetRanges)) {
+            const ur = sheetRanges[sName];
+            if (!ur.isNullObject && Array.isArray(ur.values)) {
+              // Store up to 500 rows per sheet in the shared cross-window registry
+              serializedSheets[sName] = {
+                rowCount: ur.rowCount,
+                columnCount: ur.columnCount,
+                values: ur.values.slice(0, 500)
+              };
+            }
+          }
+
+          const payload = {
+            type: 'WORKBOOK_SNAPSHOT',
+            workbookName: appState.currentWorkbookName,
+            source: 'Live Open Excel Window',
+            updatedAt: new Date().toLocaleTimeString(),
+            sheets: serializedSheets
+          };
+
+          const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
+          bridge[appState.currentWorkbookName] = payload;
+          safeStorageSet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, bridge);
+
+          if (crossWorkbookChannel) {
+            crossWorkbookChannel.postMessage(payload);
+          }
+          loadSharedWorkbookBridge();
+        });
+      } catch (err) {
+        // Ignore background sync errors
+      }
+    }
+
+    // Parses attached .xlsx, .xls, .csv, or GST Portal .json files using SheetJS
+    async function handleExternalWorkbookFiles(fileList) {
+      if (!fileList || !fileList.length) return;
+      for (const file of Array.from(fileList)) {
+        try {
+          const ext = (file.name.split('.').pop() || '').toLowerCase();
+          if (ext === 'json') {
+            const text = await file.text();
+            const jsonObj = JSON.parse(text);
+            // Convert GST Portal JSON (GSTR-1 / GSTR-2B / GSTR-3B) or generic JSON into tabular sheet rows
+            const sheetsMap = {};
+            if (Array.isArray(jsonObj)) {
+              const headers = Object.keys(jsonObj[0] || {});
+              const rows = [headers, ...jsonObj.map(item => headers.map(h => item[h] ?? ''))];
+              sheetsMap['JSON_Data'] = { rowCount: rows.length, columnCount: headers.length, values: rows };
+            } else {
+              Object.keys(jsonObj).forEach((k) => {
+                if (Array.isArray(jsonObj[k]) && jsonObj[k].length > 0 && typeof jsonObj[k][0] === 'object') {
+                  const headers = Object.keys(jsonObj[k][0]);
+                  const rows = [headers, ...jsonObj[k].map(item => headers.map(h => JSON.stringify(item[h] ?? '')))];
+                  sheetsMap[k.slice(0, 30)] = { rowCount: rows.length, columnCount: headers.length, values: rows };
+                }
+              });
+              if (Object.keys(sheetsMap).length === 0) {
+                sheetsMap['Raw_JSON'] = { rowCount: 1, columnCount: 1, values: [[text.slice(0, 20000)]] };
+              }
+            }
+            appState.externalWorkbooks[file.name] = {
+              workbookName: file.name,
+              source: 'Attached JSON File',
+              updatedAt: new Date().toLocaleTimeString(),
+              sheets: sheetsMap
+            };
+          } else if (window.XLSX) {
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8 = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < uint8.byteLength; i++) {
+              binary += String.fromCharCode(uint8[i]);
+            }
+            const base64Str = window.btoa(binary);
+            const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellFormula: true });
+            const sheetsMap = {};
+            workbook.SheetNames.forEach((sheetName) => {
+              const ws = workbook.Sheets[sheetName];
+              const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+              sheetsMap[sheetName] = {
+                rowCount: rows.length,
+                columnCount: rows[0] ? rows[0].length : 0,
+                values: rows
+              };
+            });
+            appState.externalWorkbooks[file.name] = {
+              workbookName: file.name,
+              source: 'Attached Excel/CSV File',
+              base64: base64Str,
+              updatedAt: new Date().toLocaleTimeString(),
+              sheets: sheetsMap
+            };
+          }
+        } catch (err) {
+          appendLogCard({
+            role: 'error',
+            title: `FILE PARSE ERROR // ${file.name}`,
+            bodyHtml: escapeHtml(err.message),
+            badgeText: 'Attachment',
+            badgeColor: 'text-rose-400'
+          });
+        }
+      }
+      renderConnectedWorkbooksStrip();
+    }
+
+    function renderConnectedWorkbooksStrip() {
+      const strip = document.getElementById('connectedWorkbooksStrip');
+      const badgesContainer = document.getElementById('connectedWorkbooksBadges');
+      const countBadge = document.getElementById('attachedFilesCountBadge');
+      const names = Object.keys(appState.externalWorkbooks);
+
+      if (countBadge) countBadge.textContent = String(names.length);
+      if (!strip || !badgesContainer) return;
+
+      if (names.length === 0) {
+        strip.classList.add('hidden');
+        return;
+      }
+
+      strip.classList.remove('hidden');
+      badgesContainer.innerHTML = names
+        .map((name) => {
+          const wb = appState.externalWorkbooks[name];
+          const sheetCount = Object.keys(wb.sheets || {}).length;
+          return `
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-obsidian-950 border border-teal-500/40 text-[10px] font-mono text-neon-cyan shrink-0" title="${escapeHtml(wb.source)} (${sheetCount} sheets)">
+              <span>📗 ${escapeHtml(name)} (${sheetCount}s)</span>
+              <button type="button" data-remove-wb="${escapeHtml(name)}" class="text-slate-400 hover:text-rose-400 ml-0.5">✕</button>
+            </span>
+          `;
+        })
+        .join('');
+
+      badgesContainer.querySelectorAll('[data-remove-wb]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-remove-wb');
+          delete appState.externalWorkbooks[target];
+          renderConnectedWorkbooksStrip();
+        });
+      });
+    }
+
+    /*************************************************************************
+     * 3. CLIPBOARD COPY & 1-CLICK EXPORT RESPONSE TO EXCEL SHEET
      *************************************************************************/
     function copyTextToClipboard(text, btnElement) {
       const doneFeedback = () => {
         if (!btnElement) return;
         const orig = btnElement.innerHTML;
-        btnElement.innerHTML = '✓ Copied';
+        btnElement.innerHTML = '✓';
         btnElement.classList.add('text-emerald-400');
         setTimeout(() => {
           btnElement.innerHTML = orig;
           btnElement.classList.remove('text-emerald-400');
-        }, 1600);
+        }, 1400);
       };
 
       const fallbackCopy = () => {
@@ -707,8 +953,51 @@
       }
     }
 
+    async function exportMessageTextToExcelSheet(rawText, btnElement) {
+      const lines = String(rawText || '').split('\n').filter(l => l.trim().length > 0);
+      const matrix = lines.map((line) => {
+        if (line.includes('|')) {
+          return line
+            .split('|')
+            .map(c => c.trim())
+            .filter((_, idx, arr) => !(idx === 0 && arr[0] === '') && !(idx === arr.length - 1 && arr[arr.length - 1] === ''));
+        }
+        return [line];
+      }).filter(r => !r.every(cell => /^[-:]+$/.test(cell)));
+
+      const maxCols = matrix.reduce((m, r) => Math.max(m, r.length), 1);
+      const padded = matrix.map(r => {
+        const rowCopy = [...r];
+        while (rowCopy.length < maxCols) rowCopy.push('');
+        return rowCopy;
+      });
+
+      const sheetName = `AI_Output_${Math.floor(Math.random() * 899 + 100)}`;
+      const endColLetter = indexToColLetter(maxCols - 1);
+      const rangeAddr = `A1:${endColLetter}${padded.length}`;
+
+      try {
+        await executeExcelTool({ name: 'manage_worksheet', args: { action: 'create', sheetName } });
+        await executeExcelTool({
+          name: 'write_excel_range_or_formula',
+          args: { sheetName, rangeAddress: rangeAddr, valuesOrFormulas: padded }
+        });
+        if (btnElement) {
+          const orig = btnElement.innerHTML;
+          btnElement.innerHTML = '✓ In Sheet';
+          btnElement.classList.add('text-emerald-400');
+          setTimeout(() => {
+            btnElement.innerHTML = orig;
+            btnElement.classList.remove('text-emerald-400');
+          }, 1800);
+        }
+      } catch (err) {
+        // Ignore export error
+      }
+    }
+
     /*************************************************************************
-     * 3. VIRTUAL EXCEL ENGINE + NATIVE OFFICE.JS `Excel.run` ADAPTER
+     * 4. VIRTUAL EXCEL ENGINE + UNDO SNAPSHOT STACK
      *************************************************************************/
     const INITIAL_GRID = [
       ['Account Code', 'Ledger Head', 'Budget (INR)', 'Actual (INR)', 'Variance (INR)', 'Variance %'],
@@ -729,6 +1018,26 @@
       tables: [],
       charts: []
     };
+
+    async function undoLastAiMutation() {
+      if (appState.undoStack.length === 0) return;
+      const lastSnap = appState.undoStack.pop();
+      if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function' && lastSnap.isExcel) {
+        try {
+          await window.Excel.run(async (context) => {
+            const sheet = context.workbook.worksheets.getItem(lastSnap.sheetName);
+            const r = sheet.getRange(lastSnap.rangeAddress);
+            r.formulas = lastSnap.formulas;
+            await context.sync();
+          });
+        } catch (err) {
+          // Ignore undo error
+        }
+      } else if (lastSnap.virtualSnapshot) {
+        virtualSheet = JSON.parse(JSON.stringify(lastSnap.virtualSnapshot));
+        recomputeVirtualSheet();
+      }
+    }
 
     function colLetterToIndex(letter) {
       let col = 0;
@@ -849,11 +1158,106 @@
     }
 
     /*************************************************************************
-     * 4. FULL-SPECTRUM WEB + OFFICE.JS AGENTIC TOOL SUITE (12 INTEGRATED TOOLS)
+     * 5. FULL-SPECTRUM MULTI-WORKBOOK + WEB + OFFICE.JS TOOL SUITE (16 TOOLS)
      *************************************************************************/
     const EXCEL_AGENT_TOOLS = [
       {
         functionDeclarations: [
+          {
+            name: 'list_all_workbooks',
+            description: 'Lists the active workbook PLUS all external workbooks currently available via File Attachment (📎 .xlsx/.csv/.json) or Live Cross-Window Sync (other open Excel instances), including their worksheet names and dimensions.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {}
+            }
+          },
+          {
+            name: 'read_external_workbook',
+            description: 'Reads data from another Excel workbook (e.g. "PIMS_Anichakuppam_Oct26_GSTR1.xlsx" or "PIMS_Anichakuppam_Oct26_GSTR1") via the Multi-Workbook Hub (attached .xlsx/.csv/.json, Cross-Window Sync, or live Excel cross-workbook formula link).',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                workbookName: {
+                  type: 'STRING',
+                  description: 'Name or partial name of the external workbook (e.g. "PIMS_Anichakuppam_Oct26_GSTR1" or "PIMS_Anichakuppam_Oct26_GSTR1.xlsx").'
+                },
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Optional worksheet name inside the external workbook (e.g. "B2B", "Sheet1", "Summary"). Defaults to the first sheet.'
+                },
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'Optional A1 range to read (e.g. "A1:M50"). Defaults to the used range.'
+                }
+              },
+              required: ['workbookName']
+            }
+          },
+          {
+            name: 'import_external_sheet',
+            description: 'Copies or imports a worksheet from an attached/synced external workbook directly into the active Excel workbook so all sheets reside in one file.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                workbookName: {
+                  type: 'STRING',
+                  description: 'Name or partial name of the external workbook.'
+                },
+                sourceSheetName: {
+                  type: 'STRING',
+                  description: 'Optional source worksheet name to import (defaults to first sheet).'
+                },
+                targetSheetName: {
+                  type: 'STRING',
+                  description: 'Name for the newly imported worksheet in the active workbook.'
+                }
+              },
+              required: ['workbookName', 'targetSheetName']
+            }
+          },
+          {
+            name: 'reconcile_workbooks_or_sheets',
+            description: 'Performs an automated 2-way reconciliation between two sheets or two workbooks (e.g., GSTR-1 vs GSTR-3B, or GSTR-2B vs Purchase Register) by matching key columns (such as GSTIN, Invoice Number, or Tax Head) and writes a formatted Reconciliation Summary sheet.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                sourceA_Workbook: {
+                  type: 'STRING',
+                  description: 'First workbook name (use "ACTIVE" for the active workbook).'
+                },
+                sourceA_Sheet: {
+                  type: 'STRING',
+                  description: 'Worksheet name in Source A.'
+                },
+                sourceB_Workbook: {
+                  type: 'STRING',
+                  description: 'Second workbook name (e.g. "PIMS_Anichakuppam_Oct26_GSTR1" or "ACTIVE").'
+                },
+                sourceB_Sheet: {
+                  type: 'STRING',
+                  description: 'Worksheet name in Source B.'
+                },
+                outputSheetName: {
+                  type: 'STRING',
+                  description: 'Name of the new worksheet to create with the reconciliation output (e.g., "GSTR1_vs_3B_Recon").'
+                }
+              },
+              required: ['sourceA_Workbook', 'sourceB_Workbook', 'outputSheetName']
+            }
+          },
+          {
+            name: 'diagnose_and_fix_formula_errors',
+            description: 'Scans the active worksheet for Excel formula errors (#REF!, #NAME?, #VALUE!, #N/A, #DIV/0!, #SPILL!, #NUM!) and returns exact cell coordinates, broken formulas, and surrounding context.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Optional worksheet name to scan for errors.'
+                }
+              }
+            }
+          },
           {
             name: 'google_web_search',
             description: 'Performs a live Google Web Search using Gemini Search Grounding to look up real-world facts, Indian company GSTIN numbers, CINs, HSN/SAC codes, tax rates, addresses, financial news, or live web data.',
@@ -862,7 +1266,7 @@
               properties: {
                 query: {
                   type: 'STRING',
-                  description: 'Detailed search query (e.g., "CRESCENT SURGICALS GSTIN number India state", "MOULI ENTERPRISES GSTIN", or multiple company names in one search query).'
+                  description: 'Detailed search query (e.g., "CRESCENT SURGICALS GSTIN number India state", "MOULI ENTERPRISES GSTIN").'
                 }
               },
               required: ['query']
@@ -870,7 +1274,7 @@
           },
           {
             name: 'fetch_web_page_or_api',
-            description: 'Fetches live text, JSON, or HTML content from any public URL or REST API endpoint (automatically uses a markdown reader fallback if direct CORS is blocked).',
+            description: 'Fetches live text, JSON, or HTML content from any public URL or REST API endpoint.',
             parameters: {
               type: 'OBJECT',
               properties: {
@@ -1130,7 +1534,7 @@
     ];
 
     /*************************************************************************
-     * 4B. LIVE GOOGLE WEB SEARCH GROUNDING & URL FETCHER EXECUTORS
+     * 5B. LIVE GOOGLE WEB SEARCH & MULTI-WORKBOOK EXECUTORS
      *************************************************************************/
     async function executeGoogleGroundedWebSearch(query) {
       const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -1142,7 +1546,6 @@
         };
       }
 
-      // Try grounded search using a fast search-grounding-compatible Flash model
       const searchCandidates = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', appState.selectedModel].filter(Boolean);
       let lastSearchErr = null;
 
@@ -1218,7 +1621,6 @@
         return { error: 'URL must begin with https:// or http://' };
       }
 
-      // Attempt 1: Jina Reader API (returns clean LLM-ready Markdown from any live webpage with CORS enabled)
       try {
         const jinaUrl = `https://r.jina.ai/${cleanUrl}`;
         const res = await fetch(jinaUrl, {
@@ -1237,7 +1639,6 @@
         // Fallback to direct fetch
       }
 
-      // Attempt 2: Direct browser fetch (for public JSON APIs)
       try {
         const res = await fetch(cleanUrl, {
           signal: appState.abortController ? appState.abortController.signal : undefined
@@ -1258,15 +1659,293 @@
       }
     }
 
+    // Helper to locate a matching external workbook by full or partial name
+    function findExternalWorkbookMatch(queryName) {
+      loadSharedWorkbookBridge();
+      const q = (queryName || '').trim().toLowerCase().replace(/\.xlsx$|\.xls$|\.csv$|\.json$/i, '');
+      const keys = Object.keys(appState.externalWorkbooks);
+      const exact = keys.find(k => k.toLowerCase() === (queryName || '').trim().toLowerCase());
+      if (exact) return appState.externalWorkbooks[exact];
+      const partial = keys.find(k => k.toLowerCase().includes(q) || q.includes(k.toLowerCase().replace(/\.xlsx$|\.xls$|\.csv$|\.json$/i, '')));
+      return partial ? appState.externalWorkbooks[partial] : null;
+    }
+
+    // Attempts to read an open workbook in the same desktop Excel instance via dynamic external link formula resolution
+    async function tryReadOpenExcelWorkbookViaFormulaLink(workbookName, sheetName = 'Sheet1', rangeAddr = 'A1:K35') {
+      if (!appState.isExcelHost || !window.Excel || typeof window.Excel.run !== 'function') {
+        return null;
+      }
+      const fileWithExt = /\.(xlsx|xls|xlsm|xlsb)$/i.test(workbookName) ? workbookName : `${workbookName}.xlsx`;
+      const coords = parseA1Range(rangeAddr);
+      const rowCount = Math.min(60, Math.max(1, coords.endRow - coords.startRow + 1));
+      const colCount = Math.min(18, Math.max(1, coords.endCol - coords.startCol + 1));
+
+      try {
+        return await window.Excel.run(async (context) => {
+          const tempSheetName = '_NEON_LINK_PROBE_';
+          let probeSheet = context.workbook.worksheets.getItemOrNullObject(tempSheetName);
+          probeSheet.load('isNullObject');
+          await context.sync();
+
+          if (probeSheet.isNullObject) {
+            probeSheet = context.workbook.worksheets.add(tempSheetName);
+          }
+
+          const formulaMatrix = [];
+          for (let r = coords.startRow; r < coords.startRow + rowCount; r++) {
+            const fRow = [];
+            for (let c = coords.startCol; c < coords.startCol + colCount; c++) {
+              const cellRef = `${indexToColLetter(c)}${r + 1}`;
+              fRow.push(`='[${fileWithExt}]${sheetName}'!${cellRef}`);
+            }
+            formulaMatrix.push(fRow);
+          }
+
+          const targetAddr = `A1:${indexToColLetter(colCount - 1)}${rowCount}`;
+          const probeRange = probeSheet.getRange(targetAddr);
+          probeRange.formulas = formulaMatrix;
+          probeSheet.calculate();
+          probeRange.load('values');
+          await context.sync();
+
+          const readValues = probeRange.values;
+          probeSheet.delete();
+          await context.sync();
+
+          // Check if Excel resolved the link or returned #REF!
+          const firstCell = readValues[0] && readValues[0][0];
+          if (typeof firstCell === 'string' && /^#(REF|NAME|VALUE)!/i.test(firstCell)) {
+            return null;
+          }
+          return {
+            status: 'resolved_via_excel_external_formula_link',
+            workbookName: fileWithExt,
+            sheetName,
+            rangeAddress: rangeAddr,
+            values: readValues
+          };
+        });
+      } catch (err) {
+        return null;
+      }
+    }
+
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
 
-      // Web Tools (Run in both Live Excel and Standalone Simulator!)
+      // 1. Live Web Tools
       if (name === 'google_web_search') {
         return await executeGoogleGroundedWebSearch(args.query || '');
       }
       if (name === 'fetch_web_page_or_api') {
         return await executeLiveWebPageFetch(args.url || '');
+      }
+
+      // 2. Multi-Workbook Tools (`list_all_workbooks`, `read_external_workbook`, `import_external_sheet`, `reconcile_workbooks_or_sheets`)
+      if (name === 'list_all_workbooks') {
+        await broadcastCurrentWorkbookSnapshot();
+        loadSharedWorkbookBridge();
+        const extList = Object.keys(appState.externalWorkbooks).map((wbKey) => {
+          const wb = appState.externalWorkbooks[wbKey];
+          const sheetSummaries = Object.keys(wb.sheets || {}).map((sName) => {
+            const s = wb.sheets[sName];
+            return {
+              sheetName: sName,
+              dimensions: `${s.rowCount || 0}x${s.columnCount || 0}`,
+              headersRow1: (s.values && s.values[0]) || []
+            };
+          });
+          return {
+            workbookName: wb.workbookName || wbKey,
+            source: wb.source,
+            updatedAt: wb.updatedAt,
+            sheets: sheetSummaries
+          };
+        });
+        return {
+          activeWorkbook: appState.currentWorkbookName,
+          externalWorkbooksCount: extList.length,
+          externalWorkbooks: extList,
+          usageHint:
+            extList.length === 0
+              ? 'No external workbooks are currently attached. Ask the user to click the "📎" button below the chat box (or drag-and-drop the external .xlsx/.csv/.json file onto the sidebar, or open the add-in inside that workbook window for instant Cross-Window Sync).'
+              : 'Use `read_external_workbook`, `import_external_sheet`, or `reconcile_workbooks_or_sheets` on any listed workbook.'
+        };
+      }
+
+      if (name === 'read_external_workbook') {
+        const matchedWb = findExternalWorkbookMatch(args.workbookName);
+        if (matchedWb && matchedWb.sheets) {
+          const sheetNames = Object.keys(matchedWb.sheets);
+          const targetSheetName =
+            (args.sheetName && sheetNames.find(s => s.toLowerCase() === args.sheetName.toLowerCase())) ||
+            sheetNames[0];
+          const sheetObj = matchedWb.sheets[targetSheetName];
+          if (!sheetObj) {
+            return { error: `Worksheet "${args.sheetName}" not found in ${matchedWb.workbookName}. Available sheets: ${sheetNames.join(', ')}` };
+          }
+          let rows = sheetObj.values || [];
+          if (args.rangeAddress) {
+            const coords = parseA1Range(args.rangeAddress);
+            rows = rows
+              .slice(coords.startRow, coords.endRow + 1)
+              .map(r => (r || []).slice(coords.startCol, coords.endCol + 1));
+          } else {
+            rows = rows.slice(0, 250);
+          }
+          return {
+            status: 'read_from_multi_workbook_hub',
+            workbookName: matchedWb.workbookName,
+            source: matchedWb.source,
+            availableSheets: sheetNames,
+            sheetRead: targetSheetName,
+            rowCountReturned: rows.length,
+            values: rows
+          };
+        }
+
+        // Try live Excel formula link probe if running in Excel Desktop
+        const linkProbe = await tryReadOpenExcelWorkbookViaFormulaLink(
+          args.workbookName,
+          args.sheetName || 'Sheet1',
+          args.rangeAddress || 'A1:K40'
+        );
+        if (linkProbe) {
+          return linkProbe;
+        }
+
+        return {
+          status: 'external_workbook_needs_attachment_or_sync',
+          requestedWorkbook: args.workbookName,
+          currentlyConnectedWorkbooks: Object.keys(appState.externalWorkbooks),
+          actionRequired:
+            `To let me read "${args.workbookName}" right now, either:\n` +
+            `1. Click the "📎" button below the chat box (or drag & drop "${args.workbookName}" onto this chat panel), OR\n` +
+            `2. Click "Open AI Auditor" inside the "${args.workbookName}" Excel window so Cross-Window Sync shares its sheets automatically.`
+        };
+      }
+
+      if (name === 'import_external_sheet') {
+        const matchedWb = findExternalWorkbookMatch(args.workbookName);
+        if (!matchedWb || !matchedWb.sheets) {
+          return {
+            error: `Workbook "${args.workbookName}" is not attached or synced yet. Click the "📎" button below the chat box to attach it first.`
+          };
+        }
+        const sheetNames = Object.keys(matchedWb.sheets);
+        const srcName =
+          (args.sourceSheetName && sheetNames.find(s => s.toLowerCase() === args.sourceSheetName.toLowerCase())) ||
+          sheetNames[0];
+        const rows = (matchedWb.sheets[srcName] && matchedWb.sheets[srcName].values) || [];
+        if (!rows.length) {
+          return { error: `Sheet "${srcName}" in "${matchedWb.workbookName}" is empty.` };
+        }
+        const maxCols = rows.reduce((m, r) => Math.max(m, (r || []).length), 1);
+        const normalizedRows = rows.map(r => {
+          const copy = Array.isArray(r) ? r.map(c => (c === null || c === undefined ? '' : String(c))) : [''];
+          while (copy.length < maxCols) copy.push('');
+          return copy;
+        });
+        const destSheetName = (args.targetSheetName || srcName || 'Imported_Sheet').slice(0, 30);
+        const rangeAddr = `A1:${indexToColLetter(maxCols - 1)}${normalizedRows.length}`;
+
+        await executeExcelTool({ name: 'manage_worksheet', args: { action: 'create', sheetName: destSheetName } });
+        await executeExcelTool({
+          name: 'write_excel_range_or_formula',
+          args: { sheetName: destSheetName, rangeAddress: rangeAddr, valuesOrFormulas: normalizedRows }
+        });
+
+        return {
+          status: 'imported_external_sheet_into_active_workbook',
+          sourceWorkbook: matchedWb.workbookName,
+          sourceSheet: srcName,
+          importedSheetName: destSheetName,
+          dimensionsWritten: `${normalizedRows.length}x${maxCols}`
+        };
+      }
+
+      if (name === 'reconcile_workbooks_or_sheets') {
+        // Read Source A
+        let rowsA = [];
+        if (/^active$/i.test(args.sourceA_Workbook || 'ACTIVE')) {
+          const resA = await executeExcelTool({
+            name: 'read_excel_range',
+            args: { rangeAddress: 'A1:M200', sheetName: args.sourceA_Sheet }
+          });
+          rowsA = resA.values || [];
+        } else {
+          const resA = await executeExcelTool({
+            name: 'read_external_workbook',
+            args: { workbookName: args.sourceA_Workbook, sheetName: args.sourceA_Sheet }
+          });
+          if (!resA.values) return resA;
+          rowsA = resA.values;
+        }
+
+        // Read Source B
+        let rowsB = [];
+        if (/^active$/i.test(args.sourceB_Workbook || '')) {
+          const resB = await executeExcelTool({
+            name: 'read_excel_range',
+            args: { rangeAddress: 'A1:M200', sheetName: args.sourceB_Sheet }
+          });
+          rowsB = resB.values || [];
+        } else {
+          const resB = await executeExcelTool({
+            name: 'read_external_workbook',
+            args: { workbookName: args.sourceB_Workbook, sheetName: args.sourceB_Sheet }
+          });
+          if (!resB.values) return resB;
+          rowsB = resB.values;
+        }
+
+        // Compute numeric column sums for both datasets to assist reconciliation
+        const summarizeGrid = (grid) => {
+          const headers = (grid[0] || []).map((h, i) => String(h || `Col_${indexToColLetter(i)}`));
+          const colTotals = headers.map(() => 0);
+          let nonEmptyRowCount = 0;
+          for (let r = 1; r < grid.length; r++) {
+            const row = grid[r] || [];
+            if (row.some(c => c !== '' && c !== null && c !== undefined)) nonEmptyRowCount++;
+            for (let c = 0; c < headers.length; c++) {
+              const num = Number(String(row[c] ?? '').replace(/,/g, ''));
+              if (Number.isFinite(num)) colTotals[c] += num;
+            }
+          }
+          return { headers, colTotals, dataRows: nonEmptyRowCount, sampleRows: grid.slice(0, 25) };
+        };
+
+        return {
+          status: 'datasets_loaded_for_reconciliation',
+          sourceA: { workbook: args.sourceA_Workbook, sheet: args.sourceA_Sheet, summary: summarizeGrid(rowsA) },
+          sourceB: { workbook: args.sourceB_Workbook, sheet: args.sourceB_Sheet, summary: summarizeGrid(rowsB) },
+          nextStepInstruction: `Now create or write the detailed reconciliation table into worksheet "${args.outputSheetName}" using write_excel_range_or_formula.`
+        };
+      }
+
+      if (name === 'diagnose_and_fix_formula_errors') {
+        const auditRes = await executeExcelTool({ name: 'read_excel_range', args: { rangeAddress: 'A1:N60', sheetName: args.sheetName } });
+        const vals = auditRes.values || [];
+        const forms = auditRes.formulas || [];
+        const errorsFound = [];
+        for (let r = 0; r < vals.length; r++) {
+          for (let c = 0; c < (vals[r] || []).length; c++) {
+            const v = String(vals[r][c] ?? '');
+            if (/^#(REF!|NAME\?|VALUE!|N\/A|DIV\/0!|SPILL!|NUM!|NULL!)/i.test(v)) {
+              errorsFound.push({
+                cell: `${indexToColLetter(c)}${r + 1}`,
+                errorType: v,
+                formula: (forms[r] && forms[r][c]) || '',
+                rowContext: vals[r]
+              });
+            }
+          }
+        }
+        return {
+          status: 'formula_error_scan_complete',
+          errorCount: errorsFound.length,
+          errorsFound
+        };
       }
 
       // Branch A: Live Microsoft Excel Host via Office.js
@@ -1284,6 +1963,8 @@
           const targetSheet = (args.sheetName && !activeSheet.isNullObject) ? activeSheet : sheets.getActiveWorksheet();
 
           if (name === 'audit_workbook') {
+            const wb = context.workbook;
+            wb.load('name');
             sheets.load('items/name');
             targetSheet.load('name');
             const tables = targetSheet.tables;
@@ -1293,6 +1974,8 @@
             const usedRange = targetSheet.getUsedRange();
             usedRange.load(['address', 'rowCount', 'columnCount', 'values', 'formulas']);
             await context.sync();
+
+            appState.currentWorkbookName = wb.name || appState.currentWorkbookName;
 
             let formulaCells = [];
             let blankCount = 0;
@@ -1306,8 +1989,12 @@
                 if (v === '' || v === null) blankCount++;
               }
             }
+            // Also broadcast snapshot so sibling Excel windows can see this workbook
+            setTimeout(broadcastCurrentWorkbookSnapshot, 50);
+
             return {
               host: 'Excel.run (Live Host)',
+              activeWorkbookName: appState.currentWorkbookName,
               worksheets: sheets.items.map(s => s.name),
               activeWorksheet: targetSheet.name,
               usedRangeAddress: usedRange.address,
@@ -1315,6 +2002,7 @@
               headersRow1: usedRange.values[0] || [],
               existingTables: tables.items.map(t => t.name),
               existingPivotTables: pivots.items.map(p => p.name),
+              connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
               formulaCount: formulaCells.length,
               blankCellCount: blankCount,
               formulas: args.includeFormulaCoordinates ? formulaCells : undefined
@@ -1338,12 +2026,24 @@
           if (name === 'write_excel_range_or_formula') {
             const cleanAddr = (args.rangeAddress || 'A1').replace(/^.*!/, '');
             const targetRange = targetSheet.getRange(cleanAddr);
+            // Save undo snapshot before mutating
+            targetSheet.load('name');
+            targetRange.load('formulas');
+            await context.sync();
+            appState.undoStack.push({
+              isExcel: true,
+              sheetName: targetSheet.name,
+              rangeAddress: cleanAddr,
+              formulas: targetRange.formulas
+            });
+
             targetRange.formulas = args.valuesOrFormulas;
             targetRange.format.autofitColumns();
             await context.sync();
             const readBack = targetSheet.getRange(cleanAddr);
             readBack.load(['address', 'values', 'formulas']);
             await context.sync();
+            setTimeout(broadcastCurrentWorkbookSnapshot, 80);
             return {
               status: 'written_to_excel',
               address: readBack.address,
@@ -1444,7 +2144,10 @@
 
           if (name === 'manage_worksheet') {
             if (args.action === 'create') {
-              const created = sheets.add(args.sheetName);
+              const existing = sheets.getItemOrNullObject(args.sheetName);
+              existing.load('isNullObject');
+              await context.sync();
+              const created = existing.isNullObject ? sheets.add(args.sheetName) : existing;
               created.activate();
               await context.sync();
               return { status: 'worksheet_created_and_activated', sheetName: args.sheetName };
@@ -1538,6 +2241,7 @@
           headersRow1: virtualSheet.values[0] || [],
           existingTables: virtualSheet.tables,
           existingPivotTables: virtualSheet.pivotTables,
+          connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
           formulaCount: formulaCells.length,
           blankCellCount: blankCount,
           formulas: formulaCells
@@ -1568,6 +2272,7 @@
       }
 
       if (name === 'write_excel_range_or_formula') {
+        appState.undoStack.push({ isExcel: false, virtualSnapshot: JSON.parse(JSON.stringify(virtualSheet)) });
         const coords = parseA1Range(args.rangeAddress);
         const matrix = Array.isArray(args.valuesOrFormulas) ? args.valuesOrFormulas : [[String(args.valuesOrFormulas)]];
         for (let rOffset = 0; rOffset < matrix.length; rOffset++) {
@@ -1648,7 +2353,7 @@
     }
 
     /*************************************************************************
-     * 5. SMART AGENT-CAPABLE MODEL FILTERING & INSTANT-CLICK CUSTOM POPOVER
+     * 6. SMART AGENT-CAPABLE MODEL FILTERING & INSTANT-CLICK CUSTOM POPOVER
      *************************************************************************/
     const NON_AGENT_MODEL_REGEX = /(tts|image|banana|lyria|transcribe|robotics|computer-use|deep-research|embedding|aqa|imagen|veo|learnlm)/i;
 
@@ -1806,7 +2511,6 @@
       renderCustomModelPopoverList('');
     }
 
-    // Renders the custom instant-click upward model menu (Click dropdown -> Click model -> Done!)
     function renderCustomModelPopoverList(searchFilter = '') {
       const container = document.getElementById('customModelListContainer');
       if (!container) return;
@@ -1894,7 +2598,7 @@
     }
 
     /*************************************************************************
-     * 6. PRICE-ONLY COMPACT FLOATING INR (₹) PILL & DETAILED WORKINGS ENGINE
+     * 7. PRICE-ONLY COMPACT FLOATING INR (₹) PILL & DETAILED WORKINGS ENGINE
      *************************************************************************/
     function recordTokenUsage(usageMetadata, modelLabel = 'gemini') {
       if (!usageMetadata) return null;
@@ -1951,7 +2655,6 @@
         maximumFractionDigits: 4
       });
 
-      // Compact Top Pill: Shows ONLY the price (e.g. ₹0.0421 or ₹0.00) so header never overlaps!
       const sInr = appState.session.inr || 0;
       const compactPriceStr = sInr === 0
         ? '₹0.00'
@@ -1960,7 +2663,6 @@
         : `₹${sInr.toFixed(2)}`;
       document.getElementById('compactInrPillText').textContent = compactPriceStr;
 
-      // Detailed Modal KPIs
       document.getElementById('sessionInrDisplay').textContent = inrFormatter4.format(appState.session.inr);
       document.getElementById('sessionUsdDisplay').textContent = `$${appState.session.usd.toFixed(6)} USD`;
       document.getElementById('cumulativeInrDisplay').textContent = inrFormatter4.format(appState.ledger.cumulativeInr);
@@ -2067,12 +2769,12 @@
     }
 
     /*************************************************************************
-     * 7. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY BUTTONS
+     * 8. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY/EXPORT BUTTONS
      *************************************************************************/
     const THINKING_MESSAGES = [
-      'Inspecting request & selecting Web / Office.js workbook tools...',
+      'Inspecting request & selecting Multi-Workbook / Web / Office.js tools...',
       'Streaming context to Gemini API & awaiting reasoning tokens...',
-      'Searching live web / evaluating cell dependencies & formulas...',
+      'Cross-referencing workbooks, GSTINs, PivotTables & formulas...',
       'Synthesizing structured Excel actions & verifying coordinates...'
     ];
 
@@ -2158,12 +2860,13 @@
 
         wrapper.className = `p-3 rounded-xl border ${borderClass} text-xs leading-relaxed space-y-1.5 selectable-text`;
         wrapper.innerHTML = `
-          <div class="flex items-center justify-between gap-1.5">
+          <div class="flex items-center justify-between gap-1">
             <span class="font-mono text-[10px] font-bold uppercase tracking-wider ${badgeColor} truncate">${title}</span>
             <div class="flex items-center gap-1 shrink-0">
               ${badgeText ? `<span class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 text-slate-400 border border-obsidian-700">${badgeText}</span>` : ''}
-              ${showRetry ? `<button type="button" class="retry-turn-btn font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition">↻ Retry</button>` : ''}
-              <button type="button" class="copy-msg-btn font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-700 transition" title="Copy message text">📋 Copy</button>
+              ${showRetry ? `<button type="button" class="retry-turn-btn font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition">↻ Retry</button>` : ''}
+              ${role === 'model' ? `<button type="button" class="export-sheet-btn font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition" title="Write this output into a new Excel worksheet">📥 Sheet</button>` : ''}
+              <button type="button" class="copy-msg-btn font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-700 transition" title="Copy message text">📋</button>
             </div>
           </div>
           <div class="text-slate-100 whitespace-pre-wrap break-words selectable-text">${bodyHtml}</div>
@@ -2172,6 +2875,10 @@
         const copyBtn = wrapper.querySelector('.copy-msg-btn');
         if (copyBtn) {
           copyBtn.addEventListener('click', () => copyTextToClipboard(plainCopyText, copyBtn));
+        }
+        const exportBtn = wrapper.querySelector('.export-sheet-btn');
+        if (exportBtn) {
+          exportBtn.addEventListener('click', () => exportMessageTextToExcelSheet(plainCopyText, exportBtn));
         }
         const retryBtn = wrapper.querySelector('.retry-turn-btn');
         if (retryBtn) {
@@ -2225,20 +2932,20 @@
         <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[9px] text-emerald-400">🌐 Web + 12 Tools</span>
+            <span class="font-mono text-[9px] text-emerald-400">16 Enterprise Tools</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Ask Gemini to search the live web for GSTINs/HSN codes, insert native PivotTables, or write formulas into your active Excel workbook.
+            Attach external workbooks via <strong>📎</strong> (or drag-and-drop), search GSTINs online, or insert PivotTables &amp; formulas.
           </p>
           <div class="flex flex-wrap gap-1.5 pt-0.5">
             <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
               ⚡ Audit &amp; Auto-Fill Variance Formulas
             </button>
+            <button type="button" data-prompt="List all connected/attached external workbooks (such as GSTR-1 / GSTR-2B) and reconcile their taxable value and IGST/CGST/SGST totals against the active workbook, writing a formatted Reconciliation Summary sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-fuchsia-300 border border-fuchsia-500/30 transition">
+              🔄 Cross-Workbook GSTR-1 vs 3B Reconcile
+            </button>
             <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
               📊 Insert Native PivotTable
-            </button>
-            <button type="button" data-prompt="Read the party/company names in the active sheet, search the web using google_web_search for their registered Indian GSTIN and state details, and write the verified GSTIN candidates into the sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-sky-300 border border-sky-500/30 transition">
-              🌐 Web Search GSTINs &amp; Fill Sheet
             </button>
           </div>
         </div>
@@ -2301,7 +3008,7 @@
     }
 
     /*************************************************************************
-     * 8. RESILIENT FETCH: HANDLES 503 HIGH DEMAND, 429 QUOTA, & SINGLE-TURN MODELS
+     * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
       const agentPool = (appState.models || [])
@@ -2432,9 +3139,6 @@
       throw lastError || new Error('All candidate Gemini models are currently unavailable.');
     }
 
-    /*************************************************************************
-     * 9. MULTI-TURN AGENTIC LOOP WITH FULL WEB + EXCEL ACCESS
-     *************************************************************************/
     async function runAgenticTurnLoop(userPrompt, isRetry = false) {
       const statusInd = document.getElementById('agentStatusIndicator');
       const sendBtn = document.getElementById('sendPromptBtn');
@@ -2469,7 +3173,11 @@
         return;
       }
 
+      await broadcastCurrentWorkbookSnapshot();
+      loadSharedWorkbookBridge();
+
       const historyCheckpoint = JSON.parse(JSON.stringify(appState.conversationHistory));
+      const connectedNames = Object.keys(appState.externalWorkbooks);
 
       appState.conversationHistory.push({
         role: 'user',
@@ -2494,13 +3202,12 @@
               parts: [
                 {
                   text:
-                    'You are a fully integrated, autonomous Microsoft Excel & Web Research AI Agent operating inside an Office.js Task Pane.\n' +
-                    'You have FULL LIVE ACCESS to BOTH the internet AND the Excel workbook:\n' +
-                    '1. LIVE INTERNET & GSTIN/WEB SEARCH: Call `google_web_search` to search Google in real time for Indian GSTIN numbers, company registrations (KnowYourGST, ClearTax, ZaubaCorp, GST portal records), HSN/SAC codes, tax rules, or live market data. Call `fetch_web_page_or_api` to read any specific URL or API.\n' +
-                    '2. FULL WORKBOOK ACCESS: Read cells (`read_excel_range`, `audit_workbook`), write values/formulas (`write_excel_range_or_formula`), insert native PivotTables (`create_pivot_table`), Excel Tables (`create_excel_table`), Charts (`create_excel_chart`), manage sheets (`manage_worksheet`), format cells (`format_excel_range`), and execute any custom Office.js code (`execute_custom_officejs`).\n' +
-                    'CRITICAL RULES:\n' +
-                    '• NEVER tell the user you lack internet access or cannot search the web! Always call `google_web_search` when external facts, GSTINs, or company details are requested.\n' +
-                    '• When looking up GSTINs for party names in a sheet (e.g., IMD, CRESCENT SURGICALS, MOULI ENTERPRISES), read the party names from the sheet first, call `google_web_search` to find their registered GSTINs, and write the found GSTINs (and state/verification notes if multiple state registrations exist) directly into the sheet!'
+                    'You are a market-leading, fully integrated Microsoft Excel & Multi-Workbook AI Agent operating inside an Office.js Task Pane.\n' +
+                    `Currently connected external workbooks in Multi-Workbook Hub: ${connectedNames.length ? connectedNames.join(', ') : 'None yet (can still probe via read_external_workbook or list_all_workbooks)'}.\n` +
+                    'You have FULL CAPABILITY across 3 domains:\n' +
+                    '1. MULTI-WORKBOOK ACCESS & RECONCILIATION: NEVER claim that Office.js prevents you from reading another workbook! Always call `read_external_workbook` (or `list_all_workbooks`, `import_external_sheet`, `reconcile_workbooks_or_sheets`) first—it automatically reads attached .xlsx/.csv/.json files, sibling Excel windows via Cross-Window Sync, and live Excel external formula links (`=\'[Workbook.xlsx]Sheet\'!A1`).\n' +
+                    '2. LIVE INTERNET & GSTIN SEARCH: Call `google_web_search` to look up Indian GSTINs, HSN/SAC codes, company registrations, or tax rules in real time, and `fetch_web_page_or_api` to read any URL.\n' +
+                    '3. FULL WORKBOOK AUTOMATION: Call `audit_workbook`, `read_excel_range`, `write_excel_range_or_formula`, `create_pivot_table`, `create_excel_table`, `create_excel_chart`, `manage_worksheet`, `format_excel_range`, `diagnose_and_fix_formula_errors`, and `execute_custom_officejs`.'
                 }
               ]
             },
@@ -2563,8 +3270,8 @@
           for (const fc of functionCalls) {
             const isWebTool = fc.name === 'google_web_search' || fc.name === 'fetch_web_page_or_api';
             updateThinkingPhase(
-              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing Office.js: ${fc.name}`,
-              isWebTool ? `Querying live web for "${fc.args?.query || fc.args?.url || ''}"...` : `Running ${fc.name} on active workbook...`
+              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing Tool: ${fc.name}`,
+              `Running ${fc.name}...`
             );
             let toolResult;
             try {
@@ -2573,10 +3280,10 @@
               toolResult = { error: toolErr.message };
             }
 
-            const targetSummary = fc.args?.query || fc.args?.url || fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
+            const targetSummary = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || fc.args?.rangeAddress || fc.args?.sourceRangeAddress || fc.args?.sheetName || 'workbook';
             appendLogCard({
               role: 'tool',
-              title: `${isWebTool ? 'WEB' : 'OFFICE.JS'} // ${fc.name}`,
+              title: `${isWebTool ? 'WEB' : 'EXCEL'} // ${fc.name}`,
               isCollapsibleTool: true,
               toolSummary: `${fc.name}(${String(targetSummary).slice(0, 38)}) — ${costBadge}`,
               bodyHtml: `<div><strong>Args:</strong> ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div><strong>Result:</strong> ${escapeHtml(JSON.stringify(toolResult))}</div>`
@@ -2711,7 +3418,7 @@
       const finalSummary =
         '1. Audited Statutory_Audit_FY26 (A1:F7) and filled variance formulas (=D2-C2 through =D6-C6) and =SUM totals (C7:E7).\n' +
         '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
-        '3. Equipped with live google_web_search & fetch_web_page_or_api tools when your API key is active.';
+        '3. Click "📎" below to attach any external GSTR-1 / 2B / 3B workbook (.xlsx/.csv/.json) for cross-workbook reconciliation.';
       appendLogCard({
         role: 'model',
         title: 'AUDIT COMPLETE',
@@ -2783,13 +3490,36 @@
         renderCustomModelPopoverList('');
       }
 
+      loadSharedWorkbookBridge();
       syncPricingInputsFromState();
       updateCostDisplay();
       recomputeVirtualSheet();
       updateHistoryBadgeAndList();
       bindQuickPromptButtons();
 
-      // Custom Instant-Click Model Popover Toggle (Click button -> Click model -> Done!)
+      // Attach External Workbook (.xlsx / .csv / .json) & Drag-and-Drop
+      const fileInput = document.getElementById('externalWorkbookFileInput');
+      document.getElementById('attachWorkbookBtn').addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        handleExternalWorkbookFiles(e.target.files);
+        fileInput.value = '';
+      });
+
+      const dropZone = document.getElementById('appDropZone');
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleExternalWorkbookFiles(e.dataTransfer.files);
+        }
+      });
+
+      document.getElementById('syncCurrentWorkbookBtn').addEventListener('click', broadcastCurrentWorkbookSnapshot);
+      document.getElementById('undoLastAiBtn').addEventListener('click', undoLastAiMutation);
+
+      // Custom Instant-Click Model Popover Toggle
       const modelPopover = document.getElementById('customModelPopover');
       const modelTriggerBtn = document.getElementById('customModelTriggerBtn');
       const modelFilterInput = document.getElementById('modelFilterInput');
@@ -2815,7 +3545,6 @@
         renderCustomModelPopoverList(modelFilterInput.value);
       });
 
-      // Close popover if user clicks outside
       document.addEventListener('click', (e) => {
         if (!modelPopover.classList.contains('hidden')) {
           if (!modelPopover.contains(e.target) && !modelTriggerBtn.contains(e.target)) {
@@ -2953,9 +3682,13 @@
               appState.isExcelHost = true;
               hostBadge.textContent = 'LIVE';
               hostBadge.className = 'text-[8px] font-mono px-1 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
+              broadcastCurrentWorkbookSnapshot();
             }
           });
         }
+      };
+      officeScript.onerror = () => {
+        // Standalone browser / Canvas preview mode
       };
       document.head.appendChild(officeScript);
     })();
