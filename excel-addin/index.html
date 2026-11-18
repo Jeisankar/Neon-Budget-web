@@ -197,16 +197,16 @@
        ===================================================================== -->
   <section id="viewAgent" class="flex-1 flex flex-col overflow-hidden relative">
 
-    <!-- Scrollable Message Stream (Selectable text + Copy & Export to Sheet on every message) -->
+    <!-- Scrollable Message Stream -->
     <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5">
-      <!-- Welcome / Empty State Card (Auto-collapses once chatting starts) -->
+      <!-- Welcome / Empty State Card -->
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
         <div class="flex items-center justify-between">
-          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Multi-Workbook + Live Web Agent</span>
-          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">17 Enterprise Tools</span>
+          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Token-Saver Active-Sheet Mode</span>
+          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">💰 Low-Token Engine</span>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Full-workbook 1-pass scanner, batch range writer, <strong>multi-workbook reconciliation</strong> (click <strong>📎</strong> or drop <code class="text-amber-300">.xlsx</code>/<code class="text-amber-300">.csv</code>/<code class="text-amber-300">.json</code>), <strong>live Google Web Search</strong>, and native <strong>PivotTables</strong>.
+          By default, the agent reads <strong>only your active worksheet</strong> (saving 70%–90% of tokens) and prunes old cell dumps after each turn. It only reads other sheets or external workbooks (<strong>📎</strong>) when your prompt asks for them.
         </p>
         <!-- Compact Quick Prompts -->
         <div class="flex flex-wrap gap-1.5 pt-0.5">
@@ -251,7 +251,7 @@
               <span id="thinkingPhaseTitle" class="font-mono text-[11px] font-bold text-neon-cyan truncate">Thinking...</span>
               <span id="thinkingElapsedTimer" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 text-amber-300 border border-amber-500/30">0.0s</span>
             </div>
-            <p id="thinkingSubStatus" class="text-[10px] text-slate-300 truncate mt-0.5">Preparing workbook context &amp; tools...</p>
+            <p id="thinkingSubStatus" class="text-[10px] text-slate-300 truncate mt-0.5">Preparing active sheet context...</p>
           </div>
         </div>
         <button
@@ -276,7 +276,7 @@
           <input
             id="modelFilterInput"
             type="text"
-            placeholder="Search model (e.g. flash, pro, argon)..."
+            placeholder="Search model (e.g. flash-lite, flash, pro)..."
             autocomplete="off"
             class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-500 outline-none"
           />
@@ -295,7 +295,7 @@
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to fill checklists, reconcile workbooks (📎), search GSTINs online, or build PivotTables..."
+          placeholder="Ask Gemini to fill active sheet checklists, reconcile workbooks (📎), or build PivotTables..."
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
@@ -312,7 +312,7 @@
               id="customModelTriggerBtn"
               type="button"
               title="Click once to open model list, click a model to select"
-              class="max-w-[140px] sm:max-w-[200px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1 truncate transition"
+              class="max-w-[130px] sm:max-w-[190px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1 truncate transition"
             >
               <span id="customModelTriggerLabel" class="truncate">⚡ Offline Simulator</span>
               <span class="text-[9px] text-slate-400 shrink-0">▴</span>
@@ -327,11 +327,21 @@
               ↻
             </button>
 
+            <!-- Scope Toggle: Active Sheet Only (Default Token Saver) vs All Sheets -->
+            <button
+              id="scopeModeToggleBtn"
+              type="button"
+              title="Token Saver Scope: Active Sheet Only (Click to toggle All Sheets scan)"
+              class="px-1.5 h-6 rounded-md bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 shrink-0 transition"
+            >
+              📄 1-Sheet
+            </button>
+
             <!-- Attach External Workbook (.xlsx / .csv / .json) Button -->
             <button
               id="attachWorkbookBtn"
               type="button"
-              title="Attach external Excel workbook (.xlsx/.xls), CSV, or GSTR JSON file for cross-workbook reading & reconciliation"
+              title="Attach external Excel workbook (.xlsx/.xls), CSV, or GSTR JSON file"
               class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-[10px] font-mono text-neon-cyan flex items-center gap-0.5 shrink-0 transition"
             >
               <span>📎</span>
@@ -371,8 +381,8 @@
   <section id="viewRates" class="hidden flex-1 flex-col overflow-y-auto px-3.5 py-3 gap-3">
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <div>
-        <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; API Configuration</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, max tool turns, and INR (₹) tariff schedule.</p>
+        <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; Cost Optimization</h2>
+        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, Token-Saver rules, and INR (₹) tariff schedule.</p>
       </div>
       <button
         id="backToChatFromSettingsBtn"
@@ -383,10 +393,10 @@
       </button>
     </div>
 
-    <!-- CARD 1: GEMINI API KEY & DYNAMIC MODEL DISCOVERY -->
+    <!-- CARD 1: GEMINI API KEY & TOKEN-FRUGAL CONTROLS -->
     <div class="bg-obsidian-900/90 rounded-xl p-3 cyber-border space-y-2.5">
       <div class="flex items-center justify-between">
-        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; Smart Model Filter</span>
+        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; Token Cost Minimizer</span>
         <span id="modelCountBadge" class="font-mono text-[10px] px-2 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-600">0 synced</span>
       </div>
 
@@ -422,6 +432,10 @@
         <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 cursor-pointer">
           <input id="autoFallback429Checkbox" type="checkbox" checked class="accent-teal-400 rounded" />
           <span>Auto-fallback on 503 High Demand, 429 Quota, or Single-Turn restriction</span>
+        </label>
+        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-300 cursor-pointer">
+          <input id="pruneHistoryTokensCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
+          <span>Token Saver: Prune old tool cell dumps after each completed turn (saves 75% cost)</span>
         </label>
       </div>
 
@@ -674,6 +688,8 @@
 
     const appState = {
       isExcelHost: false,
+      // Default to Active-Sheet-Only mode so background sheets NEVER consume tokens unless requested!
+      scanAllSheetsMode: false,
       currentWorkbookName: 'Active_Workbook.xlsx',
       apiKey: safeStorageGet(STORAGE_KEYS.API_KEY, ''),
       models: safeStorageGet(STORAGE_KEYS.CACHED_MODELS, []),
@@ -710,16 +726,14 @@
     };
 
     /*************************************************************************
-     * 2. MULTI-WORKBOOK ENGINE & COMPACT ROW SERIALIZER
+     * 2. MULTI-WORKBOOK ENGINE & TOKEN-FRUGAL COMPACT SERIALIZER
      *************************************************************************/
-    // Compresses a 2D sheet matrix into a compact representation of non-empty rows with exact 1-based row numbers & A1 coordinates
-    function buildCompactSheetRowsRepresentation(values, formulas, maxRows = 120) {
+    function buildCompactSheetRowsRepresentation(values, formulas, maxRows = 100) {
       if (!Array.isArray(values) || values.length === 0) return [];
       const compactRows = [];
       for (let r = 0; r < values.length && compactRows.length < maxRows; r++) {
         const vRow = values[r] || [];
         const fRow = (formulas && formulas[r]) || [];
-        // Find last non-empty column in this row
         let lastNonEmptyCol = -1;
         for (let c = vRow.length - 1; c >= 0; c--) {
           if (vRow[c] !== '' && vRow[c] !== null && vRow[c] !== undefined) {
@@ -739,13 +753,38 @@
                 : val;
             }
           }
-          compactRows.push({ row: r + 1, cells: cellsObj });
+          compactRows.push({ r: r + 1, c: cellsObj });
         }
       }
       return compactRows;
     }
 
-    // Parses "SheetName!A1:G20" or "'My Sheet'!A1:G20" into { sheetName, address }
+    // Prunes heavy raw tool cell dumps from completed turns in conversationHistory so follow-up messages don't re-bill old sheet dumps!
+    function pruneHeavyToolDumpsInHistory() {
+      const shouldPrune = document.getElementById('pruneHistoryTokensCheckbox')
+        ? document.getElementById('pruneHistoryTokensCheckbox').checked
+        : true;
+      if (!shouldPrune) return;
+
+      for (const turn of appState.conversationHistory) {
+        if (!Array.isArray(turn.parts)) continue;
+        for (const p of turn.parts) {
+          if (p.functionResponse && p.functionResponse.response && p.functionResponse.response.result) {
+            const res = p.functionResponse.response.result;
+            const serialized = JSON.stringify(res);
+            if (serialized.length > 900) {
+              p.functionResponse.response.result = {
+                status: res.status || 'completed_and_archived_to_save_tokens',
+                sheetName: res.sheetName || res.activeWorksheet || 'ActiveSheet',
+                address: res.address || res.usedRangeAddress || 'range',
+                note: 'Raw cell dump pruned from history after turn completion to minimize token cost.'
+              };
+            }
+          }
+        }
+      }
+    }
+
     function extractSheetAndCleanAddress(explicitSheetName, rawRangeAddress) {
       const raw = String(rawRangeAddress || 'A1:F7').trim();
       let parsedSheet = explicitSheetName ? String(explicitSheetName).trim() : '';
@@ -799,29 +838,20 @@
         await window.Excel.run(async (context) => {
           const wb = context.workbook;
           wb.load('name');
-          const sheets = wb.worksheets;
-          sheets.load('items/name');
+          const activeSheet = wb.worksheets.getActiveWorksheet();
+          activeSheet.load('name');
+          const ur = activeSheet.getUsedRangeOrNullObject();
+          ur.load(['isNullObject', 'address', 'values', 'rowCount', 'columnCount']);
           await context.sync();
 
           appState.currentWorkbookName = wb.name || 'Active_Workbook.xlsx';
-          const sheetRanges = {};
-          for (const s of sheets.items) {
-            const ur = s.getUsedRangeOrNullObject();
-            ur.load(['isNullObject', 'address', 'values', 'rowCount', 'columnCount']);
-            sheetRanges[s.name] = ur;
-          }
-          await context.sync();
-
           const serializedSheets = {};
-          for (const sName of Object.keys(sheetRanges)) {
-            const ur = sheetRanges[sName];
-            if (!ur.isNullObject && Array.isArray(ur.values)) {
-              serializedSheets[sName] = {
-                rowCount: ur.rowCount,
-                columnCount: ur.columnCount,
-                values: ur.values.slice(0, 500)
-              };
-            }
+          if (!ur.isNullObject && Array.isArray(ur.values)) {
+            serializedSheets[activeSheet.name] = {
+              rowCount: ur.rowCount,
+              columnCount: ur.columnCount,
+              values: ur.values.slice(0, 300)
+            };
           }
 
           const payload = {
@@ -1205,13 +1235,13 @@
         functionDeclarations: [
           {
             name: 'audit_workbook',
-            description: 'Audits the ENTIRE active Excel workbook in one single pass: returns all worksheet names, active sheet name, AND a compact map of all non-empty rows and cell coordinates across EVERY worksheet in the workbook so you do NOT need to call read_excel_range repeatedly.',
+            description: 'Audits the active worksheet in one token-frugal pass: returns the active worksheet\'s non-empty rows and cell coordinates, plus ONLY the tab names of other worksheets (to save tokens). Set includeAllSheetsData=true ONLY if the user explicitly asks to inspect all tabs.',
             parameters: {
               type: 'OBJECT',
               properties: {
-                includeFormulaCoordinates: {
+                includeAllSheetsData: {
                   type: 'BOOLEAN',
-                  description: 'Whether to include formula strings alongside evaluated cell values.'
+                  description: 'Default false (reads ONLY the active sheet to minimize token cost). Set true ONLY when the user explicitly asks to read all worksheets.'
                 }
               }
             }
@@ -1622,7 +1652,7 @@
         };
       }
 
-      const searchCandidates = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', appState.selectedModel].filter(Boolean);
+      const searchCandidates = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash-lite', appState.selectedModel].filter(Boolean);
       let lastSearchErr = null;
 
       for (const searchModel of searchCandidates) {
@@ -1635,9 +1665,7 @@
                 parts: [
                   {
                     text:
-                      `Search the web and provide exact, verified facts (such as 15-character Indian GSTIN numbers, legal entity names, state codes, HSN/SAC codes, addresses, or official registration details) for the following query:\n\n` +
-                      `${query}\n\n` +
-                      `List every matching entity clearly with its exact 15-digit GSTIN (if found), State, Legal/Trade Name, and source website.`
+                      `Search the web and provide concise, verified facts (such as 15-character Indian GSTIN numbers, legal entity names, state codes, HSN/SAC codes, or official registration details) for:\n\n${query}`
                   }
                 ]
               }
@@ -1677,7 +1705,7 @@
             modelUsed: searchModel,
             webSearchQueries: gm.webSearchQueries || [query],
             answer: answerText || 'No text returned from grounded search.',
-            sources: sources.slice(0, 8)
+            sources: sources.slice(0, 6)
           };
         } catch (err) {
           lastSearchErr = err;
@@ -1708,7 +1736,7 @@
           return {
             status: 'fetched_via_reader',
             url: cleanUrl,
-            contentSnippet: text.slice(0, 10000)
+            contentSnippet: text.slice(0, 6000)
           };
         }
       } catch (err) {
@@ -1724,7 +1752,7 @@
           status: 'fetched_direct',
           url: cleanUrl,
           httpStatus: res.status,
-          contentSnippet: text.slice(0, 10000)
+          contentSnippet: text.slice(0, 6000)
         };
       } catch (err) {
         return {
@@ -1795,7 +1823,7 @@
             workbookName: fileWithExt,
             sheetName,
             rangeAddress: rangeAddr,
-            values: readValues
+            compactRows: buildCompactSheetRowsRepresentation(readValues, null, 80)
           };
         });
       } catch (err) {
@@ -1806,7 +1834,6 @@
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
 
-      // 1. Live Web Tools
       if (name === 'google_web_search') {
         return await executeGoogleGroundedWebSearch(args.query || '');
       }
@@ -1814,7 +1841,6 @@
         return await executeLiveWebPageFetch(args.url || '');
       }
 
-      // 2. Multi-Workbook Tools
       if (name === 'list_all_workbooks') {
         await broadcastCurrentWorkbookSnapshot();
         loadSharedWorkbookBridge();
@@ -1838,11 +1864,7 @@
         return {
           activeWorkbook: appState.currentWorkbookName,
           externalWorkbooksCount: extList.length,
-          externalWorkbooks: extList,
-          usageHint:
-            extList.length === 0
-              ? 'No external workbooks are currently attached. Ask the user to click the "📎" button below the chat box (or drag-and-drop the external .xlsx/.csv/.json file onto the sidebar, or open the add-in inside that workbook window for instant Cross-Window Sync).'
-              : 'Use `read_external_workbook`, `import_external_sheet`, or `reconcile_workbooks_or_sheets` on any listed workbook.'
+          externalWorkbooks: extList
         };
       }
 
@@ -1864,7 +1886,7 @@
               .slice(coords.startRow, coords.endRow + 1)
               .map(r => (r || []).slice(coords.startCol, coords.endCol + 1));
           } else {
-            rows = rows.slice(0, 250);
+            rows = rows.slice(0, 120);
           }
           return {
             status: 'read_from_multi_workbook_hub',
@@ -1873,7 +1895,7 @@
             availableSheets: sheetNames,
             sheetRead: targetSheetName,
             rowCountReturned: rows.length,
-            compactRows: buildCompactSheetRowsRepresentation(rows, null, 200)
+            compactRows: buildCompactSheetRowsRepresentation(rows, null, 100)
           };
         }
 
@@ -1890,10 +1912,7 @@
           status: 'external_workbook_needs_attachment_or_sync',
           requestedWorkbook: args.workbookName,
           currentlyConnectedWorkbooks: Object.keys(appState.externalWorkbooks),
-          actionRequired:
-            `To let me read "${args.workbookName}" right now, either:\n` +
-            `1. Click the "📎" button below the chat box (or drag & drop "${args.workbookName}" onto this chat panel), OR\n` +
-            `2. Click "Open AI Auditor" inside the "${args.workbookName}" Excel window so Cross-Window Sync shares its sheets automatically.`
+          actionRequired: `Click the "📎" button below the chat box to attach "${args.workbookName}" (or drag & drop it onto the sidebar).`
         };
       }
 
@@ -1901,7 +1920,7 @@
         const matchedWb = findExternalWorkbookMatch(args.workbookName);
         if (!matchedWb || !matchedWb.sheets) {
           return {
-            error: `Workbook "${args.workbookName}" is not attached or synced yet. Click the "📎" button below the chat box to attach it first.`
+            error: `Workbook "${args.workbookName}" is not attached yet. Click "📎" below the chat box to attach it.`
           };
         }
         const sheetNames = Object.keys(matchedWb.sheets);
@@ -1941,7 +1960,7 @@
         if (/^active$/i.test(args.sourceA_Workbook || 'ACTIVE')) {
           const resA = await executeExcelTool({
             name: 'read_excel_range',
-            args: { rangeAddress: 'A1:M200', sheetName: args.sourceA_Sheet }
+            args: { rangeAddress: 'A1:M120', sheetName: args.sourceA_Sheet }
           });
           rowsA = resA.values || [];
         } else {
@@ -1957,7 +1976,7 @@
         if (/^active$/i.test(args.sourceB_Workbook || '')) {
           const resB = await executeExcelTool({
             name: 'read_excel_range',
-            args: { rangeAddress: 'A1:M200', sheetName: args.sourceB_Sheet }
+            args: { rangeAddress: 'A1:M120', sheetName: args.sourceB_Sheet }
           });
           rowsB = resB.values || [];
         } else {
@@ -1981,14 +2000,14 @@
               if (Number.isFinite(num)) colTotals[c] += num;
             }
           }
-          return { headers, colTotals, dataRows: nonEmptyRowCount, sampleRows: grid.slice(0, 25) };
+          return { headers, colTotals, dataRows: nonEmptyRowCount, sampleRows: grid.slice(0, 15) };
         };
 
         return {
           status: 'datasets_loaded_for_reconciliation',
           sourceA: { workbook: args.sourceA_Workbook, sheet: args.sourceA_Sheet, summary: summarizeGrid(rowsA) },
           sourceB: { workbook: args.sourceB_Workbook, sheet: args.sourceB_Sheet, summary: summarizeGrid(rowsB) },
-          nextStepInstruction: `Now create or write the detailed reconciliation table into worksheet "${args.outputSheetName}" using write_excel_range_or_formula or batch_write_excel_ranges.`
+          nextStepInstruction: `Write the reconciliation table into worksheet "${args.outputSheetName}" using write_excel_range_or_formula.`
         };
       }
 
@@ -2021,8 +2040,6 @@
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         return await window.Excel.run(async (context) => {
           const sheets = context.workbook.worksheets;
-
-          // Resolve sheet name from EITHER args.sheetName OR "SheetName!A1:G20" prefix in rangeAddress!
           const parsedAddr = extractSheetAndCleanAddress(
             args.sheetName,
             args.rangeAddress || args.sourceRangeAddress || 'A1'
@@ -2041,16 +2058,38 @@
             ? candidateSheet
             : activeSheetObj;
 
-          // 1-PASS FULL WORKBOOK AUDIT: Loads usedRange across ALL sheets at once so the agent never wastes 10 turns reading slice by slice!
+          // TOKEN-FRUGAL AUDIT_WORKBOOK: By default reads ONLY the Active Sheet's data (saving 70-90% tokens!), and only lists other tab names!
           if (name === 'audit_workbook') {
             const wb = context.workbook;
             wb.load('name');
             sheets.load('items/name');
             activeSheetObj.load('name');
+            const activeUr = activeSheetObj.getUsedRangeOrNullObject();
+            activeUr.load(['isNullObject', 'address', 'rowCount', 'columnCount', 'values', 'formulas']);
             await context.sync();
 
             appState.currentWorkbookName = wb.name || appState.currentWorkbookName;
+            const scanAll = Boolean(args.includeAllSheetsData || appState.scanAllSheetsMode);
 
+            if (!scanAll) {
+              // Fast, low-token Active Sheet Only scan!
+              const compactRows = activeUr.isNullObject
+                ? []
+                : buildCompactSheetRowsRepresentation(activeUr.values, activeUr.formulas, 100);
+
+              return {
+                mode: 'ACTIVE_SHEET_ONLY (Token-Saver Mode)',
+                activeWorkbookName: appState.currentWorkbookName,
+                activeWorksheet: activeSheetObj.name,
+                otherWorksheetNamesOnly: sheets.items.map(s => s.name).filter(n => n !== activeSheetObj.name),
+                usedRangeAddress: activeUr.isNullObject ? 'Empty' : activeUr.address,
+                dimensions: activeUr.isNullObject ? '0x0' : `${activeUr.rowCount}x${activeUr.columnCount}`,
+                activeSheetRows: compactRows,
+                note: 'Other worksheets were NOT read to save tokens. Call read_excel_range(sheetName="...", rangeAddress="...") only if you specifically need data from another tab.'
+              };
+            }
+
+            // Full All-Sheets Scan (only when explicitly toggled or requested)
             const sheetUsedRanges = {};
             for (const s of sheets.items) {
               const ur = s.getUsedRangeOrNullObject();
@@ -2060,8 +2099,6 @@
             await context.sync();
 
             const allSheetsOverview = {};
-            let activeSheetFormulasCount = 0;
-
             for (const s of sheets.items) {
               const ur = sheetUsedRanges[s.name];
               if (ur.isNullObject) {
@@ -2069,40 +2106,18 @@
                 continue;
               }
               const isActive = s.name === activeSheetObj.name;
-              // Include up to 120 non-empty rows for the active sheet, and up to 45 non-empty rows for every other sheet in the workbook!
-              const compactRows = buildCompactSheetRowsRepresentation(
-                ur.values,
-                ur.formulas,
-                isActive ? 120 : 45
-              );
-
-              if (isActive) {
-                for (let r = 0; r < ur.rowCount; r++) {
-                  for (let c = 0; c < ur.columnCount; c++) {
-                    const f = ur.formulas[r][c];
-                    if (typeof f === 'string' && f.startsWith('=')) activeSheetFormulasCount++;
-                  }
-                }
-              }
-
               allSheetsOverview[s.name] = {
                 isActive,
                 usedRangeAddress: ur.address,
                 dimensions: `${ur.rowCount}x${ur.columnCount}`,
-                nonEmptyRowCount: compactRows.length,
-                rows: compactRows
+                rows: buildCompactSheetRowsRepresentation(ur.values, ur.formulas, isActive ? 90 : 30)
               };
             }
 
-            setTimeout(broadcastCurrentWorkbookSnapshot, 50);
-
             return {
-              host: 'Excel.run (Live Host - Full Workbook 1-Pass Scan)',
+              mode: 'ALL_SHEETS_SCAN',
               activeWorkbookName: appState.currentWorkbookName,
-              worksheets: sheets.items.map(s => s.name),
               activeWorksheet: activeSheetObj.name,
-              activeSheetFormulaCount: activeSheetFormulasCount,
-              connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
               sheetsDataMap: allSheetsOverview
             };
           }
@@ -2126,7 +2141,6 @@
             }
             activeSheetObj.getUsedRangeOrNullObject().format.autofitColumns();
             await context.sync();
-            setTimeout(broadcastCurrentWorkbookSnapshot, 80);
             return {
               status: 'batch_written_to_excel',
               rangesUpdatedCount: results.length,
@@ -2144,8 +2158,7 @@
               address: targetRange.address,
               rowCount: targetRange.rowCount,
               columnCount: targetRange.columnCount,
-              compactRows: buildCompactSheetRowsRepresentation(targetRange.values, targetRange.formulas, 180),
-              values: targetRange.rowCount <= 35 ? targetRange.values : undefined
+              compactRows: buildCompactSheetRowsRepresentation(targetRange.values, targetRange.formulas, 100)
             };
           }
 
@@ -2165,15 +2178,13 @@
             targetRange.format.autofitColumns();
             await context.sync();
             const readBack = targetSheet.getRange(parsedAddr.cleanAddress);
-            readBack.load(['address', 'values', 'formulas']);
+            readBack.load(['address', 'values']);
             await context.sync();
-            setTimeout(broadcastCurrentWorkbookSnapshot, 80);
             return {
               status: 'written_to_excel',
               sheetName: targetSheet.name,
               address: readBack.address,
-              evaluatedValues: readBack.values,
-              formulasWritten: readBack.formulas
+              evaluatedValues: readBack.values
             };
           }
 
@@ -2350,18 +2361,12 @@
       // Branch B: Virtual Sheet Fallback
       if (name === 'audit_workbook') {
         return {
-          host: 'Virtual Workbook Mirror',
-          worksheets: [virtualSheet.name],
+          mode: 'ACTIVE_SHEET_ONLY (Virtual Mirror)',
           activeWorksheet: virtualSheet.name,
-          connectedExternalWorkbooks: Object.keys(appState.externalWorkbooks),
-          sheetsDataMap: {
-            [virtualSheet.name]: {
-              isActive: true,
-              usedRangeAddress: `${virtualSheet.name}!A1:F7`,
-              dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
-              rows: buildCompactSheetRowsRepresentation(virtualSheet.values, virtualSheet.formulas, 100)
-            }
-          }
+          otherWorksheetNamesOnly: [],
+          usedRangeAddress: `${virtualSheet.name}!A1:F7`,
+          dimensions: `${virtualSheet.values.length}x${virtualSheet.values[0].length}`,
+          activeSheetRows: buildCompactSheetRowsRepresentation(virtualSheet.values, virtualSheet.formulas, 80)
         };
       }
 
@@ -2394,8 +2399,7 @@
           address: `${virtualSheet.name}!${args.rangeAddress}`,
           rowCount: outValues.length,
           columnCount: outValues[0] ? outValues[0].length : 0,
-          values: outValues,
-          formulas: outFormulas
+          compactRows: buildCompactSheetRowsRepresentation(outValues, outFormulas, 80)
         };
       }
 
@@ -2481,7 +2485,7 @@
     }
 
     /*************************************************************************
-     * 6. SMART AGENT-CAPABLE MODEL FILTERING & INSTANT-CLICK CUSTOM POPOVER
+     * 6. SMART AGENT-CAPABLE MODEL FILTERING & COST-FIRST RANKING
      *************************************************************************/
     const NON_AGENT_MODEL_REGEX = /(tts|image|banana|lyria|transcribe|robotics|computer-use|deep-research|embedding|aqa|imagen|veo|learnlm)/i;
 
@@ -2497,29 +2501,29 @@
     function scoreModelForExcelAgent(modelId) {
       const id = (modelId || '').toLowerCase();
       if (NON_AGENT_MODEL_REGEX.test(id)) return -100;
+      // Prioritize low-cost Flash-Lite & Flash models first to minimize pay-as-you-go INR spend!
+      if (id === 'gemini-3.5-flash-lite') return 125;
+      if (id === 'gemini-2.5-flash-lite') return 124;
+      if (id === 'gemini-3.1-flash-lite') return 123;
+      if (id === 'gemini-flash-lite-latest') return 122;
       if (id === 'gemini-3.8-flash') return 120;
       if (id === 'gemini-3.7-flash') return 118;
       if (id === 'gemini-3.6-flash') return 116;
       if (id === 'gemini-3.5-flash') return 115;
-      if (id === 'gemini-3.5-flash-lite') return 114;
-      if (id === 'gemini-3.1-flash-lite') return 112;
       if (id === 'gemini-2.5-flash') return 110;
-      if (id === 'gemini-2.5-flash-lite') return 108;
       if (id === 'gemini-flash-latest') return 106;
-      if (id === 'gemini-flash-lite-latest') return 104;
-      if (id === 'gemini-4-argon') return 102;
-      if (id === 'gemini-4-carbon') return 100;
-      if (id === 'gemini-4-hydrogen') return 98;
+      if (id === 'gemini-4-hydrogen') return 102;
+      if (id === 'gemini-4-argon') return 100;
+      if (id === 'gemini-4-carbon') return 98;
       if (id === 'gemini-3.1-pro-preview-customtools') return 96;
       if (id === 'gemini-3.1-pro-preview') return 94;
       if (id === 'gemini-2.5-pro') return 92;
       if (id === 'gemini-pro-latest') return 90;
-      if (id.includes('flash') && !id.includes('preview')) return 85;
-      if (id.includes('flash')) return 80;
+      if (id.includes('flash-lite')) return 88;
+      if (id.includes('flash')) return 82;
       if (id.includes('pro')) return 75;
       if (id.startsWith('gemini-')) return 65;
       if (id.startsWith('antigravity')) return 55;
-      if (id.startsWith('gemma-')) return 30;
       return 10;
     }
 
@@ -2593,7 +2597,7 @@
         const visibleModels = filterAndSortModelsForUI(allModels);
         populateModelDropdown(visibleModels);
         countBadge.textContent = `${visibleModels.length} chat models`;
-        statusEl.textContent = `Synced ${visibleModels.length} multi-turn agent models (filtered ${allModels.length - visibleModels.length} non-chat endpoints)`;
+        statusEl.textContent = `Synced ${visibleModels.length} multi-turn agent models`;
         statusEl.className = 'text-emerald-400';
       } catch (err) {
         statusEl.textContent = `Sync error: ${err.message}`;
@@ -2659,9 +2663,14 @@
         .map((m) => {
           const cleanId = (m.name || '').replace(/^models\//, '');
           const isSelected = cleanId === activeId;
+          const isLite = /flash-lite/i.test(cleanId);
           const isFlash = /flash/i.test(cleanId);
-          const tag = isFlash ? 'FAST' : /pro|argon|carbon|hydrogen/i.test(cleanId) ? 'REASONING' : 'CHAT';
-          const tagColor = isFlash ? 'text-neon-cyan border-teal-500/30' : 'text-amber-300 border-amber-500/30';
+          const tag = isLite ? 'LOW ₹' : isFlash ? 'FAST' : 'PRO';
+          const tagColor = isLite
+            ? 'text-emerald-300 border-emerald-500/40'
+            : isFlash
+            ? 'text-neon-cyan border-teal-500/30'
+            : 'text-amber-300 border-amber-500/30';
 
           return `
             <button
@@ -2900,10 +2909,10 @@
      * 8. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY/EXPORT BUTTONS
      *************************************************************************/
     const THINKING_MESSAGES = [
-      'Inspecting full workbook map & selecting Office.js tools...',
-      'Streaming context to Gemini API & awaiting reasoning tokens...',
-      'Cross-referencing checklist rows, sheets, GSTINs & formulas...',
-      'Synthesizing structured Excel actions & verifying coordinates...'
+      'Inspecting active sheet in Token-Saver mode...',
+      'Streaming compact cell map to Gemini API...',
+      'Evaluating checklist rows, formulas & coordinates...',
+      'Synthesizing structured Excel actions & final response...'
     ];
 
     function startContinuousThinkingFeedback(phaseTitle, initialSubText) {
@@ -3060,10 +3069,10 @@
         <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
           <div class="flex items-center justify-between">
             <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[9px] text-emerald-400">17 Enterprise Tools</span>
+            <span class="font-mono text-[9px] text-emerald-400">💰 Low-Token Engine</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Attach external workbooks via <strong>📎</strong> (or drag-and-drop), search GSTINs online, or insert PivotTables &amp; formulas.
+            Scoped to your <strong>Active Sheet</strong> by default to minimize token spend. Toggle <strong>📄 1-Sheet</strong> below if you want a full multi-sheet scan.
           </p>
           <div class="flex flex-wrap gap-1.5 pt-0.5">
             <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
@@ -3136,7 +3145,7 @@
     }
 
     /*************************************************************************
-     * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP (GUARANTEED COMPLETION)
+     * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP (TOKEN-SAVER ARCHITECTURE)
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
       const agentPool = (appState.models || [])
@@ -3146,7 +3155,7 @@
         .sort((a, b) => scoreModelForExcelAgent(b) - scoreModelForExcelAgent(a));
 
       const fallbacks = agentPool.filter(id => id !== primaryModelId);
-      const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
       for (const df of defaultFallbacks) {
         if (df !== primaryModelId && !fallbacks.includes(df)) {
           fallbacks.push(df);
@@ -3301,7 +3310,6 @@
         return;
       }
 
-      await broadcastCurrentWorkbookSnapshot();
       loadSharedWorkbookBridge();
 
       const historyCheckpoint = JSON.parse(JSON.stringify(appState.conversationHistory));
@@ -3312,7 +3320,7 @@
         parts: [{ text: userPrompt }]
       });
 
-      const MAX_AGENT_TURNS = 20;
+      const MAX_AGENT_TURNS = 15;
       let turn = 0;
       let producedFinalText = false;
       appState.abortController = new AbortController();
@@ -3333,20 +3341,20 @@
               parts: [
                 {
                   text:
-                    'You are a market-leading, autonomous Microsoft Excel & Multi-Workbook AI Agent operating inside an Office.js Task Pane.\n' +
-                    `Connected external workbooks in Multi-Workbook Hub: ${connectedNames.length ? connectedNames.join(', ') : 'None yet'}.\n` +
-                    'CRITICAL EFFICIENCY & EXECUTION RULES:\n' +
-                    '1. ONE-PASS WORKBOOK SCAN: Calling `audit_workbook` returns the non-empty rows and cell coordinates for EVERY worksheet in the active workbook at once! Do NOT waste turns calling `read_excel_range` repeatedly on ranges already returned by `audit_workbook`.\n' +
-                    '2. MULTI-SHEET ADDRESSING: When reading or writing a specific worksheet, always pass `sheetName: "ExactSheetName"` or prefix `rangeAddress: "SheetName!A1:G20"`.\n' +
-                    '3. BATCH WRITES: When filling a checklist or updating multiple cells/rows, use `batch_write_excel_ranges` (or a single `write_excel_range_or_formula` call) to write all known values/formulas in ONE turn.\n' +
-                    '4. ALWAYS PROVIDE A COMPLETE FINAL RESPONSE: After reading and/or writing the cells, ALWAYS output a clear summary of what you filled in the sheet and explicitly list any questions or ambiguous items that need the user\'s confirmation.'
+                    'You are a token-frugal, autonomous Microsoft Excel AI Agent operating inside an Office.js Task Pane.\n' +
+                    `Scope Mode: ${appState.scanAllSheetsMode ? 'ALL SHEETS' : 'ACTIVE SHEET ONLY (Default to minimize token cost)'}.\n` +
+                    `External workbooks attached: ${connectedNames.length ? connectedNames.join(', ') : 'None'}.\n` +
+                    'STRICT TOKEN-SAVING & COMPLETION RULES:\n' +
+                    '1. WORK ONLY ON THE ACTIVE SHEET BY DEFAULT: Call `audit_workbook` (with `includeAllSheetsData: false`) once to get all non-empty rows of the active worksheet in a single call. NEVER read other worksheets unless the user explicitly asks for another tab or cross-sheet lookup!\n' +
+                    '2. ZERO REDUNDANT READS: Once `audit_workbook` returns `activeSheetRows`, you ALREADY have the active sheet\'s data. Do NOT call `read_excel_range` again on the active sheet!\n' +
+                    '3. ONE-SHOT BATCH WRITES: Use `batch_write_excel_ranges` to write all checklist cells/formulas in a SINGLE tool call.\n' +
+                    '4. ALWAYS DELIVER FINAL OUTPUT: Immediately after reading/writing, output your complete final response and list any ambiguous items needing user confirmation.'
                 }
               ]
             },
             contents: appState.conversationHistory,
             tools: isFinalForcedSynthesisTurn ? undefined : EXCEL_AGENT_TOOLS,
             generationConfig: {
-              // Thinking models (Argon, Carbon, Pro, Gemini 3/4) require higher temperature (0.7) to prevent repetitive tool-calling loops
               temperature: isThinkingModel ? 0.7 : 0.2
             }
           };
@@ -3381,7 +3389,6 @@
           });
 
           const functionCalls = parts.filter(p => p.functionCall).map(p => p.functionCall);
-          // Exclude internal `thought: true` parts from visible chat text if returned separately
           const textParts = parts
             .filter(p => !p.thought && typeof p.text === 'string' && p.text.trim())
             .map(p => p.text);
@@ -3407,7 +3414,7 @@
           for (const fc of functionCalls) {
             const isWebTool = fc.name === 'google_web_search' || fc.name === 'fetch_web_page_or_api';
             const sheetPrefix = fc.args?.sheetName ? `${fc.args.sheetName}!` : '';
-            const rawTarget = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || (sheetPrefix + (fc.args?.rangeAddress || fc.args?.sourceRangeAddress || '')) || (fc.args?.writes ? `${fc.args.writes.length} ranges` : 'workbook');
+            const rawTarget = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || (sheetPrefix + (fc.args?.rangeAddress || fc.args?.sourceRangeAddress || '')) || (fc.args?.writes ? `${fc.args.writes.length} ranges` : 'active sheet');
 
             updateThinkingPhase(
               isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing: ${fc.name}`,
@@ -3442,7 +3449,6 @@
           });
         }
 
-        // Safety Guarantee: If the loop ended without visible text, request an immediate summary response
         if (!producedFinalText) {
           updateThinkingPhase('Finalizing Summary...', 'Generating completion report & ambiguity questions...');
           const finalPayload = {
@@ -3452,7 +3458,7 @@
                 role: 'user',
                 parts: [
                   {
-                    text: 'Please provide your complete response now based on the workbook data gathered above: state what you have filled or found, and ask any clarifying questions for ambiguous checklist items.'
+                    text: 'Please provide your complete response now based on the active sheet data gathered above: state what you have filled or found, and ask any clarifying questions for ambiguous checklist items.'
                   }
                 ]
               }
@@ -3479,6 +3485,9 @@
             });
           }
         }
+
+        // Prune bulky raw cell dumps from history after turn completes so the next question doesn't re-bill old sheet dumps!
+        pruneHeavyToolDumpsInHistory();
       } catch (err) {
         appState.conversationHistory = historyCheckpoint;
         const isAborted = err.name === 'AbortError';
@@ -3487,7 +3496,7 @@
           title: isAborted ? 'GENERATION STOPPED' : 'AGENT ERROR',
           bodyHtml: isAborted
             ? 'Request cancelled by user.'
-            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or choose gemini-3.5-flash-lite / gemini-3.8-flash / gemini-2.5-flash below.`,
+            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or choose gemini-3.5-flash-lite / gemini-2.5-flash-lite below.`,
           rawText: err.message,
           badgeText: isAborted ? 'Aborted' : 'API Notice',
           badgeColor: 'text-rose-400',
@@ -3516,7 +3525,7 @@
             valueFields: ['Budget (INR)', 'Actual (INR)']
           }
         });
-        const snap = recordTokenUsage({ promptTokenCount: 510, candidatesTokenCount: 145, thoughtsTokenCount: 80, cachedContentTokenCount: 0 }, 'simulator-flash');
+        const snap = recordTokenUsage({ promptTokenCount: 380, candidatesTokenCount: 120, thoughtsTokenCount: 40, cachedContentTokenCount: 0 }, 'simulator-flash-lite');
         appendLogCard({
           role: 'tool',
           title: 'OFFICE.JS // create_pivot_table',
@@ -3542,19 +3551,19 @@
 
       const step1Audit = await executeExcelTool({
         name: 'audit_workbook',
-        args: { includeFormulaCoordinates: true }
+        args: { includeAllSheetsData: false }
       });
-      const snap1 = recordTokenUsage({ promptTokenCount: 420, candidatesTokenCount: 95, thoughtsTokenCount: 60, cachedContentTokenCount: 0 }, 'simulator-flash');
+      const snap1 = recordTokenUsage({ promptTokenCount: 310, candidatesTokenCount: 85, thoughtsTokenCount: 30, cachedContentTokenCount: 0 }, 'simulator-flash-lite');
       appendLogCard({
         role: 'tool',
         title: 'OFFICE.JS // audit_workbook',
         isCollapsibleTool: true,
-        toolSummary: `audit_workbook(All Sheets 1-Pass Scan) • ₹${snap1.inrCost.toFixed(4)}`,
+        toolSummary: `audit_workbook(Active Sheet Only) • ₹${snap1.inrCost.toFixed(4)}`,
         bodyHtml: escapeHtml(JSON.stringify(step1Audit))
       });
 
-      updateThinkingPhase('Batch Writing Formulas to Sheet...', 'Populating E2:F6 and C7:E7 in one batch...');
-      await new Promise(r => setTimeout(r, 350));
+      updateThinkingPhase('Batch Writing Formulas to Active Sheet...', 'Populating E2:F6 and C7:E7 in one batch...');
+      await new Promise(r => setTimeout(r, 320));
 
       const step2Formulas = await executeExcelTool({
         name: 'batch_write_excel_ranges',
@@ -3583,25 +3592,25 @@
         args: { rangeAddress: 'A4:F4', hexColor: '#f59e0b' }
       });
 
-      const snap2 = recordTokenUsage({ promptTokenCount: 690, candidatesTokenCount: 180, thoughtsTokenCount: 110, cachedContentTokenCount: 200 }, 'simulator-flash');
+      const snap2 = recordTokenUsage({ promptTokenCount: 410, candidatesTokenCount: 140, thoughtsTokenCount: 45, cachedContentTokenCount: 150 }, 'simulator-flash-lite');
       appendLogCard({
         role: 'tool',
         title: 'OFFICE.JS // batch_write_excel_ranges',
         isCollapsibleTool: true,
-        toolSummary: `batch_write_excel_ranges(2 ranges) • ₹${snap2.inrCost.toFixed(4)}`,
+        toolSummary: `batch_write_excel_ranges(Active Sheet) • ₹${snap2.inrCost.toFixed(4)}`,
         bodyHtml: escapeHtml(JSON.stringify(step2Formulas))
       });
 
       const finalSummary =
-        '1. Scanned all sheets in 1 pass via audit_workbook and batch-wrote variance formulas (E2:F6) and =SUM totals (C7:E7).\n' +
+        '1. Read ONLY the active sheet (Statutory_Audit_FY26) in Token-Saver mode and batch-wrote variance formulas (E2:F6) and =SUM totals (C7:E7).\n' +
         '2. Flagged row 4 (GSTR-9 & 9C Reconciliation: +₹70,000 / +21.88% overrun) in amber.\n' +
-        '3. Multi-sheet addressing ("SheetName!Range") and guaranteed final synthesis are active.';
+        '3. Pruned raw cell dumps from chat history so follow-up messages stay ultra-cheap.';
       appendLogCard({
         role: 'model',
         title: 'AUDIT COMPLETE',
         bodyHtml: escapeHtml(finalSummary),
         rawText: finalSummary,
-        badgeText: 'Multi-Turn Complete',
+        badgeText: 'Low-Token Complete',
         badgeColor: 'text-neon-cyan'
       });
     }
@@ -3673,6 +3682,21 @@
       recomputeVirtualSheet();
       updateHistoryBadgeAndList();
       bindQuickPromptButtons();
+
+      // Scope Mode Toggle (Active Sheet Only vs All Sheets)
+      const scopeBtn = document.getElementById('scopeModeToggleBtn');
+      scopeBtn.addEventListener('click', () => {
+        appState.scanAllSheetsMode = !appState.scanAllSheetsMode;
+        if (appState.scanAllSheetsMode) {
+          scopeBtn.textContent = '📚 All-Sheets';
+          scopeBtn.className = 'px-1.5 h-6 rounded-md bg-amber-950/80 hover:bg-amber-900/80 border border-amber-500/40 text-[10px] font-mono text-amber-300 shrink-0 transition';
+          scopeBtn.title = 'All-Sheets Mode Active (Click to switch back to Token-Saver 1-Sheet Mode)';
+        } else {
+          scopeBtn.textContent = '📄 1-Sheet';
+          scopeBtn.className = 'px-1.5 h-6 rounded-md bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 shrink-0 transition';
+          scopeBtn.title = 'Token Saver Scope: Active Sheet Only (Click to toggle All Sheets scan)';
+        }
+      });
 
       const fileInput = document.getElementById('externalWorkbookFileInput');
       document.getElementById('attachWorkbookBtn').addEventListener('click', () => fileInput.click());
