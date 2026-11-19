@@ -435,8 +435,17 @@
         </label>
         <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-300 cursor-pointer">
           <input id="pruneHistoryTokensCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
-          <span>Token Saver: Prune old tool cell dumps after each completed turn (saves 75% cost)</span>
+          <span>Token Saver: Prune old tool dumps between every step &amp; cap raw outputs (saves 85% cost)</span>
         </label>
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <label for="thinkingBudgetSelect" class="text-[11px] font-mono text-purple-300">🧠 Thinking Token Cap (Prevents runaway reasoning bills):</label>
+          <select id="thinkingBudgetSelect" class="bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-purple-200 outline-none">
+            <option value="1024" selected>Low (1,024 tok — Best Value)</option>
+            <option value="0">Off (0 tok — Ultra Cheap)</option>
+            <option value="4096">Medium (4,096 tok)</option>
+            <option value="-1">Auto / Unlimited (Higher ₹)</option>
+          </select>
+        </div>
       </div>
 
       <div id="modelMetadataBar" class="pt-2 border-t border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400">
@@ -468,15 +477,15 @@
         </div>
         <div>
           <label for="inputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Input ($ / 1M Tok)</label>
-          <input id="inputRatePerMillion" type="number" step="0.001" min="0" value="0.15" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <input id="inputRatePerMillion" type="number" step="0.001" min="0" value="0.75" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div>
           <label for="outputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Output ($ / 1M Tok)</label>
-          <input id="outputRatePerMillion" type="number" step="0.001" min="0" value="0.60" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <input id="outputRatePerMillion" type="number" step="0.001" min="0" value="3.75" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div>
           <label for="cachedRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Cached ($ / 1M Tok)</label>
-          <input id="cachedRatePerMillion" type="number" step="0.001" min="0" value="0.0375" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <input id="cachedRatePerMillion" type="number" step="0.001" min="0" value="0.075" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div>
           <label for="monthlyBudgetInrInput" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Monthly Cap (₹)</label>
@@ -489,9 +498,14 @@
         </div>
       </div>
 
+      <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-300 cursor-pointer">
+        <input id="includeIndiaGstCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
+        <span>Include 18% India GST &amp; Google Search grounding fee ($14/1K queries) in ₹ estimate</span>
+      </label>
+
       <div>
         <div class="flex items-center justify-between mb-1">
-          <label for="pricingRulesJson" class="font-mono text-[10px] uppercase text-slate-400">Model Family Auto-Rate Matrix (JSON)</label>
+          <label for="pricingRulesJson" class="font-mono text-[10px] uppercase text-slate-400">Model Family Auto-Rate Matrix (JSON — Verified Nov 2026)</label>
           <button id="resetLedgerBtn" type="button" class="text-[10px] font-mono text-rose-400 hover:underline">Reset Cumulative ₹ Ledger</button>
         </div>
         <textarea
@@ -645,8 +659,8 @@
      *************************************************************************/
     const STORAGE_KEYS = {
       API_KEY: 'neon_excel_gemini_api_key_v1',
-      PRICING: 'neon_excel_dynamic_pricing_v1',
-      LEDGER: 'neon_excel_inr_ledger_v1',
+      PRICING: 'neon_excel_dynamic_pricing_v2',
+      LEDGER: 'neon_excel_inr_ledger_v2',
       SELECTED_MODEL: 'neon_excel_selected_model_v1',
       CACHED_MODELS: 'neon_excel_cached_models_v1',
       CHAT_SESSIONS: 'neon_excel_chat_sessions_v1',
@@ -672,17 +686,33 @@
 
     const DEFAULT_PRICING_CONFIG = {
       usdToInr: 86.50,
-      activeInputPer1M: 0.15,
-      activeOutputPer1M: 0.60,
-      activeCachedPer1M: 0.0375,
+      activeInputPer1M: 0.75,
+      activeOutputPer1M: 3.75,
+      activeCachedPer1M: 0.075,
       monthlyBudgetInr: 500,
+      includeIndiaGst: true,
+      searchGroundingUsdPerQuery: 0.014,
+      thinkingBudget: 1024,
+      // Ordered from most-specific to generic (verified Nov 2026 published Gemini API rates)
       patternRules: [
-        { match: 'flash-lite', inputPer1M: 0.075, outputPer1M: 0.30, cachedPer1M: 0.018 },
-        { match: 'flash', inputPer1M: 0.15, outputPer1M: 0.60, cachedPer1M: 0.0375 },
-        { match: 'pro', inputPer1M: 1.25, outputPer1M: 5.00, cachedPer1M: 0.3125 },
-        { match: 'hydrogen', inputPer1M: 0.15, outputPer1M: 0.60, cachedPer1M: 0.0375 },
-        { match: 'argon', inputPer1M: 1.25, outputPer1M: 5.00, cachedPer1M: 0.3125 },
-        { match: 'carbon', inputPer1M: 2.50, outputPer1M: 10.00, cachedPer1M: 0.625 }
+        { match: '2.5-flash-lite', inputPer1M: 0.10, outputPer1M: 0.40, cachedPer1M: 0.01 },
+        { match: '3.1-flash-lite', inputPer1M: 0.25, outputPer1M: 1.50, cachedPer1M: 0.025 },
+        { match: '3.5-flash-lite', inputPer1M: 0.30, outputPer1M: 2.50, cachedPer1M: 0.03 },
+        { match: '2.5-flash', inputPer1M: 0.30, outputPer1M: 2.50, cachedPer1M: 0.03 },
+        { match: '3.5-flash', inputPer1M: 0.50, outputPer1M: 3.00, cachedPer1M: 0.05 },
+        { match: '3.6-flash', inputPer1M: 1.35, outputPer1M: 6.30, cachedPer1M: 0.135 },
+        { match: '3.7-flash', inputPer1M: 0.75, outputPer1M: 3.75, cachedPer1M: 0.075 },
+        { match: '3.8-flash', inputPer1M: 0.75, outputPer1M: 3.75, cachedPer1M: 0.075 },
+        { match: '4-argon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
+        { match: '4-carbon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
+        { match: '4-hydrogen', inputPer1M: 0.75, outputPer1M: 3.75, cachedPer1M: 0.075 },
+        { match: '3.1-pro', inputPer1M: 2.00, outputPer1M: 12.00, cachedPer1M: 0.20 },
+        { match: '2.5-pro', inputPer1M: 1.25, outputPer1M: 10.00, cachedPer1M: 0.125 },
+        { match: 'flash-lite', inputPer1M: 0.25, outputPer1M: 1.50, cachedPer1M: 0.025 },
+        { match: 'flash', inputPer1M: 0.75, outputPer1M: 3.75, cachedPer1M: 0.075 },
+        { match: 'argon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
+        { match: 'carbon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
+        { match: 'pro', inputPer1M: 2.00, outputPer1M: 12.00, cachedPer1M: 0.20 }
       ]
     };
 
@@ -702,7 +732,8 @@
         totalInputTokens: 0,
         totalOutputTokens: 0,
         totalThoughtsTokens: 0,
-        totalCachedTokens: 0
+        totalCachedTokens: 0,
+        totalSearchQueries: 0
       }),
       session: {
         inr: 0,
@@ -711,6 +742,7 @@
         outputTokens: 0,
         thoughtsTokens: 0,
         cachedTokens: 0,
+        searchQueries: 0,
         turnBreakdown: []
       },
       externalWorkbooks: {},
@@ -759,25 +791,56 @@
       return compactRows;
     }
 
-    // Prunes heavy raw tool cell dumps from completed turns in conversationHistory so follow-up messages don't re-bill old sheet dumps!
-    function pruneHeavyToolDumpsInHistory() {
+    // Hard safety cap on EVERY tool result so no script or range read can dump 20K–89K tokens into the LLM prompt!
+    function capToolResultSize(toolName, result, maxChars = 4200) {
+      try {
+        const serialized = JSON.stringify(result);
+        if (!serialized || serialized.length <= maxChars) return result;
+        const preview = serialized.slice(0, maxChars - 350);
+        return {
+          status: (result && result.status) || 'truncated_to_save_tokens',
+          tool: toolName,
+          originalChars: serialized.length,
+          estimatedTokensSaved: Math.round((serialized.length - maxChars) / 4),
+          truncatedPreview: preview + '... [TRUNCATED]',
+          tokenSaverInstruction: 'Output exceeded 4,200 chars and was capped to prevent token leakage. Perform filtering, aggregation, and sheet writes locally inside Excel JS (or use reconcile_itc_books_vs_2b) and return ONLY compact summary counts.'
+        };
+      } catch (err) {
+        return { status: 'completed', note: String(result).slice(0, 1000) };
+      }
+    }
+
+    // Sliding-window pruner: runs BETWEEN every multi-turn step (keepLastToolTurns=1) and after completion (keepLastToolTurns=0)
+    // so bulky JSON payloads are NEVER re-billed across 10+ sequential API turns!
+    function pruneHeavyToolDumpsInHistory(keepLastToolTurns = 0) {
       const shouldPrune = document.getElementById('pruneHistoryTokensCheckbox')
         ? document.getElementById('pruneHistoryTokensCheckbox').checked
         : true;
       if (!shouldPrune) return;
 
-      for (const turn of appState.conversationHistory) {
-        if (!Array.isArray(turn.parts)) continue;
+      const toolTurnIndices = [];
+      for (let i = 0; i < appState.conversationHistory.length; i++) {
+        const turn = appState.conversationHistory[i];
+        if (Array.isArray(turn.parts) && turn.parts.some(p => p.functionResponse)) {
+          toolTurnIndices.push(i);
+        }
+      }
+      const cutoffCount = Math.max(0, toolTurnIndices.length - keepLastToolTurns);
+      const indicesToPrune = new Set(toolTurnIndices.slice(0, cutoffCount));
+
+      for (const idx of indicesToPrune) {
+        const turn = appState.conversationHistory[idx];
         for (const p of turn.parts) {
           if (p.functionResponse && p.functionResponse.response && p.functionResponse.response.result) {
             const res = p.functionResponse.response.result;
             const serialized = JSON.stringify(res);
-            if (serialized.length > 900) {
+            if (serialized.length > 650) {
               p.functionResponse.response.result = {
-                status: res.status || 'completed_and_archived_to_save_tokens',
+                status: res.status || 'completed_and_pruned_to_save_tokens',
                 sheetName: res.sheetName || res.activeWorksheet || 'ActiveSheet',
                 address: res.address || res.usedRangeAddress || 'range',
-                note: 'Raw cell dump pruned from history after turn completion to minimize token cost.'
+                summary: res.summary || res.description || undefined,
+                note: 'Prior step payload pruned from prompt context to prevent token snowballing.'
               };
             }
           }
@@ -1618,8 +1681,33 @@
             }
           },
           {
+            name: 'reconcile_itc_books_vs_2b',
+            description: 'TOKEN-SAVER NATIVE ENGINE: Reconciles GST ITC (Books positive rows vs GSTR-2B negative rows) 100% locally inside Excel without sending hundreds of rows to the AI! Matches by GSTIN+Invoice, GSTIN+Amount, or Normalized Party+Amount within tolerance, identifies Partial Matches with exact difference reasons (Taxable/IGST/CGST/SGST diff), verifies Matched sums equal 0, writes Remarks directly into the Remarks column, and returns ONLY a compact summary.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                sheetName: {
+                  type: 'STRING',
+                  description: 'Worksheet name containing the Books & GSTR-2B data (omit for active sheet).'
+                },
+                rangeAddress: {
+                  type: 'STRING',
+                  description: 'Optional A1 range (e.g., "A3:L658"). If omitted, uses the sheet used range.'
+                },
+                toleranceInr: {
+                  type: 'NUMBER',
+                  description: 'Rounding tolerance in INR for exact match (default: 2).'
+                },
+                overwriteExistingRemarks: {
+                  type: 'BOOLEAN',
+                  description: 'If true, overwrites all rows in Remarks column; if false, preserves non-empty remarks (default: true).'
+                }
+              }
+            }
+          },
+          {
             name: 'execute_custom_officejs',
-            description: 'Executes custom JavaScript code inside Excel.run(async (context) => { ... }) for any advanced Excel feature (Conditional Formatting, Data Validation, AutoFilter, Pivot layout customization, Slicers, etc.).',
+            description: 'Executes custom JavaScript code inside Excel.run(async (context) => { ... }) for any advanced Excel feature. STRICT TOKEN RULE: NEVER return full row arrays! Perform all loops, matching, aggregation, and sheet writes inside JavaScript and return ONLY compact counts/summaries (<= 15 sample items).',
             parameters: {
               type: 'OBJECT',
               properties: {
@@ -1687,15 +1775,17 @@
           }
 
           const data = await res.json();
-          recordTokenUsage(data.usageMetadata, `${searchModel} (WebSearch)`);
-
           const candidate = data.candidates && data.candidates[0];
+          const gm = candidate?.groundingMetadata || {};
+          const groundedQueryCount = Array.isArray(gm.webSearchQueries) && gm.webSearchQueries.length > 0
+            ? gm.webSearchQueries.length
+            : 1;
+          recordTokenUsage(data.usageMetadata, `${searchModel} (WebSearch)`, { searchQueries: groundedQueryCount });
+
           const answerText = (candidate?.content?.parts || [])
             .map(p => p.text || '')
             .join('\n')
             .trim();
-
-          const gm = candidate?.groundingMetadata || {};
           const sources = (gm.groundingChunks || [])
             .map(c => c.web ? { title: c.web.title, url: c.web.uri } : null)
             .filter(Boolean);
@@ -2072,20 +2162,25 @@
             const scanAll = Boolean(args.includeAllSheetsData || appState.scanAllSheetsMode);
 
             if (!scanAll) {
-              // Fast, low-token Active Sheet Only scan!
+              // Ultra-lean Active Sheet preview (max 25 rows) so 600+ row sheets cost ~600 tokens instead of 9,000+!
+              const previewLimit = 25;
               const compactRows = activeUr.isNullObject
                 ? []
-                : buildCompactSheetRowsRepresentation(activeUr.values, activeUr.formulas, 100);
+                : buildCompactSheetRowsRepresentation(activeUr.values, activeUr.formulas, previewLimit);
 
               return {
-                mode: 'ACTIVE_SHEET_ONLY (Token-Saver Mode)',
+                mode: 'ACTIVE_SHEET_ONLY (Ultra Token-Saver)',
                 activeWorkbookName: appState.currentWorkbookName,
                 activeWorksheet: activeSheetObj.name,
                 otherWorksheetNamesOnly: sheets.items.map(s => s.name).filter(n => n !== activeSheetObj.name),
                 usedRangeAddress: activeUr.isNullObject ? 'Empty' : activeUr.address,
                 dimensions: activeUr.isNullObject ? '0x0' : `${activeUr.rowCount}x${activeUr.columnCount}`,
+                totalRowsInActiveSheet: activeUr.isNullObject ? 0 : activeUr.rowCount,
+                previewRowsShown: compactRows.length,
                 activeSheetRows: compactRows,
-                note: 'Other worksheets were NOT read to save tokens. Call read_excel_range(sheetName="...", rangeAddress="...") only if you specifically need data from another tab.'
+                note: activeUr.rowCount > previewLimit
+                  ? `Showing first ${previewLimit} of ${activeUr.rowCount} rows to save tokens. For full-sheet ITC reconciliation, call reconcile_itc_books_vs_2b directly (0 row dump!). For other bulk operations, run execute_custom_officejs and return ONLY compact summary counts.`
+                  : 'Other worksheets were NOT read to save tokens. Call read_excel_range only if another tab is explicitly requested.'
               };
             }
 
@@ -2342,6 +2437,204 @@
             };
           }
 
+          if (name === 'reconcile_itc_books_vs_2b') {
+            const tol = Number(args.toleranceInr ?? 2);
+            const overwrite = args.overwriteExistingRemarks !== false;
+            const targetRange = args.rangeAddress
+              ? targetSheet.getRange(parsedAddr.cleanAddress)
+              : targetSheet.getUsedRangeOrNullObject();
+            targetSheet.load('name');
+            targetRange.load(['isNullObject', 'address', 'rowCount', 'columnCount', 'values']);
+            await context.sync();
+            if (targetRange.isNullObject || !targetRange.values || targetRange.values.length < 2) {
+              return { status: 'error', message: 'No data found in target range for ITC reconciliation.' };
+            }
+
+            const vals = targetRange.values;
+            const headers = vals[0].map(h => String(h || '').trim().toLowerCase().replace(/\s+/g, ' '));
+            const findCol = (patterns, fallback) => {
+              const idx = headers.findIndex(h => patterns.some(p => h.includes(p)));
+              return idx >= 0 ? idx : fallback;
+            };
+            const colBase = findCol(['base', 'source', 'type'], 0);
+            const colParty = findCol(['party', 'supplier', 'vendor', 'trade name'], 2);
+            const colGstin = findCol(['gstin', 'gst no', 'gst number'], 3);
+            const colInv = findCol(['invoice', 'boe', 'doc no', 'bill'], 4);
+            const colTaxable = findCol(['taxable'], 7);
+            const colIgst = findCol(['igst'], 8);
+            const colCgst = findCol(['cgst'], 9);
+            const colSgst = findCol(['sgst', 'utgst'], 10);
+            const colRemarks = findCol(['remark', 'status', 'reco'], headers.length - 1);
+
+            const normStr = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const normParty = (s) => String(s || '').toUpperCase()
+              .replace(/\b(PVT|PRIVATE|LTD|LIMITED|LLP|M\/S|MS|PUR|PURCHASE|SERVICES|ENTERPRISES|TRADERS|INDIA|CO|CORP)\b/g, '')
+              .replace(/[^A-Z0-9]/g, '');
+            const toNum = (v) => {
+              const n = Number(v);
+              return Number.isFinite(n) ? n : 0;
+            };
+
+            const booksRows = [];
+            const gstr2bRows = [];
+            const remarksOut = vals.map(r => [r[colRemarks] ?? '']);
+
+            for (let i = 1; i < vals.length; i++) {
+              const r = vals[i];
+              const baseRaw = String(r[colBase] || '').trim().toLowerCase();
+              const taxable = toNum(r[colTaxable]);
+              const igst = toNum(r[colIgst]);
+              const cgst = toNum(r[colCgst]);
+              const sgst = toNum(r[colSgst]);
+              const totalTax = igst + cgst + sgst;
+              const grandTotal = taxable + totalTax;
+              if (Math.abs(taxable) < 0.001 && Math.abs(totalTax) < 0.001 && !String(r[colParty] || '').trim()) {
+                continue;
+              }
+              const item = {
+                idx: i,
+                party: String(r[colParty] || '').trim(),
+                pKey: normParty(r[colParty]),
+                gstin: normStr(r[colGstin]),
+                inv: normStr(r[colInv]),
+                taxable, igst, cgst, sgst, totalTax, grandTotal,
+                matched: false,
+                remark: ''
+              };
+              const is2B = baseRaw.includes('2b') || baseRaw.includes('gstr') || grandTotal < -0.001 || (Math.abs(grandTotal) < 0.001 && totalTax < -0.001);
+              if (is2B) gstr2bRows.push(item);
+              else booksRows.push(item);
+            }
+
+            const stats = {
+              matchedPairs: 0,
+              partiallyMatchedPairs: 0,
+              onlyInBooks: 0,
+              onlyIn2B: 0,
+              matchedNetTaxableSum: 0,
+              matchedNetIgstSum: 0,
+              matchedNetCgstSum: 0,
+              matchedNetSgstSum: 0,
+              partialSamples: []
+            };
+
+            const isZeroSum = (b, g) =>
+              Math.abs(b.taxable + g.taxable) <= tol &&
+              Math.abs(b.igst + g.igst) <= tol &&
+              Math.abs(b.cgst + g.cgst) <= tol &&
+              Math.abs(b.sgst + g.sgst) <= tol;
+
+            const markPair = (b, g, remarkText, isPartial = false) => {
+              b.matched = true;
+              g.matched = true;
+              b.remark = remarkText;
+              g.remark = remarkText;
+              if (!isPartial) {
+                stats.matchedPairs++;
+                stats.matchedNetTaxableSum += b.taxable + g.taxable;
+                stats.matchedNetIgstSum += b.igst + g.igst;
+                stats.matchedNetCgstSum += b.cgst + g.cgst;
+                stats.matchedNetSgstSum += b.sgst + g.sgst;
+              } else {
+                stats.partiallyMatchedPairs++;
+                if (stats.partialSamples.length < 12) {
+                  stats.partialSamples.push({
+                    party: b.party || g.party,
+                    inv: b.inv || g.inv,
+                    reason: remarkText
+                  });
+                }
+              }
+            };
+
+            // Pass 1: Exact GSTIN + Invoice + Zero-Sum
+            for (const b of booksRows) {
+              if (b.matched || !b.gstin || !b.inv) continue;
+              const hit = gstr2bRows.find(g => !g.matched && g.gstin === b.gstin && g.inv === b.inv && isZeroSum(b, g));
+              if (hit) markPair(b, hit, 'Matched');
+            }
+            // Pass 2: Invoice + Zero-Sum (when GSTIN blank in Books)
+            for (const b of booksRows) {
+              if (b.matched || !b.inv) continue;
+              const hit = gstr2bRows.find(g => !g.matched && g.inv === b.inv && isZeroSum(b, g));
+              if (hit) markPair(b, hit, 'Matched');
+            }
+            // Pass 3: GSTIN or Party Prefix + Zero-Sum (when Invoice No missing/formatted differently)
+            for (const b of booksRows) {
+              if (b.matched) continue;
+              const hit = gstr2bRows.find(g => {
+                if (g.matched || !isZeroSum(b, g)) return false;
+                if (b.gstin && g.gstin && b.gstin === g.gstin) return true;
+                if (b.pKey.length >= 4 && g.pKey.length >= 4 && (b.pKey.includes(g.pKey.slice(0, 5)) || g.pKey.includes(b.pKey.slice(0, 5)))) return true;
+                return false;
+              });
+              if (hit) markPair(b, hit, 'Matched');
+            }
+            // Pass 4: Exact Amount Zero-Sum across remaining unmatched rows
+            for (const b of booksRows) {
+              if (b.matched || Math.abs(b.totalTax) < 1) continue;
+              const hit = gstr2bRows.find(g => !g.matched && isZeroSum(b, g));
+              if (hit) markPair(b, hit, 'Matched');
+            }
+            // Pass 5: Partial Match (Same GSTIN+Invoice or Same Party+Invoice, but Taxable/Tax differs)
+            for (const b of booksRows) {
+              if (b.matched || !b.inv) continue;
+              const hit = gstr2bRows.find(g => !g.matched && g.inv === b.inv && (
+                (b.gstin && g.gstin && b.gstin === g.gstin) ||
+                (b.pKey.length >= 4 && g.pKey.length >= 4 && (b.pKey.includes(g.pKey.slice(0, 5)) || g.pKey.includes(b.pKey.slice(0, 5))))
+              ));
+              if (hit) {
+                const diffs = [];
+                const dTaxable = +(b.taxable + hit.taxable).toFixed(2);
+                const dIgst = +(b.igst + hit.igst).toFixed(2);
+                const dCgst = +(b.cgst + hit.cgst).toFixed(2);
+                const dSgst = +(b.sgst + hit.sgst).toFixed(2);
+                if (Math.abs(dTaxable) > tol) diffs.push(`Taxable diff ${dTaxable}`);
+                if (Math.abs(dIgst) > tol) diffs.push(`IGST diff ${dIgst}`);
+                if (Math.abs(dCgst) > tol) diffs.push(`CGST diff ${dCgst}`);
+                if (Math.abs(dSgst) > tol) diffs.push(`SGST diff ${dSgst}`);
+                markPair(b, hit, `Partially Matched (${diffs.join(', ') || 'Minor variance'})`, true);
+              }
+            }
+
+            for (const b of booksRows) {
+              if (!b.matched) { b.remark = 'Only in Books'; stats.onlyInBooks++; }
+              if (overwrite || !String(remarksOut[b.idx][0] || '').trim()) remarksOut[b.idx][0] = b.remark;
+            }
+            for (const g of gstr2bRows) {
+              if (!g.matched) { g.remark = 'Only in 2B'; stats.onlyIn2B++; }
+              if (overwrite || !String(remarksOut[g.idx][0] || '').trim()) remarksOut[g.idx][0] = g.remark;
+            }
+
+            // Write Remarks column back in a SINGLE Excel.run batch!
+            const remarksColRange = targetRange.getColumn(colRemarks);
+            remarksColRange.values = remarksOut;
+            remarksColRange.format.autofitColumns();
+            await context.sync();
+
+            return {
+              status: 'itc_reconciliation_completed_locally',
+              sheetName: targetSheet.name,
+              rangeAddress: targetRange.address,
+              totalBooksRows: booksRows.length,
+              total2BRows: gstr2bRows.length,
+              summary: {
+                matchedPairs: stats.matchedPairs,
+                matchedRowsCount: stats.matchedPairs * 2,
+                partiallyMatchedPairs: stats.partiallyMatchedPairs,
+                onlyInBooksRows: stats.onlyInBooks,
+                onlyIn2BRows: stats.onlyIn2B,
+                matchedZeroSumVerification: {
+                  taxableNet: +stats.matchedNetTaxableSum.toFixed(2),
+                  igstNet: +stats.matchedNetIgstSum.toFixed(2),
+                  cgstNet: +stats.matchedNetCgstSum.toFixed(2),
+                  sgstNet: +stats.matchedNetSgstSum.toFixed(2)
+                }
+              },
+              partialMatchSamples: stats.partialSamples
+            };
+          }
+
           if (name === 'execute_custom_officejs') {
             const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
             const customFn = new AsyncFunction('context', 'Excel', args.asyncFunctionBody);
@@ -2475,6 +2768,13 @@
         }
         renderVirtualGrid();
         return { status: 'formatted_virtual_cells', rangeAddress: args.rangeAddress, hexColor: color };
+      }
+
+      if (name === 'reconcile_itc_books_vs_2b') {
+        return {
+          status: 'simulated_itc_reconciliation',
+          note: 'Connect inside live Microsoft Excel to run local ITC reconciliation on Books vs GSTR-2B rows.'
+        };
       }
 
       if (name === 'execute_custom_officejs') {
@@ -2721,38 +3021,53 @@
         limitsEl.textContent = `Model: ${modelId || 'Offline Simulator'}`;
       }
 
-      if (modelId && Array.isArray(appState.pricing.patternRules)) {
-        const lower = modelId.toLowerCase();
-        const matchedRule = appState.pricing.patternRules.find(r => lower.includes((r.match || '').toLowerCase()));
-        if (matchedRule) {
-          appState.pricing.activeInputPer1M = Number(matchedRule.inputPer1M);
-          appState.pricing.activeOutputPer1M = Number(matchedRule.outputPer1M);
-          appState.pricing.activeCachedPer1M = Number(matchedRule.cachedPer1M ?? 0);
-          syncPricingInputsFromState();
-          updateCostDisplay();
-        }
+      const matchedRule = resolvePricingRuleForModel(modelId);
+      if (matchedRule) {
+        appState.pricing.activeInputPer1M = Number(matchedRule.inputPer1M);
+        appState.pricing.activeOutputPer1M = Number(matchedRule.outputPer1M);
+        appState.pricing.activeCachedPer1M = Number(matchedRule.cachedPer1M ?? 0);
+        syncPricingInputsFromState();
+        updateCostDisplay();
       }
     }
 
     /*************************************************************************
      * 7. PRICE-ONLY COMPACT FLOATING INR (₹) PILL & DETAILED WORKINGS ENGINE
      *************************************************************************/
-    function recordTokenUsage(usageMetadata, modelLabel = 'gemini') {
+    function resolvePricingRuleForModel(modelLabel) {
+      const rules = Array.isArray(appState.pricing.patternRules) ? appState.pricing.patternRules : DEFAULT_PRICING_CONFIG.patternRules;
+      if (!modelLabel || !rules.length) return null;
+      const lower = String(modelLabel).toLowerCase();
+      // Match longest (most specific) rule first so '3.8-flash' or '2.5-flash-lite' beats generic 'flash'
+      const sorted = [...rules].sort((a, b) => String(b.match || '').length - String(a.match || '').length);
+      return sorted.find(r => r.match && lower.includes(String(r.match).toLowerCase())) || null;
+    }
+
+    function recordTokenUsage(usageMetadata, modelLabel = 'gemini', options = {}) {
       if (!usageMetadata) return null;
-      const promptTokens = Number(usageMetadata.promptTokenCount || 0);
+      const promptTokens = Number(usageMetadata.promptTokenCount || 0) + Number(usageMetadata.toolUsePromptTokenCount || 0);
       const candidateTokens = Number(usageMetadata.candidatesTokenCount || 0);
       const thoughtsTokens = Number(usageMetadata.thoughtsTokenCount || 0);
       const cachedTokens = Number(usageMetadata.cachedContentTokenCount || 0);
+      const searchQueries = Number(options.searchQueries || 0);
       const billableInputTokens = Math.max(0, promptTokens - cachedTokens);
       const totalBillableOutputTokens = candidateTokens + thoughtsTokens;
 
-      const { activeInputPer1M, activeOutputPer1M, activeCachedPer1M, usdToInr } = appState.pricing;
+      const matchedRule = resolvePricingRuleForModel(modelLabel);
+      const inRate = matchedRule ? Number(matchedRule.inputPer1M) : Number(appState.pricing.activeInputPer1M);
+      const outRate = matchedRule ? Number(matchedRule.outputPer1M) : Number(appState.pricing.activeOutputPer1M);
+      const cacheRate = matchedRule ? Number(matchedRule.cachedPer1M ?? 0) : Number(appState.pricing.activeCachedPer1M);
+      const usdToInr = Number(appState.pricing.usdToInr || 86.5);
+      const searchUnitUsd = Number(appState.pricing.searchGroundingUsdPerQuery ?? 0.014);
+      const includeGst = appState.pricing.includeIndiaGst !== false;
+      const gstMultiplier = includeGst ? 1.18 : 1.0;
 
-      const usdCost =
-        (billableInputTokens / 1_000_000) * activeInputPer1M +
-        (cachedTokens / 1_000_000) * activeCachedPer1M +
-        (totalBillableOutputTokens / 1_000_000) * activeOutputPer1M;
-
+      const tokenUsd =
+        (billableInputTokens / 1_000_000) * inRate +
+        (cachedTokens / 1_000_000) * cacheRate +
+        (totalBillableOutputTokens / 1_000_000) * outRate;
+      const searchUsd = searchQueries * searchUnitUsd;
+      const usdCost = (tokenUsd + searchUsd) * gstMultiplier;
       const inrCost = usdCost * usdToInr;
 
       appState.session.usd += usdCost;
@@ -2761,6 +3076,7 @@
       appState.session.outputTokens += candidateTokens;
       appState.session.thoughtsTokens += thoughtsTokens;
       appState.session.cachedTokens += cachedTokens;
+      appState.session.searchQueries = (appState.session.searchQueries || 0) + searchQueries;
 
       appState.session.turnBreakdown.unshift({
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -2768,6 +3084,7 @@
         inTok: billableInputTokens,
         outTok: candidateTokens,
         thinkTok: thoughtsTokens,
+        searchQ: searchQueries,
         inr: inrCost
       });
 
@@ -2777,11 +3094,12 @@
       appState.ledger.totalOutputTokens = (appState.ledger.totalOutputTokens || 0) + candidateTokens;
       appState.ledger.totalThoughtsTokens = (appState.ledger.totalThoughtsTokens || 0) + thoughtsTokens;
       appState.ledger.totalCachedTokens = (appState.ledger.totalCachedTokens || 0) + cachedTokens;
+      appState.ledger.totalSearchQueries = (appState.ledger.totalSearchQueries || 0) + searchQueries;
 
       safeStorageSet(STORAGE_KEYS.LEDGER, appState.ledger);
       updateCostDisplay();
 
-      return { promptTokens: billableInputTokens, candidateTokens, thoughtsTokens, cachedTokens, usdCost, inrCost };
+      return { promptTokens: billableInputTokens, candidateTokens, thoughtsTokens, cachedTokens, searchQueries, usdCost, inrCost };
     }
 
     function updateCostDisplay() {
@@ -2857,8 +3175,14 @@
           <td class="py-1.5 px-2 text-right">$${activeOutputPer1M}</td>
           <td class="py-1.5 px-2.5 text-right text-slate-100">${inrFormatter.format(thinkInr)}</td>
         </tr>
+        <tr>
+          <td class="py-1.5 px-2.5">Google Search Grounding</td>
+          <td class="py-1.5 px-2 text-right">${(appState.ledger.totalSearchQueries || 0).toLocaleString('en-IN')} q</td>
+          <td class="py-1.5 px-2 text-right">$0.014/q</td>
+          <td class="py-1.5 px-2.5 text-right text-slate-100">${inrFormatter.format((appState.ledger.totalSearchQueries || 0) * Number(appState.pricing.searchGroundingUsdPerQuery ?? 0.014) * usdToInr)}</td>
+        </tr>
         <tr class="bg-obsidian-950 font-bold text-amber-300">
-          <td class="py-1.5 px-2.5" colspan="3">Total @ ₹${Number(usdToInr).toFixed(2)}/USD</td>
+          <td class="py-1.5 px-2.5" colspan="3">Total @ ₹${Number(usdToInr).toFixed(2)}/USD${appState.pricing.includeIndiaGst !== false ? ' (incl. 18% GST)' : ''}</td>
           <td class="py-1.5 px-2.5 text-right">${inrFormatter.format(appState.ledger.cumulativeInr)}</td>
         </tr>
       `;
@@ -2880,6 +3204,10 @@
       document.getElementById('outputRatePerMillion').value = appState.pricing.activeOutputPer1M;
       document.getElementById('cachedRatePerMillion').value = appState.pricing.activeCachedPer1M;
       document.getElementById('monthlyBudgetInrInput').value = appState.pricing.monthlyBudgetInr;
+      const gstBox = document.getElementById('includeIndiaGstCheckbox');
+      if (gstBox) gstBox.checked = appState.pricing.includeIndiaGst !== false;
+      const thinkSel = document.getElementById('thinkingBudgetSelect');
+      if (thinkSel) thinkSel.value = String(appState.pricing.thinkingBudget ?? 1024);
       document.getElementById('pricingRulesJson').value = JSON.stringify(appState.pricing.patternRules, null, 2);
     }
 
@@ -3238,6 +3566,30 @@
             break;
           }
 
+          // If a model rejects thinkingConfig, transparently strip it and retry once immediately
+          if (/thinkingConfig|thinking_budget|thinkingBudget/i.test(errMsg) && payload.generationConfig && payload.generationConfig.thinkingConfig) {
+            const strippedPayload = {
+              ...payload,
+              generationConfig: { ...payload.generationConfig }
+            };
+            delete strippedPayload.generationConfig.thinkingConfig;
+            const retryNoThink = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(strippedPayload),
+              signal
+            });
+            if (retryNoThink.ok) {
+              const data = await retryNoThink.json();
+              return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+            }
+          }
+
+          // Do NOT blindly retry 5 models if Google Project Monthly Spend Cap was hit!
+          if (/monthly spending cap|spend cap|billing account|quota exceeded for quota metric/i.test(errMsg)) {
+            throw new Error(`Google Cloud Spend Cap Reached: ${errMsg} (Tip: Raise your project spend cap in Google AI Studio / Cloud Billing, or switch to gemini-2.5-flash-lite).`);
+          }
+
           const isCapabilityMismatch = /function calling is not enabled|tool use.*not supported|developer instruction is not enabled|modality/i.test(errMsg);
           if (isCapabilityMismatch && autoFallback) {
             break;
@@ -3328,6 +3680,11 @@
       try {
         while (turn < MAX_AGENT_TURNS) {
           turn++;
+          // CRITICAL TOKEN-SAVER: Prune bulky payloads from earlier steps BEFORE sending the next API call!
+          if (turn > 1) {
+            pruneHeavyToolDumpsInHistory(1);
+          }
+
           const isFinalForcedSynthesisTurn = turn === MAX_AGENT_TURNS;
           statusInd.textContent = `Step ${turn}`;
           startContinuousThinkingFeedback(
@@ -3336,6 +3693,15 @@
           );
 
           const isThinkingModel = /argon|carbon|hydrogen|pro|3\.|4\./i.test(modelId);
+          const thinkSel = document.getElementById('thinkingBudgetSelect');
+          const configuredThinkBudget = thinkSel ? Number(thinkSel.value) : Number(appState.pricing.thinkingBudget ?? 1024);
+          const genConfig = {
+            temperature: isThinkingModel ? 0.7 : 0.2
+          };
+          if (isThinkingModel && Number.isFinite(configuredThinkBudget) && configuredThinkBudget >= 0) {
+            genConfig.thinkingConfig = { thinkingBudget: configuredThinkBudget };
+          }
+
           const payload = {
             systemInstruction: {
               parts: [
@@ -3345,18 +3711,17 @@
                     `Scope Mode: ${appState.scanAllSheetsMode ? 'ALL SHEETS' : 'ACTIVE SHEET ONLY (Default to minimize token cost)'}.\n` +
                     `External workbooks attached: ${connectedNames.length ? connectedNames.join(', ') : 'None'}.\n` +
                     'STRICT TOKEN-SAVING & COMPLETION RULES:\n' +
-                    '1. WORK ONLY ON THE ACTIVE SHEET BY DEFAULT: Call `audit_workbook` (with `includeAllSheetsData: false`) once to get all non-empty rows of the active worksheet in a single call. NEVER read other worksheets unless the user explicitly asks for another tab or cross-sheet lookup!\n' +
-                    '2. ZERO REDUNDANT READS: Once `audit_workbook` returns `activeSheetRows`, you ALREADY have the active sheet\'s data. Do NOT call `read_excel_range` again on the active sheet!\n' +
-                    '3. ONE-SHOT BATCH WRITES: Use `batch_write_excel_ranges` to write all checklist cells/formulas in a SINGLE tool call.\n' +
-                    '4. ALWAYS DELIVER FINAL OUTPUT: Immediately after reading/writing, output your complete final response and list any ambiguous items needing user confirmation.'
+                    '1. ACTIVE SHEET ONLY BY DEFAULT: Call `audit_workbook` (with `includeAllSheetsData: false`) once for a compact 25-row schema preview. NEVER read other worksheets unless explicitly requested.\n' +
+                    '2. ZERO-DUMP RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, ALWAYS call `reconcile_itc_books_vs_2b` directly! It runs 100% locally in Excel JavaScript and writes Remarks in 1 step with ~250 tokens.\n' +
+                    '3. NEVER RETURN RAW ROW ARRAYS FROM `execute_custom_officejs`: Do ALL matching, filtering, math, and Excel writes inside JavaScript and return ONLY compact summary counts (<= 15 sample items).\n' +
+                    '4. ONE-SHOT BATCH WRITES: Use `batch_write_excel_ranges` to write multiple cells/formulas in a SINGLE tool call.\n' +
+                    '5. ALWAYS DELIVER FINAL OUTPUT IN 2–4 STEPS: Immediately after writing/reconciling, output your concise final report.'
                 }
               ]
             },
             contents: appState.conversationHistory,
             tools: isFinalForcedSynthesisTurn ? undefined : EXCEL_AGENT_TOOLS,
-            generationConfig: {
-              temperature: isThinkingModel ? 0.7 : 0.2
-            }
+            generationConfig: genConfig
           };
 
           const { data, usedModelId, switchedModel } = await fetchGeminiWithResilience({
@@ -3422,7 +3787,8 @@
             );
             let toolResult;
             try {
-              toolResult = await executeExcelTool(fc);
+              const rawResult = await executeExcelTool(fc);
+              toolResult = capToolResultSize(fc.name, rawResult, 4200);
             } catch (toolErr) {
               toolResult = { error: toolErr.message };
             }
@@ -3818,6 +4184,22 @@
         runAgenticTurnLoop(text);
       });
 
+      const thinkSelEl = document.getElementById('thinkingBudgetSelect');
+      if (thinkSelEl) {
+        thinkSelEl.addEventListener('change', () => {
+          appState.pricing.thinkingBudget = Number(thinkSelEl.value);
+          safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
+        });
+      }
+      const gstBoxEl = document.getElementById('includeIndiaGstCheckbox');
+      if (gstBoxEl) {
+        gstBoxEl.addEventListener('change', () => {
+          appState.pricing.includeIndiaGst = gstBoxEl.checked;
+          safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
+          updateCostDisplay();
+        });
+      }
+
       document.getElementById('clearChatBtn').addEventListener('click', () => {
         startNewChatSession();
       });
@@ -3827,12 +4209,17 @@
         const statusMsg = document.getElementById('pricingStatusMsg');
         try {
           const parsedRules = JSON.parse(document.getElementById('pricingRulesJson').value);
+          const gstBox = document.getElementById('includeIndiaGstCheckbox');
+          const thinkSel = document.getElementById('thinkingBudgetSelect');
           appState.pricing = {
             usdToInr: Math.max(1, Number(document.getElementById('usdInrRateInput').value) || 86.5),
             activeInputPer1M: Math.max(0, Number(document.getElementById('inputRatePerMillion').value) || 0),
             activeOutputPer1M: Math.max(0, Number(document.getElementById('outputRatePerMillion').value) || 0),
             activeCachedPer1M: Math.max(0, Number(document.getElementById('cachedRatePerMillion').value) || 0),
             monthlyBudgetInr: Math.max(1, Number(document.getElementById('monthlyBudgetInrInput').value) || 500),
+            includeIndiaGst: gstBox ? gstBox.checked : true,
+            searchGroundingUsdPerQuery: Number(appState.pricing.searchGroundingUsdPerQuery ?? 0.014),
+            thinkingBudget: thinkSel ? Number(thinkSel.value) : 1024,
             patternRules: Array.isArray(parsedRules) ? parsedRules : DEFAULT_PRICING_CONFIG.patternRules
           };
           safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
