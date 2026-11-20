@@ -3976,22 +3976,32 @@
             break;
           }
 
-          // If a model rejects thinkingConfig, transparently strip it and retry once immediately
-          if (/thinkingConfig|thinking_budget|thinkingBudget/i.test(errMsg) && payload.generationConfig && payload.generationConfig.thinkingConfig) {
-            const strippedPayload = {
-              ...payload,
-              generationConfig: { ...payload.generationConfig }
-            };
-            delete strippedPayload.generationConfig.thinkingConfig;
-            const retryNoThink = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(strippedPayload),
-              signal
-            });
-            if (retryNoThink.ok) {
-              const data = await retryNoThink.json();
-              return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+          // If a model returns HTTP 400 (e.g. "Request contains an invalid argument.") while thinkingConfig is set
+          // (for example, models that reject thinkingBudget: 0 or thinkingConfig), retry cleanly without thinkingConfig!
+          if ((response.status === 400 || /thinkingConfig|thinking_budget|thinkingBudget|invalid argument/i.test(errMsg)) && payload.generationConfig && payload.generationConfig.thinkingConfig) {
+            // If NIL (0) was rejected, first try a minimal cap (128 tokens) if it's a thinking model, then fall back to omitting thinkingConfig
+            const triedPayloads = [];
+            if (payload.generationConfig.thinkingConfig.thinkingBudget === 0) {
+              triedPayloads.push({
+                ...payload,
+                generationConfig: { ...payload.generationConfig, thinkingConfig: { thinkingBudget: 128 } }
+              });
+            }
+            const strippedGen = { ...payload.generationConfig };
+            delete strippedGen.thinkingConfig;
+            triedPayloads.push({ ...payload, generationConfig: strippedGen });
+
+            for (const altPayload of triedPayloads) {
+              const retryAlt = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(altPayload),
+                signal
+              });
+              if (retryAlt.ok) {
+                const data = await retryAlt.json();
+                return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+              }
             }
           }
 
@@ -4621,9 +4631,12 @@
             `Active model: ${modelId}...`
           );
 
-          const isThinkingModel = /argon|carbon|hydrogen|pro|3\.|4\./i.test(modelId);
+          const isThinkingModel = /argon|carbon|hydrogen|neon|pro|3\.|4\./i.test(modelId);
+          const headerThinkEl = document.getElementById('headerThinkingCapSelect');
           const thinkSel = document.getElementById('thinkingBudgetSelect');
-          const configuredThinkBudget = thinkSel ? Number(thinkSel.value) : Number(appState.pricing.thinkingBudget ?? 1024);
+          const configuredThinkBudget = headerThinkEl
+            ? Number(headerThinkEl.value)
+            : (thinkSel ? Number(thinkSel.value) : Number(appState.pricing.thinkingBudget ?? 0));
           const genConfig = {
             temperature: isThinkingModel ? 0.7 : 0.2
           };
