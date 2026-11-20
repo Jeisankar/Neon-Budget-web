@@ -167,7 +167,7 @@
     }
   </style>
 </head>
-<body id="appDropZone" class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
+<body id="appDropZone" class="h-screen w-full max-w-full flex flex-col overflow-hidden overflow-x-hidden selection:bg-neon-cyan selection:text-obsidian-950">
 
   <!-- Hidden Multi-File Input for External Workbooks (.xlsx, .xls, .csv, .json) -->
   <input id="externalWorkbookFileInput" type="file" multiple accept=".xlsx,.xls,.csv,.json" class="hidden" />
@@ -175,7 +175,7 @@
   <!-- =====================================================================
        RESPONSIVE ZERO-OVERLAP HEADER BAR (WITH DYNAMIC ⋯ OVERFLOW MENU)
        ===================================================================== -->
-  <header id="appHeaderBar" class="shrink-0 h-11 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-2 flex items-center justify-between gap-1.5 z-30 relative">
+  <header id="appHeaderBar" class="shrink-0 h-11 w-full max-w-full bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-2 flex items-center justify-between gap-1 z-30 relative">
     <!-- Left: Formal Brand -->
     <div id="headerLeftGroup" class="flex items-center gap-1.5 min-w-0 shrink-0">
       <button id="tabAgentBtn" type="button" title="Return to chat" class="flex items-center gap-1.5 text-left group min-w-0">
@@ -291,12 +291,9 @@
       </div>
     </div>
 
-    <!-- Attached External Files Bar (only shown when files are attached) -->
+    <!-- Attached External Files Bar (only shown when user manually attaches a file via 📎) -->
     <div id="connectedWorkbooksStrip" class="hidden shrink-0 mx-3 mb-1 px-2.5 py-1.5 rounded-lg bg-obsidian-900/95 border border-obsidian-700 flex items-center justify-between gap-2">
-      <div id="connectedWorkbooksBadges" class="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-neon-cyan py-0.5"></div>
-      <button id="syncCurrentWorkbookBtn" type="button" title="Sync workbook across open Excel windows" class="text-[10px] px-1.5 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 shrink-0">
-        Sync
-      </button>
+      <div id="connectedWorkbooksBadges" class="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-neon-cyan py-0.5 min-w-0 flex-1"></div>
     </div>
 
     <!-- Live Progress Status Banner -->
@@ -362,21 +359,13 @@
           <button id="closeSlashMenuBtn" type="button" class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center">✕</button>
         </div>
         <div id="slashMenuList" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
-        <!-- Inline Add Custom Prompt Form -->
-        <div id="addCustomPromptForm" class="hidden p-2 rounded-lg bg-obsidian-950 border border-obsidian-700 space-y-1.5">
-          <input id="customPromptNameInput" type="text" placeholder="Command name (e.g. gst-check)" class="w-full bg-obsidian-900 border border-obsidian-700 rounded px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-neon-cyan" />
-          <textarea id="customPromptBodyInput" rows="2" placeholder="Prompt instructions..." class="w-full bg-obsidian-900 border border-obsidian-700 rounded px-2 py-1 text-[11px] text-slate-100 outline-none resize-none focus:border-neon-cyan"></textarea>
-          <div class="flex justify-end gap-1.5">
-            <button id="cancelCustomPromptBtn" type="button" class="px-2 py-1 rounded bg-obsidian-800 text-[10px] text-slate-300">Cancel</button>
-            <button id="saveCustomPromptBtn" type="button" class="px-2.5 py-1 rounded neon-glow-btn text-[10px]">Save</button>
-          </div>
-        </div>
         <button
-          id="showAddCustomPromptBtn"
+          id="openFullPromptManagerBtn"
           type="button"
-          class="w-full py-1.5 px-2 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-medium text-neon-cyan text-left transition"
+          class="w-full py-1.5 px-2 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-medium text-neon-cyan flex items-center justify-between transition"
         >
-          + Add custom prompt
+          <span>+ Add or manage prompts</span>
+          <span class="text-[10px] text-slate-400">Full view ↗</span>
         </button>
       </div>
 
@@ -407,17 +396,17 @@
         ></textarea>
 
         <!-- Bottom Composer Toolbar: Model ALWAYS visible on left; secondary tools auto-collapse to ⋯ -->
-        <div id="composerToolbar" class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
-          <div class="flex items-center gap-1 min-w-0 flex-1">
+        <div id="composerToolbar" class="w-full max-w-full flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
+          <div id="composerLeftGroup" class="flex items-center gap-1 min-w-0 flex-1">
             <label for="modelSelect" class="sr-only">Select Model</label>
             <select id="modelSelect" class="sr-only"></select>
 
             <!-- Model Selector (ALWAYS VISIBLE — NEVER HIDDEN OR OVERLAPPED) with Hover Popover -->
-            <div class="model-trigger-wrap relative shrink-0">
+            <div id="modelTriggerWrap" class="model-trigger-wrap relative shrink-0">
               <button
                 id="customModelTriggerBtn"
                 type="button"
-                class="max-w-[140px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-md px-2 h-6 text-[11px] font-medium text-neon-cyan flex items-center gap-1 transition"
+                class="max-w-[116px] sm:max-w-[150px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-md px-1.5 h-6 text-[11px] font-medium text-neon-cyan flex items-center gap-1 transition"
               >
                 <span id="customModelTriggerLabel" class="truncate">3.5 Flash-Lite</span>
                 <span class="text-[9px] text-slate-400 shrink-0">▴</span>
@@ -489,12 +478,12 @@
           </div>
 
           <!-- Right: Send Button (Always Visible) -->
-          <div class="flex items-center gap-1 shrink-0">
+          <div id="composerRightGroup" class="flex items-center gap-1 shrink-0">
             <span id="agentStatusIndicator" class="hidden text-[10px] text-slate-400">Ready</span>
             <button
               id="sendPromptBtn"
               type="submit"
-              class="px-2.5 h-6 rounded-md neon-glow-btn text-[11px] font-semibold flex items-center gap-1 shrink-0"
+              class="px-2 h-6 rounded-md neon-glow-btn text-[11px] font-semibold flex items-center gap-0.5 shrink-0"
             >
               <span>Send</span>
               <span>↵</span>
@@ -508,7 +497,7 @@
   <!-- =====================================================================
        VIEW 2: CONCISE, FORMAL SETTINGS PAGE WITH ⓘ HOVER TOOLTIPS
        ===================================================================== -->
-  <section id="viewRates" class="hidden flex-1 flex-col overflow-y-auto px-3.5 py-3 gap-3">
+  <section id="viewRates" class="hidden flex-1 flex-col overflow-y-auto overflow-x-hidden w-full max-w-full px-3 py-3 gap-3">
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
       <h2 class="text-xs font-semibold text-slate-100">Settings</h2>
       <button
@@ -527,29 +516,31 @@
         <span id="modelCountBadge" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-700">0 synced</span>
       </div>
 
-      <div class="flex gap-1.5">
+      <div class="space-y-1.5 w-full min-w-0">
         <input
           id="apiKeyInput"
           type="password"
           placeholder="Gemini API Key (AIza...)"
           autocomplete="off"
-          class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
+          class="selectable-text w-full min-w-0 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
         />
-        <button
-          id="toggleKeyVisBtn"
-          type="button"
-          title="Show or hide key"
-          class="px-2 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] text-slate-300"
-        >
-          Show
-        </button>
-        <button
-          id="fetchModelsBtn"
-          type="button"
-          class="px-2.5 py-1.5 rounded-lg neon-glow-btn text-[11px] shrink-0"
-        >
-          Sync
-        </button>
+        <div class="grid grid-cols-2 gap-1.5 w-full">
+          <button
+            id="toggleKeyVisBtn"
+            type="button"
+            title="Show or hide key"
+            class="w-full py-1.5 px-2 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-medium text-slate-200 transition"
+          >
+            Show Key
+          </button>
+          <button
+            id="fetchModelsBtn"
+            type="button"
+            class="w-full py-1.5 px-2 rounded-lg neon-glow-btn text-[11px] transition"
+          >
+            Sync Models
+          </button>
+        </div>
       </div>
 
       <div class="space-y-2 pt-1">
@@ -711,6 +702,61 @@
   </section>
 
   <!-- =====================================================================
+       VIEW 3: FULL-PAGE SAVED PROMPTS MANAGER (ADD / EDIT / DELETE)
+       ===================================================================== -->
+  <section id="viewPrompts" class="hidden flex-1 flex-col overflow-y-auto overflow-x-hidden w-full max-w-full px-3 py-3 gap-3">
+    <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
+      <h2 class="text-xs font-semibold text-slate-100">Saved Prompts</h2>
+      <button
+        id="backToChatFromPromptsBtn"
+        type="button"
+        class="px-2.5 py-1 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-medium text-neon-cyan transition"
+      >
+        ← Back
+      </button>
+    </div>
+
+    <!-- Full-Page Add / Edit Form -->
+    <div class="bg-obsidian-900/90 rounded-xl p-3 border border-obsidian-700 space-y-2.5">
+      <div class="flex items-center justify-between">
+        <span id="promptEditorHeading" class="text-[11px] font-semibold text-neon-cyan">Add New Prompt</span>
+        <button id="cancelPromptEditBtn" type="button" class="hidden text-[10px] text-slate-400 hover:text-slate-200">Cancel edit</button>
+      </div>
+      <input type="hidden" id="editingPromptIdInput" value="" />
+      <div>
+        <label for="promptNameField" class="block text-[10px] text-slate-400 mb-1">Slash command name</label>
+        <div class="flex items-center bg-obsidian-950 border border-obsidian-600 focus-within:border-neon-cyan rounded-lg px-2 py-1.5">
+          <span class="font-mono text-xs text-neon-cyan mr-1">/</span>
+          <input id="promptNameField" type="text" placeholder="e.g. reconcile or gst-check" class="selectable-text w-full min-w-0 bg-transparent text-xs font-mono text-slate-100 placeholder-slate-500 outline-none" />
+        </div>
+      </div>
+      <div>
+        <label for="promptDescField" class="block text-[10px] text-slate-400 mb-1">Short description</label>
+        <input id="promptDescField" type="text" placeholder="Brief summary shown in the / menu" class="selectable-text w-full min-w-0 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none" />
+      </div>
+      <div>
+        <label for="promptBodyField" class="block text-[10px] text-slate-400 mb-1">Prompt instructions</label>
+        <textarea id="promptBodyField" rows="4" placeholder="Write the full instructions to send when this command is selected..." class="selectable-text w-full min-w-0 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-500 outline-none resize-y leading-relaxed"></textarea>
+      </div>
+      <div class="flex items-center justify-between gap-2 pt-0.5">
+        <span id="promptEditorStatus" class="text-[10px] text-slate-400 truncate"></span>
+        <button id="savePromptManagerBtn" type="button" class="px-3 py-1.5 rounded-lg neon-glow-btn text-[11px] shrink-0">
+          Save Prompt
+        </button>
+      </div>
+    </div>
+
+    <!-- All Saved Prompts List (Every prompt is editable & deletable) -->
+    <div class="space-y-1.5">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-semibold text-slate-300">All Prompts</span>
+        <button id="resetDefaultPromptsBtn" type="button" class="text-[10px] text-slate-400 hover:text-amber-300">Restore defaults</button>
+      </div>
+      <div id="fullPromptManagerList" class="space-y-2"></div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
        MODAL 0: ALL MODELS DIRECTORY & FAVORITES MANAGER ("More models...")
        ===================================================================== -->
   <div id="moreModelsModalOverlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
@@ -852,7 +898,7 @@
       SELECTED_MODEL: 'neon_excel_selected_model_v2',
       CACHED_MODELS: 'neon_excel_cached_models_v1',
       FAVORITE_MODELS: 'neon_excel_favorite_models_v1',
-      CUSTOM_PROMPTS: 'neon_excel_custom_prompts_v1',
+      PROMPT_LIBRARY: 'neon_excel_prompt_library_v1',
       CONFIRM_EDITS: 'neon_excel_confirm_edits_v1',
       CHAT_SESSIONS: 'neon_excel_chat_sessions_v1',
       CROSS_WORKBOOK_BRIDGE: 'neon_excel_cross_workbook_bridge_v1'
@@ -972,7 +1018,7 @@
       visibleModels: [],
       selectedModel: safeStorageGet(STORAGE_KEYS.SELECTED_MODEL, 'gemini-3.5-flash-lite'),
       favoriteModels: safeStorageGet(STORAGE_KEYS.FAVORITE_MODELS, DEFAULT_FAVORITE_MODELS),
-      customPrompts: safeStorageGet(STORAGE_KEYS.CUSTOM_PROMPTS, []),
+      promptLibrary: safeStorageGet(STORAGE_KEYS.PROMPT_LIBRARY, null),
       confirmEdits: safeStorageGet(STORAGE_KEYS.CONFIRM_EDITS, true),
       sessionAutoApproveEdits: false,
       workbookSheetNames: [],
@@ -1266,28 +1312,28 @@
       const strip = document.getElementById('connectedWorkbooksStrip');
       const badgesContainer = document.getElementById('connectedWorkbooksBadges');
       const countBadge = document.getElementById('attachedFilesCountBadge');
-      const names = Object.keys(appState.externalWorkbooks);
+      // Only show files explicitly attached by the user in this session (never cached/recent workbooks or sheet names)
+      const attachedNames = Object.keys(appState.externalWorkbooks).filter(
+        name => appState.externalWorkbooks[name] && String(appState.externalWorkbooks[name].source || '').startsWith('Attached ')
+      );
 
-      if (countBadge) countBadge.textContent = String(names.length);
+      if (countBadge) countBadge.textContent = String(attachedNames.length);
       if (!strip || !badgesContainer) return;
 
-      if (names.length === 0) {
+      if (attachedNames.length === 0) {
         strip.classList.add('hidden');
+        badgesContainer.innerHTML = '';
         return;
       }
 
       strip.classList.remove('hidden');
-      badgesContainer.innerHTML = names
-        .map((name) => {
-          const wb = appState.externalWorkbooks[name];
-          const sheetCount = Object.keys(wb.sheets || {}).length;
-          return `
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-obsidian-950 border border-teal-500/40 text-[10px] font-mono text-neon-cyan shrink-0" title="${escapeHtml(wb.source)} (${sheetCount} sheets)">
-              <span>📗 ${escapeHtml(name)} (${sheetCount}s)</span>
-              <button type="button" data-remove-wb="${escapeHtml(name)}" class="text-slate-400 hover:text-rose-400 ml-0.5">✕</button>
-            </span>
-          `;
-        })
+      badgesContainer.innerHTML = attachedNames
+        .map((name) => `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-obsidian-950 border border-obsidian-700 text-[10px] font-mono text-neon-cyan shrink-0">
+            <span class="truncate max-w-[140px]">📎 ${escapeHtml(name)}</span>
+            <button type="button" data-remove-wb="${escapeHtml(name)}" class="text-slate-400 hover:text-rose-400 ml-0.5">✕</button>
+          </span>
+        `)
         .join('');
 
       badgesContainer.querySelectorAll('[data-remove-wb]').forEach((btn) => {
@@ -3399,6 +3445,7 @@
       }
       updateModelHoverTooltip();
       renderCustomModelPopoverList();
+      layoutResponsiveToolbars();
     }
 
     /*************************************************************************
@@ -3503,6 +3550,7 @@
         `Rate: $${appState.pricing.activeInputPer1M}/$${appState.pricing.activeOutputPer1M} per 1M • ₹${Number(appState.pricing.usdToInr).toFixed(2)}/$`;
 
       renderDetailedTariffWorkingsTable(inrFormatter4);
+      layoutResponsiveToolbars();
     }
 
     function renderDetailedTariffWorkingsTable(inrFormatter) {
@@ -4164,11 +4212,99 @@
     }
 
     /*************************************************************************
-     * 9B. SLASH COMMANDS (/) & @ WORKSHEET REFERENCE PICKER
+     * 9B. FULL-PAGE SAVED PROMPTS (ADD / EDIT / DELETE) & @ ACTIVE WORKBOOK SHEETS
      *************************************************************************/
     function getAllSlashPrompts() {
-      const custom = Array.isArray(appState.customPrompts) ? appState.customPrompts : [];
-      return [...custom, ...DEFAULT_SLASH_PROMPTS];
+      if (!Array.isArray(appState.promptLibrary)) {
+        appState.promptLibrary = JSON.parse(JSON.stringify(DEFAULT_SLASH_PROMPTS));
+        safeStorageSet(STORAGE_KEYS.PROMPT_LIBRARY, appState.promptLibrary);
+      }
+      return appState.promptLibrary;
+    }
+
+    function savePromptLibrary(list) {
+      appState.promptLibrary = list;
+      safeStorageSet(STORAGE_KEYS.PROMPT_LIBRARY, list);
+      renderSlashMenu('');
+      renderFullPromptManagerList();
+    }
+
+    function openPromptManagerPage(editPromptId = '') {
+      document.getElementById('slashMenuPopover')?.classList.add('hidden');
+      document.getElementById('atSheetPopover')?.classList.add('hidden');
+      document.getElementById('customModelPopover')?.classList.add('hidden');
+
+      const idInput = document.getElementById('editingPromptIdInput');
+      const nameField = document.getElementById('promptNameField');
+      const descField = document.getElementById('promptDescField');
+      const bodyField = document.getElementById('promptBodyField');
+      const heading = document.getElementById('promptEditorHeading');
+      const cancelBtn = document.getElementById('cancelPromptEditBtn');
+      const statusEl = document.getElementById('promptEditorStatus');
+      if (statusEl) statusEl.textContent = '';
+
+      if (editPromptId) {
+        const found = getAllSlashPrompts().find(p => p.id === editPromptId);
+        if (found) {
+          idInput.value = found.id;
+          nameField.value = found.name;
+          descField.value = found.desc || '';
+          bodyField.value = found.prompt || '';
+          heading.textContent = `Edit /${found.name}`;
+          cancelBtn.classList.remove('hidden');
+        }
+      } else {
+        idInput.value = '';
+        nameField.value = '';
+        descField.value = '';
+        bodyField.value = '';
+        heading.textContent = 'Add New Prompt';
+        cancelBtn.classList.add('hidden');
+      }
+
+      renderFullPromptManagerList();
+      switchTab('prompts');
+      setTimeout(() => nameField && nameField.focus(), 40);
+    }
+
+    function renderFullPromptManagerList() {
+      const listEl = document.getElementById('fullPromptManagerList');
+      if (!listEl) return;
+      const prompts = getAllSlashPrompts();
+      if (!prompts.length) {
+        listEl.innerHTML = '<div class="p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 text-xs text-slate-400 text-center">No saved prompts yet. Add one above or click "Restore defaults".</div>';
+        return;
+      }
+
+      listEl.innerHTML = prompts
+        .map(p => `
+          <div class="p-2.5 rounded-xl bg-obsidian-900/90 border border-obsidian-700 space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-xs font-semibold text-neon-cyan truncate">/${escapeHtml(p.name)}</span>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" data-mgr-edit="${escapeHtml(p.id)}" class="px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[10px] text-slate-200">Edit</button>
+                <button type="button" data-mgr-del="${escapeHtml(p.id)}" class="px-2 py-0.5 rounded bg-obsidian-800 hover:bg-rose-950 border border-obsidian-600 hover:border-rose-500/40 text-[10px] text-rose-300">Delete</button>
+              </div>
+            </div>
+            ${p.desc ? `<div class="text-[11px] text-slate-300">${escapeHtml(p.desc)}</div>` : ''}
+            <div class="text-[10px] text-slate-400 leading-relaxed">${escapeHtml(p.prompt)}</div>
+          </div>
+        `)
+        .join('');
+
+      listEl.querySelectorAll('[data-mgr-edit]').forEach(btn => {
+        btn.addEventListener('click', () => openPromptManagerPage(btn.getAttribute('data-mgr-edit')));
+      });
+      listEl.querySelectorAll('[data-mgr-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-mgr-del');
+          const next = getAllSlashPrompts().filter(x => x.id !== id);
+          savePromptLibrary(next);
+          if (document.getElementById('editingPromptIdInput').value === id) {
+            openPromptManagerPage('');
+          }
+        });
+      });
     }
 
     function renderSlashMenu(filterQuery = '') {
@@ -4180,21 +4316,21 @@
       );
 
       if (!prompts.length) {
-        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching prompts. Click "+ Add custom prompt" below.</div>';
+        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching prompts. Click "+ Add or manage prompts" below.</div>';
         return;
       }
 
       listEl.innerHTML = prompts
         .map(p => `
-          <div class="flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg hover:bg-obsidian-800 transition group">
+          <div class="flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg hover:bg-obsidian-800 transition">
             <button type="button" data-use-slash="${escapeHtml(p.id)}" class="flex-1 min-w-0 text-left">
-              <div class="flex items-center gap-1.5">
-                <span class="font-mono text-[11px] font-semibold text-neon-cyan">/${escapeHtml(p.name)}</span>
-                ${!p.builtin ? '<span class="text-[9px] px-1 rounded bg-obsidian-950 text-amber-300 border border-amber-500/30">Custom</span>' : ''}
-              </div>
+              <div class="font-mono text-[11px] font-semibold text-neon-cyan truncate">/${escapeHtml(p.name)}</div>
               <div class="text-[10px] text-slate-400 truncate">${escapeHtml(p.desc || p.prompt)}</div>
             </button>
-            ${!p.builtin ? `<button type="button" data-del-slash="${escapeHtml(p.id)}" title="Delete custom prompt" class="w-5 h-5 rounded text-[10px] text-slate-500 hover:text-rose-400 hover:bg-obsidian-900 shrink-0">✕</button>` : ''}
+            <div class="flex items-center gap-0.5 shrink-0">
+              <button type="button" data-edit-slash="${escapeHtml(p.id)}" title="Edit prompt" class="w-5 h-5 rounded text-[10px] text-slate-400 hover:text-neon-cyan hover:bg-obsidian-900">✎</button>
+              <button type="button" data-del-slash="${escapeHtml(p.id)}" title="Delete prompt" class="w-5 h-5 rounded text-[10px] text-slate-400 hover:text-rose-400 hover:bg-obsidian-900">✕</button>
+            </div>
           </div>
         `)
         .join('');
@@ -4211,13 +4347,18 @@
         });
       });
 
+      listEl.querySelectorAll('[data-edit-slash]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openPromptManagerPage(btn.getAttribute('data-edit-slash'));
+        });
+      });
+
       listEl.querySelectorAll('[data-del-slash]').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const id = btn.getAttribute('data-del-slash');
-          appState.customPrompts = (appState.customPrompts || []).filter(x => x.id !== id);
-          safeStorageSet(STORAGE_KEYS.CUSTOM_PROMPTS, appState.customPrompts);
-          renderSlashMenu('');
+          savePromptLibrary(getAllSlashPrompts().filter(x => x.id !== id));
         });
       });
     }
@@ -4236,7 +4377,7 @@
           });
           return;
         } catch (err) {
-          // Fall back to cached list
+          // Fall back to cached active workbook sheet list
         }
       }
       if (!appState.workbookSheetNames.length) {
@@ -4245,6 +4386,7 @@
       }
     }
 
+    // @ shows ONLY worksheets of the Active Workbook (never recent/cached external workbooks)
     async function openAtSheetMenu(filterQuery = '') {
       const pop = document.getElementById('atSheetPopover');
       const listEl = document.getElementById('atSheetList');
@@ -4257,23 +4399,17 @@
         ...(activeName ? [activeName] : []),
         ...appState.workbookSheetNames.filter(n => n !== activeName)
       ];
-      const externalNames = Object.keys(appState.externalWorkbooks || {});
 
-      const items = [
-        ...orderedSheets.map(name => ({
+      const items = orderedSheets
+        .map(name => ({
           label: name,
           badge: name === activeName ? 'Active' : 'Sheet',
           insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
-        })),
-        ...externalNames.map(name => ({
-          label: name,
-          badge: 'File',
-          insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
         }))
-      ].filter(item => !q || item.label.toLowerCase().includes(q));
+        .filter(item => !q || item.label.toLowerCase().includes(q));
 
       if (!items.length) {
-        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching worksheets.</div>';
+        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching worksheets in active workbook.</div>';
       } else {
         listEl.innerHTML = items.map(it => `
           <button type="button" data-insert-sheet="${escapeHtml(it.insertText)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
@@ -4302,28 +4438,47 @@
     }
 
     /*************************************************************************
-     * 9C. ZERO-OVERLAP DYNAMIC RESPONSIVE OVERFLOW ENGINE (⋯ DOT MENUS)
+     * 9C. PIXEL-EXACT ZERO-OVERLAP RESPONSIVE OVERFLOW ENGINE (⋯ DOT MENUS)
      *************************************************************************/
     function layoutResponsiveToolbars() {
-      // 1. Top Header Bar responsive overflow
+      const GAP = 4;
+      const DOTS_WIDTH = 28; // 24px button + 4px gap
+
+      // 1. TOP HEADER BAR: Keep Brand + Cost Pill + Thinking Cap visible; move overflow actions to ⋯
       const header = document.getElementById('appHeaderBar');
+      const headerLeft = document.getElementById('headerLeftGroup');
+      const costPill = document.getElementById('floatingTariffPill');
+      const thinkCap = document.getElementById('headerThinkingCapSelect');
       const inlineWrap = document.getElementById('headerInlineActions');
       const overflowBtn = document.getElementById('headerOverflowBtn');
       const overflowMenu = document.getElementById('headerOverflowMenu');
-      if (header && inlineWrap && overflowBtn && overflowMenu) {
+
+      if (header && headerLeft && costPill && thinkCap && inlineWrap && overflowBtn && overflowMenu) {
         const items = Array.from(inlineWrap.children);
-        // Reset all visible first to measure true natural fit
         items.forEach(el => el.classList.remove('hidden'));
         overflowBtn.classList.add('hidden');
 
+        const widths = items.map(el => Math.ceil(el.getBoundingClientRect().width) || 26);
+        const totalItemsWidth = widths.reduce((sum, w) => sum + w + GAP, 0);
+        const reserved = Math.ceil(headerLeft.getBoundingClientRect().width)
+          + Math.ceil(costPill.getBoundingClientRect().width)
+          + Math.ceil(thinkCap.getBoundingClientRect().width)
+          + 30;
+        const avail = Math.max(0, header.clientWidth - reserved);
+
         const hiddenItems = [];
-        // Keep hiding rightmost inline items until header fits cleanly with zero horizontal overflow
-        for (let i = items.length - 1; i >= 0; i--) {
-          const isOverflowing = header.scrollWidth > header.clientWidth + 1;
-          if (!isOverflowing) break;
-          items[i].classList.add('hidden');
-          hiddenItems.unshift(items[i]);
-          overflowBtn.classList.remove('hidden');
+        if (totalItemsWidth > avail) {
+          const budgetWithDots = Math.max(0, avail - DOTS_WIDTH);
+          let used = 0;
+          items.forEach((el, idx) => {
+            const need = widths[idx] + GAP;
+            if (used + need <= budgetWithDots) {
+              used += need;
+            } else {
+              el.classList.add('hidden');
+              hiddenItems.push(el);
+            }
+          });
         }
 
         if (hiddenItems.length > 0) {
@@ -4346,23 +4501,39 @@
         }
       }
 
-      // 2. Bottom Composer Toolbar responsive overflow (Model button ALWAYS visible!)
+      // 2. BOTTOM COMPOSER TOOLBAR: Model button & Send button ALWAYS visible; tools fit strictly or move to ⋯
       const compBar = document.getElementById('composerToolbar');
+      const modelWrap = document.getElementById('modelTriggerWrap');
+      const sendWrap = document.getElementById('composerRightGroup');
       const compInline = document.getElementById('composerInlineTools');
       const compOverflowBtn = document.getElementById('composerOverflowBtn');
       const compOverflowMenu = document.getElementById('composerOverflowMenu');
-      if (compBar && compInline && compOverflowBtn && compOverflowMenu) {
+
+      if (compBar && modelWrap && sendWrap && compInline && compOverflowBtn && compOverflowMenu) {
         const items = Array.from(compInline.children);
         items.forEach(el => el.classList.remove('hidden'));
         compOverflowBtn.classList.add('hidden');
 
+        const widths = items.map(el => Math.ceil(el.getBoundingClientRect().width) || 26);
+        const totalToolsWidth = widths.reduce((sum, w) => sum + w + GAP, 0);
+        const reserved = Math.ceil(modelWrap.getBoundingClientRect().width)
+          + Math.ceil(sendWrap.getBoundingClientRect().width)
+          + 16;
+        const avail = Math.max(0, compBar.clientWidth - reserved);
+
         const hiddenComp = [];
-        for (let i = items.length - 1; i >= 0; i--) {
-          const isOverflowing = compBar.scrollWidth > compBar.clientWidth + 1;
-          if (!isOverflowing) break;
-          items[i].classList.add('hidden');
-          hiddenComp.unshift(items[i]);
-          compOverflowBtn.classList.remove('hidden');
+        if (totalToolsWidth > avail) {
+          const budgetWithDots = Math.max(0, avail - DOTS_WIDTH);
+          let used = 0;
+          items.forEach((el, idx) => {
+            const need = widths[idx] + GAP;
+            if (used + need <= budgetWithDots) {
+              used += need;
+            } else {
+              el.classList.add('hidden');
+              hiddenComp.push(el);
+            }
+          });
         }
 
         if (hiddenComp.length > 0) {
@@ -4767,7 +4938,8 @@
     function switchTab(activeTab) {
       const views = {
         agent: document.getElementById('viewAgent'),
-        rates: document.getElementById('viewRates')
+        rates: document.getElementById('viewRates'),
+        prompts: document.getElementById('viewPrompts')
       };
       Object.keys(views).forEach(k => {
         if (!views[k]) return;
@@ -4892,7 +5064,6 @@
         }
       });
 
-      document.getElementById('syncCurrentWorkbookBtn').addEventListener('click', broadcastCurrentWorkbookSnapshot);
       document.getElementById('undoLastAiBtn').addEventListener('click', undoLastAiMutation);
 
       // Curated Model Popover & "More models..." Directory Modal
@@ -4937,14 +5108,12 @@
         renderAllModelsDirectory(document.getElementById('allModelsSearchInput').value);
       });
 
-      // Slash Commands (/) Popover & Custom Prompt Creation
+      // Slash Commands (/) Popover & Full-Page Prompt Manager
       const slashPopover = document.getElementById('slashMenuPopover');
-      const addCustomForm = document.getElementById('addCustomPromptForm');
       document.getElementById('slashTriggerBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         document.getElementById('atSheetPopover').classList.add('hidden');
         modelPopover.classList.add('hidden');
-        addCustomForm.classList.add('hidden');
         if (slashPopover.classList.contains('hidden')) {
           renderSlashMenu('');
           slashPopover.classList.remove('hidden');
@@ -4953,32 +5122,48 @@
         }
       });
       document.getElementById('closeSlashMenuBtn').addEventListener('click', () => slashPopover.classList.add('hidden'));
-      document.getElementById('showAddCustomPromptBtn').addEventListener('click', () => {
-        addCustomForm.classList.remove('hidden');
-        document.getElementById('customPromptNameInput').focus();
-      });
-      document.getElementById('cancelCustomPromptBtn').addEventListener('click', () => {
-        addCustomForm.classList.add('hidden');
-      });
-      document.getElementById('saveCustomPromptBtn').addEventListener('click', () => {
-        const rawName = document.getElementById('customPromptNameInput').value.trim().replace(/^\/+/, '').replace(/\s+/g, '-').toLowerCase();
-        const body = document.getElementById('customPromptBodyInput').value.trim();
-        if (!rawName || !body) return;
-        appState.customPrompts = [
-          {
-            id: 'custom_' + Date.now(),
+      document.getElementById('openFullPromptManagerBtn').addEventListener('click', () => openPromptManagerPage(''));
+      document.getElementById('backToChatFromPromptsBtn').addEventListener('click', () => switchTab('agent'));
+      document.getElementById('cancelPromptEditBtn').addEventListener('click', () => openPromptManagerPage(''));
+
+      document.getElementById('savePromptManagerBtn').addEventListener('click', () => {
+        const editId = document.getElementById('editingPromptIdInput').value.trim();
+        const rawName = document.getElementById('promptNameField').value.trim().replace(/^\/+/, '').replace(/\s+/g, '-').toLowerCase();
+        const desc = document.getElementById('promptDescField').value.trim();
+        const body = document.getElementById('promptBodyField').value.trim();
+        const statusEl = document.getElementById('promptEditorStatus');
+
+        if (!rawName || !body) {
+          statusEl.textContent = 'Command name and instructions are required.';
+          statusEl.className = 'text-[10px] text-rose-400 truncate';
+          return;
+        }
+
+        const list = [...getAllSlashPrompts()];
+        if (editId) {
+          const idx = list.findIndex(x => x.id === editId);
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], name: rawName, desc: desc || body.slice(0, 65), prompt: body };
+          }
+        } else {
+          list.unshift({
+            id: 'prompt_' + Date.now(),
             name: rawName,
-            desc: body.slice(0, 65),
-            prompt: body,
-            builtin: false
-          },
-          ...(appState.customPrompts || [])
-        ];
-        safeStorageSet(STORAGE_KEYS.CUSTOM_PROMPTS, appState.customPrompts);
-        document.getElementById('customPromptNameInput').value = '';
-        document.getElementById('customPromptBodyInput').value = '';
-        addCustomForm.classList.add('hidden');
-        renderSlashMenu('');
+            desc: desc || body.slice(0, 65),
+            prompt: body
+          });
+        }
+        savePromptLibrary(list);
+        openPromptManagerPage('');
+        statusEl.textContent = `Saved /${rawName}`;
+        statusEl.className = 'text-[10px] text-emerald-400 truncate';
+      });
+
+      document.getElementById('resetDefaultPromptsBtn').addEventListener('click', () => {
+        savePromptLibrary(JSON.parse(JSON.stringify(DEFAULT_SLASH_PROMPTS)));
+        const statusEl = document.getElementById('promptEditorStatus');
+        statusEl.textContent = 'Default prompts restored.';
+        statusEl.className = 'text-[10px] text-amber-300 truncate';
       });
 
       // @ Worksheet Reference Picker
@@ -5055,7 +5240,7 @@
         const btn = document.getElementById('toggleKeyVisBtn');
         const showing = input.type === 'text';
         input.type = showing ? 'password' : 'text';
-        btn.textContent = showing ? 'Show' : 'Hide';
+        btn.textContent = showing ? 'Show Key' : 'Hide Key';
       });
       document.getElementById('fetchModelsBtn').addEventListener('click', discoverGeminiModels);
       document.getElementById('onlyGenContentCheckbox').addEventListener('change', () => {
