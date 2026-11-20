@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NEON // AUDIT — Gemini Agentic Excel Task Pane</title>
+  <title>Excel Assistant</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <!-- SheetJS (xlsx) for instant multi-workbook .xlsx/.xls/.csv parsing & cross-file reconciliation -->
@@ -107,6 +107,64 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #00f5d4;
     }
+    /* Crisp formal hover tooltip for ⓘ info icons and Model hover badge */
+    .info-tip-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .info-tip-bubble {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 210px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #0b0e14;
+      border: 1px solid #28334a;
+      color: #cbd5e1;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 11px;
+      line-height: 1.4;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.14s ease;
+      z-index: 70;
+      white-space: normal;
+      text-align: left;
+    }
+    .info-tip-wrap:hover .info-tip-bubble,
+    .info-tip-wrap:focus-within .info-tip-bubble {
+      opacity: 1;
+      visibility: visible;
+    }
+    .model-hover-tip {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      min-width: 195px;
+      max-width: 250px;
+      padding: 6px 9px;
+      border-radius: 8px;
+      background: #0b0e14;
+      border: 1px solid rgba(0, 245, 212, 0.35);
+      color: #e2e8f0;
+      font-size: 11px;
+      line-height: 1.35;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.14s ease;
+      z-index: 65;
+    }
+    .model-trigger-wrap:hover .model-hover-tip {
+      opacity: 1;
+      visibility: visible;
+    }
   </style>
 </head>
 <body id="appDropZone" class="h-screen w-full flex flex-col overflow-hidden selection:bg-neon-cyan selection:text-obsidian-950">
@@ -115,132 +173,133 @@
   <input id="externalWorkbookFileInput" type="file" multiple accept=".xlsx,.xls,.csv,.json" class="hidden" />
 
   <!-- =====================================================================
-       ULTRA-COMPACT NON-OVERLAPPING TOP HEADER BAR (FIXED / DOCKED TOP)
+       RESPONSIVE ZERO-OVERLAP HEADER BAR (WITH DYNAMIC ⋯ OVERFLOW MENU)
        ===================================================================== -->
-  <header class="shrink-0 h-11 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-2.5 flex items-center justify-between gap-1 z-30">
-    <!-- Left: Compact Brand & Host Dot -->
-    <div class="flex items-center gap-1.5 min-w-0 shrink">
-      <button id="tabAgentBtn" type="button" title="Back to Chat" class="flex items-center gap-1.5 text-left group min-w-0">
-        <span class="w-2 h-2 rounded-full bg-neon-cyan shadow-[0_0_8px_#00f5d4] shrink-0"></span>
-        <span class="font-mono text-[11px] font-bold tracking-wider text-neon-cyan group-hover:text-white truncate">NEON</span>
+  <header id="appHeaderBar" class="shrink-0 h-11 bg-obsidian-950/95 backdrop-blur-md border-b border-obsidian-700 px-2 flex items-center justify-between gap-1.5 z-30 relative">
+    <!-- Left: Formal Brand -->
+    <div id="headerLeftGroup" class="flex items-center gap-1.5 min-w-0 shrink-0">
+      <button id="tabAgentBtn" type="button" title="Return to chat" class="flex items-center gap-1.5 text-left group min-w-0">
+        <span class="w-2 h-2 rounded-full bg-neon-cyan shrink-0"></span>
+        <span class="text-xs font-semibold tracking-tight text-slate-100 group-hover:text-neon-cyan whitespace-nowrap">Assistant</span>
       </button>
-      <span id="hostBadge" class="text-[8px] font-mono px-1 py-0.5 rounded bg-obsidian-800 text-amber-400 border border-amber-500/30 truncate">SIM</span>
+      <span id="hostBadge" class="text-[9px] font-medium px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-400 border border-obsidian-700 shrink-0">Preview</span>
     </div>
 
-    <!-- Right: Price-Only Tariff Pill + Compact Icon Buttons (Zero Overlap) -->
-    <div class="flex items-center gap-1 shrink-0">
-      <!-- Price-Only Floating Compact Tariff Pill (Click for Detailed Workings) -->
+    <!-- Right: Always-Visible Cost Pill + Thinking Cap + Dynamic Overflow Actions -->
+    <div id="headerRightGroup" class="flex items-center gap-1 shrink-0">
+      <!-- Compact Cost Pill -->
       <button
         id="floatingTariffPill"
         type="button"
-        title="Click to view detailed INR (₹) tariff workings & token breakdown"
-        class="px-2 py-0.5 h-6 rounded-full bg-obsidian-900 hover:bg-obsidian-800 border border-amber-500/40 text-[11px] font-mono font-semibold text-amber-300 flex items-center justify-center transition shadow-sm"
+        title="View usage and cost breakdown"
+        class="px-2 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-amber-500/40 text-[11px] font-mono font-semibold text-amber-300 flex items-center justify-center shrink-0 transition"
       >
         <span id="compactInrPillText">₹0.00</span>
       </button>
 
-      <!-- 1-Click Undo Last AI Sheet Mutation -->
-      <button
-        id="undoLastAiBtn"
-        type="button"
-        title="Undo Last AI Sheet Edit (Revert Snapshot)"
-        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-amber-300 font-mono text-xs flex items-center justify-center transition"
+      <!-- Thinking Token Cap Selector right beside Cost Usage (Default: NIL) -->
+      <select
+        id="headerThinkingCapSelect"
+        aria-label="Thinking token cap"
+        title="Thinking token limit (NIL, Low, Medium, High)"
+        class="h-6 px-1.5 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 focus:border-neon-cyan text-[10px] font-medium text-slate-200 outline-none shrink-0 cursor-pointer"
       >
-        ↩
-      </button>
+        <option value="0" selected>Cap: NIL</option>
+        <option value="1024">Cap: Low</option>
+        <option value="4096">Cap: Med</option>
+        <option value="16384">Cap: High</option>
+      </select>
 
-      <!-- + New Chat Button -->
-      <button
-        id="newChatBtn"
-        type="button"
-        title="New Chat Session (+)"
-        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan flex items-center justify-center text-neon-cyan font-mono text-xs font-bold transition"
-      >
-        +
-      </button>
+      <!-- Responsive Priority Action Buttons (auto-move into ⋯ when space is tight) -->
+      <div id="headerInlineActions" class="flex items-center gap-1 shrink-0">
+        <button
+          id="newChatBtn"
+          type="button"
+          data-overflow-key="newChat"
+          data-overflow-label="+ New chat"
+          title="Start a new conversation"
+          class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan flex items-center justify-center text-neon-cyan text-xs font-bold shrink-0 transition"
+        >
+          +
+        </button>
 
-      <!-- Chat History Drawer Button -->
-      <button
-        id="historyDrawerBtn"
-        type="button"
-        title="Saved Chat History"
-        class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[10px] font-mono text-slate-300 hover:text-white flex items-center gap-0.5 transition"
-      >
-        <span>🕒</span>
-        <span id="historyCountBadge" class="text-[9px] text-slate-400">0</span>
-      </button>
+        <button
+          id="undoLastAiBtn"
+          type="button"
+          data-overflow-key="undo"
+          data-overflow-label="↩ Undo last edit"
+          title="Undo last spreadsheet edit"
+          class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-amber-300 text-xs flex items-center justify-center shrink-0 transition"
+        >
+          ↩
+        </button>
 
-      <!-- Worksheet Mirror Toggle -->
-      <button
-        id="tabSheetBtn"
-        type="button"
-        title="Inspect Active Worksheet Grid"
-        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-white flex items-center justify-center transition"
-      >
-        ⊞
-      </button>
+        <button
+          id="historyDrawerBtn"
+          type="button"
+          data-overflow-key="history"
+          data-overflow-label="History"
+          title="Conversation history"
+          class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[10px] font-medium text-slate-300 hover:text-white flex items-center gap-0.5 shrink-0 transition"
+        >
+          <span>🕒</span>
+          <span id="historyCountBadge" class="text-[9px] text-slate-400">0</span>
+        </button>
 
-      <!-- Dedicated Settings Page Button -->
+        <button
+          id="tabRatesBtn"
+          type="button"
+          data-overflow-key="settings"
+          data-overflow-label="Settings"
+          title="Settings"
+          class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] text-slate-300 hover:text-neon-cyan flex items-center justify-center shrink-0 transition"
+        >
+          ⚙️
+        </button>
+      </div>
+
+      <!-- Horizontal Dot Menu (⋯) shown automatically when header space is constrained -->
       <button
-        id="tabRatesBtn"
+        id="headerOverflowBtn"
         type="button"
-        title="Settings, API Key & Tariff Configuration"
-        class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-slate-300 hover:text-neon-cyan flex items-center justify-center transition"
+        title="More options"
+        class="hidden w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-200 hover:text-neon-cyan text-xs font-bold flex items-center justify-center shrink-0 transition"
       >
-        ⚙️
+        ⋯
       </button>
     </div>
+
+    <!-- Header Overflow Popover -->
+    <div
+      id="headerOverflowMenu"
+      class="hidden absolute right-2 top-11 z-50 w-44 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1"
+    ></div>
   </header>
 
   <!-- =====================================================================
-       VIEW 1: CLEAN, UNCLUTTERED CHAT WORKSPACE WITH DOCKED BOTTOM COMPOSER
+       VIEW 1: CLEAN CHAT WORKSPACE WITH DOCKED BOTTOM COMPOSER
        ===================================================================== -->
   <section id="viewAgent" class="flex-1 flex flex-col overflow-hidden relative">
 
     <!-- Scrollable Message Stream -->
-    <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5">
-      <!-- Welcome / Empty State Card -->
-      <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">Token-Saver Active-Sheet Mode</span>
-          <span id="maxTurnsBadge" class="font-mono text-[9px] text-emerald-400">💰 Low-Token Engine</span>
-        </div>
-        <p class="text-xs text-slate-300 leading-relaxed">
-          By default, the agent reads <strong>only your active worksheet</strong> (saving 70%–90% of tokens) and prunes old cell dumps after each turn. It only reads other sheets or external workbooks (<strong>📎</strong>) when your prompt asks for them.
+    <div id="chatLog" class="selectable-text flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+      <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/75 border border-obsidian-800 space-y-1.5">
+        <div class="text-xs font-semibold text-slate-200">Ready to assist</div>
+        <p class="text-[11px] text-slate-400 leading-relaxed">
+          Type <span class="font-mono text-neon-cyan">/</span> to use or create saved prompts, or type <span class="font-mono text-amber-300">@</span> to reference a specific worksheet. Spreadsheet edits will ask for your approval before making changes.
         </p>
-        <!-- Compact Quick Prompts -->
-        <div class="flex flex-wrap gap-1.5 pt-0.5">
-          <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
-            ⚡ Audit &amp; Auto-Fill Variance Formulas
-          </button>
-          <button type="button" data-prompt="List all connected/attached external workbooks (such as GSTR-1 / GSTR-2B) and reconcile their taxable value and IGST/CGST/SGST totals against the active workbook, writing a formatted Reconciliation Summary sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-fuchsia-300 border border-fuchsia-500/30 transition">
-            🔄 Cross-Workbook GSTR-1 vs 3B Reconcile
-          </button>
-          <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
-            📊 Insert Native PivotTable
-          </button>
-          <button type="button" data-prompt="Read the party/company names in the active sheet, search the web using google_web_search for their registered Indian GSTIN and state details, and write the verified GSTIN candidates into the sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-sky-300 border border-sky-500/30 transition">
-            🌐 Web Search GSTINs &amp; Fill Sheet
-          </button>
-          <button type="button" data-prompt="Read range A1:F7, write =SUM(C2:C6) into C7 and =SUM(D2:D6) into D7, and highlight any row where Actual exceeds Budget in amber." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-amber-300 border border-amber-500/30 transition">
-            ∑ Write Totals &amp; Flag Overruns
-          </button>
-          <button type="button" data-prompt="Scan the active worksheet for any formula errors (#REF!, #NAME?, #VALUE!, #N/A, #DIV/0!) or broken references, explain the root cause, and repair them." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-600 transition">
-            🔍 Formula Integrity Scan
-          </button>
-        </div>
       </div>
     </div>
 
-    <!-- CONNECTED / ATTACHED EXTERNAL WORKBOOKS BAR -->
-    <div id="connectedWorkbooksStrip" class="hidden shrink-0 mx-3 mb-1 px-2.5 py-1.5 rounded-lg bg-obsidian-900/95 border border-teal-500/30 flex items-center justify-between gap-2">
+    <!-- Attached External Files Bar (only shown when files are attached) -->
+    <div id="connectedWorkbooksStrip" class="hidden shrink-0 mx-3 mb-1 px-2.5 py-1.5 rounded-lg bg-obsidian-900/95 border border-obsidian-700 flex items-center justify-between gap-2">
       <div id="connectedWorkbooksBadges" class="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono text-neon-cyan py-0.5"></div>
-      <button id="syncCurrentWorkbookBtn" type="button" title="Broadcast active workbook to other open Excel windows" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 shrink-0">
-        ⇄ Sync
+      <button id="syncCurrentWorkbookBtn" type="button" title="Sync workbook across open Excel windows" class="text-[10px] px-1.5 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 shrink-0">
+        Sync
       </button>
     </div>
 
-    <!-- LIVE THINKING & CONTINUOUS TELEMETRY BAR -->
+    <!-- Live Progress Status Banner -->
     <div id="liveThinkingBanner" class="hidden shrink-0 mx-3 mb-1.5 p-2 rounded-xl bg-obsidian-900/95 cyber-border relative overflow-hidden">
       <div class="thinking-shimmer"></div>
       <div class="relative z-10 flex items-center justify-between gap-2">
@@ -248,18 +307,18 @@
           <div class="w-3.5 h-3.5 rounded-full border-2 border-neon-cyan border-t-transparent animate-spin shrink-0"></div>
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span id="thinkingPhaseTitle" class="font-mono text-[11px] font-bold text-neon-cyan truncate">Thinking...</span>
+              <span id="thinkingPhaseTitle" class="text-[11px] font-semibold text-neon-cyan truncate">Working...</span>
               <span id="thinkingElapsedTimer" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-950 text-amber-300 border border-amber-500/30">0.0s</span>
             </div>
-            <p id="thinkingSubStatus" class="text-[10px] text-slate-300 truncate mt-0.5">Preparing active sheet context...</p>
+            <p id="thinkingSubStatus" class="text-[10px] text-slate-300 truncate mt-0.5">Reviewing active worksheet...</p>
           </div>
         </div>
         <button
           id="cancelAgentBtn"
           type="button"
-          class="px-2 py-1 rounded-md bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/40 font-mono text-[10px] shrink-0 transition"
+          class="px-2 py-1 rounded-md bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/40 text-[10px] font-medium shrink-0 transition"
         >
-          ⏹ Stop
+          Stop
         </button>
       </div>
     </div>
@@ -267,104 +326,175 @@
     <!-- DOCKED BOTTOM COMPOSER -->
     <form id="promptForm" class="shrink-0 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 px-2.5 pt-2 pb-2 z-20 relative">
 
-      <!-- CUSTOM INSTANT-CLICK UPWARD MODEL DROPDOWN POPOVER -->
+      <!-- UPWARD POPOVER 1: CURATED FAVORITE MODELS + "MORE MODELS..." -->
       <div
         id="customModelPopover"
-        class="hidden absolute left-2.5 right-2.5 bottom-[52px] z-50 bg-obsidian-900 border border-neon-cyan/50 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-64"
+        class="hidden absolute left-2.5 right-2.5 bottom-[50px] z-50 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-64"
       >
-        <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-obsidian-700">
-          <input
-            id="modelFilterInput"
-            type="text"
-            placeholder="Search model (e.g. flash-lite, flash, pro)..."
-            autocomplete="off"
-            class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-slate-100 placeholder-slate-500 outline-none"
-          />
+        <div class="flex items-center justify-between px-1 pb-1 border-b border-obsidian-800">
+          <span class="text-[11px] font-semibold text-slate-200">Select Model</span>
           <button
             id="closeModelPopoverBtn"
             type="button"
-            class="w-6 h-6 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-mono text-xs flex items-center justify-center shrink-0"
+            class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center"
           >
             ✕
           </button>
         </div>
-        <div id="customModelListContainer" class="overflow-y-auto divide-y divide-obsidian-800/60 pr-0.5 space-y-0.5"></div>
+        <div id="customModelListContainer" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
+        <button
+          id="openMoreModelsModalBtn"
+          type="button"
+          class="w-full mt-0.5 py-1.5 px-2 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-medium text-neon-cyan flex items-center justify-between transition"
+        >
+          <span>More models...</span>
+          <span class="text-[10px] text-slate-400">Manage ★</span>
+        </button>
       </div>
+
+      <!-- UPWARD POPOVER 2: SLASH COMMANDS (/) SAVED PROMPTS -->
+      <div
+        id="slashMenuPopover"
+        class="hidden absolute left-2.5 right-2.5 bottom-[96px] z-50 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-64"
+      >
+        <div class="flex items-center justify-between px-1 pb-1 border-b border-obsidian-800">
+          <span class="text-[11px] font-semibold text-slate-200">Saved Prompts (<span class="font-mono text-neon-cyan">/</span>)</span>
+          <button id="closeSlashMenuBtn" type="button" class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center">✕</button>
+        </div>
+        <div id="slashMenuList" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
+        <!-- Inline Add Custom Prompt Form -->
+        <div id="addCustomPromptForm" class="hidden p-2 rounded-lg bg-obsidian-950 border border-obsidian-700 space-y-1.5">
+          <input id="customPromptNameInput" type="text" placeholder="Command name (e.g. gst-check)" class="w-full bg-obsidian-900 border border-obsidian-700 rounded px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-neon-cyan" />
+          <textarea id="customPromptBodyInput" rows="2" placeholder="Prompt instructions..." class="w-full bg-obsidian-900 border border-obsidian-700 rounded px-2 py-1 text-[11px] text-slate-100 outline-none resize-none focus:border-neon-cyan"></textarea>
+          <div class="flex justify-end gap-1.5">
+            <button id="cancelCustomPromptBtn" type="button" class="px-2 py-1 rounded bg-obsidian-800 text-[10px] text-slate-300">Cancel</button>
+            <button id="saveCustomPromptBtn" type="button" class="px-2.5 py-1 rounded neon-glow-btn text-[10px]">Save</button>
+          </div>
+        </div>
+        <button
+          id="showAddCustomPromptBtn"
+          type="button"
+          class="w-full py-1.5 px-2 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-medium text-neon-cyan text-left transition"
+        >
+          + Add custom prompt
+        </button>
+      </div>
+
+      <!-- UPWARD POPOVER 3: @ WORKSHEET REFERENCE PICKER -->
+      <div
+        id="atSheetPopover"
+        class="hidden absolute left-2.5 right-2.5 bottom-[96px] z-50 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-56"
+      >
+        <div class="flex items-center justify-between px-1 pb-1 border-b border-obsidian-800">
+          <span class="text-[11px] font-semibold text-slate-200">Reference Worksheet (<span class="font-mono text-amber-300">@</span>)</span>
+          <button id="closeAtSheetBtn" type="button" class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center">✕</button>
+        </div>
+        <div id="atSheetList" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
+      </div>
+
+      <!-- Composer Overflow Popover (for narrow widths) -->
+      <div
+        id="composerOverflowMenu"
+        class="hidden absolute right-2.5 bottom-[48px] z-50 w-44 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1"
+      ></div>
 
       <div class="rounded-xl bg-obsidian-950 border border-obsidian-600 focus-within:border-neon-cyan transition p-2 flex flex-col gap-1.5">
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask Gemini to fill active sheet checklists, reconcile workbooks (📎), or build PivotTables..."
+          placeholder="Ask a question, type / for saved prompts, or @ to pick a sheet..."
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
-        <!-- Bottom Composer Toolbar -->
-        <div class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
+        <!-- Bottom Composer Toolbar: Model ALWAYS visible on left; secondary tools auto-collapse to ⋯ -->
+        <div id="composerToolbar" class="flex items-center justify-between gap-1 pt-1 border-t border-obsidian-800/90">
           <div class="flex items-center gap-1 min-w-0 flex-1">
-            <label for="modelSelect" class="sr-only">Select Gemini Model</label>
-            <select id="modelSelect" class="sr-only">
-              <option value="">⚡ Offline Simulator</option>
-            </select>
+            <label for="modelSelect" class="sr-only">Select Model</label>
+            <select id="modelSelect" class="sr-only"></select>
 
-            <!-- Custom Instant-Click Model Selector Button -->
-            <button
-              id="customModelTriggerBtn"
-              type="button"
-              title="Click once to open model list, click a model to select"
-              class="max-w-[130px] sm:max-w-[190px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-neon-cyan flex items-center justify-between gap-1 truncate transition"
-            >
-              <span id="customModelTriggerLabel" class="truncate">⚡ Offline Simulator</span>
-              <span class="text-[9px] text-slate-400 shrink-0">▴</span>
-            </button>
+            <!-- Model Selector (ALWAYS VISIBLE — NEVER HIDDEN OR OVERLAPPED) with Hover Popover -->
+            <div class="model-trigger-wrap relative shrink-0">
+              <button
+                id="customModelTriggerBtn"
+                type="button"
+                class="max-w-[140px] bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan rounded-md px-2 h-6 text-[11px] font-medium text-neon-cyan flex items-center gap-1 transition"
+              >
+                <span id="customModelTriggerLabel" class="truncate">3.5 Flash-Lite</span>
+                <span class="text-[9px] text-slate-400 shrink-0">▴</span>
+              </button>
+              <div id="modelHoverTooltip" class="model-hover-tip">
+                <div class="text-[10px] text-slate-400 uppercase tracking-wide">Active Configuration</div>
+                <div class="font-mono text-[11px] text-neon-cyan truncate mt-0.5" id="modelHoverFullName">gemini-3.5-flash-lite</div>
+                <div class="text-[10px] text-amber-300 mt-0.5" id="modelHoverThinkingCap">Thinking Cap: NIL (0 tokens)</div>
+              </div>
+            </div>
 
-            <button
-              id="quickSyncModelsBtn"
-              type="button"
-              title="Refresh Models from Gemini API"
-              class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-neon-cyan text-xs font-mono flex items-center justify-center shrink-0 transition"
-            >
-              ↻
-            </button>
+            <!-- Secondary Composer Tools (auto-collapse into ⋯ when sidebar is narrow) -->
+            <div id="composerInlineTools" class="flex items-center gap-1 shrink-0">
+              <button
+                id="atSheetTriggerBtn"
+                type="button"
+                data-comp-key="atSheet"
+                data-comp-label="@ Reference sheet"
+                title="Reference a worksheet (@)"
+                class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-amber-300 hover:border-amber-400 flex items-center justify-center shrink-0 transition"
+              >
+                @
+              </button>
 
-            <!-- Scope Toggle: Active Sheet Only (Default Token Saver) vs All Sheets -->
-            <button
-              id="scopeModeToggleBtn"
-              type="button"
-              title="Token Saver Scope: Active Sheet Only (Click to toggle All Sheets scan)"
-              class="px-1.5 h-6 rounded-md bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 shrink-0 transition"
-            >
-              📄 1-Sheet
-            </button>
+              <button
+                id="slashTriggerBtn"
+                type="button"
+                data-comp-key="slashCmd"
+                data-comp-label="/ Saved prompts"
+                title="Insert saved prompt (/)"
+                class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] font-mono text-neon-cyan hover:border-neon-cyan flex items-center justify-center shrink-0 transition"
+              >
+                /
+              </button>
 
-            <!-- Attach External Workbook (.xlsx / .csv / .json) Button -->
-            <button
-              id="attachWorkbookBtn"
-              type="button"
-              title="Attach external Excel workbook (.xlsx/.xls), CSV, or GSTR JSON file"
-              class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-[10px] font-mono text-neon-cyan flex items-center gap-0.5 shrink-0 transition"
-            >
-              <span>📎</span>
-              <span id="attachedFilesCountBadge">0</span>
-            </button>
+              <button
+                id="attachWorkbookBtn"
+                type="button"
+                data-comp-key="attachFile"
+                data-comp-label="📎 Attach file"
+                title="Attach external workbook (.xlsx, .csv, .json)"
+                class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-[10px] font-mono text-slate-300 hover:text-neon-cyan flex items-center gap-0.5 shrink-0 transition"
+              >
+                <span>📎</span>
+                <span id="attachedFilesCountBadge">0</span>
+              </button>
 
+              <button
+                id="insertSelectionBtn"
+                type="button"
+                data-comp-key="insertRange"
+                data-comp-label="📍 Selected range"
+                title="Insert currently selected cell range"
+                class="w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[11px] text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition"
+              >
+                📍
+              </button>
+            </div>
+
+            <!-- Composer Horizontal Dot Menu (⋯) shown only when space is tight -->
             <button
-              id="insertSelectionBtn"
+              id="composerOverflowBtn"
               type="button"
-              title="Insert currently selected Excel range address into prompt"
-              class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-[10px] font-mono text-slate-300 hover:text-amber-300 shrink-0 transition"
+              title="More tools"
+              class="hidden w-6 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-slate-200 hover:text-neon-cyan text-xs font-bold flex items-center justify-center shrink-0 transition"
             >
-              📍 Range
+              ⋯
             </button>
           </div>
 
-          <!-- Right Status & Execute Button -->
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span id="agentStatusIndicator" class="hidden sm:inline font-mono text-[10px] text-slate-400">Ready</span>
+          <!-- Right: Send Button (Always Visible) -->
+          <div class="flex items-center gap-1 shrink-0">
+            <span id="agentStatusIndicator" class="hidden text-[10px] text-slate-400">Ready</span>
             <button
               id="sendPromptBtn"
               type="submit"
-              class="px-2.5 py-1 rounded-lg neon-glow-btn text-xs font-mono flex items-center gap-1"
+              class="px-2.5 h-6 rounded-md neon-glow-btn text-[11px] font-semibold flex items-center gap-1 shrink-0"
             >
               <span>Send</span>
               <span>↵</span>
@@ -376,178 +506,236 @@
   </section>
 
   <!-- =====================================================================
-       VIEW 2: DEDICATED WELL-STRUCTURED SETTINGS PAGE (⚙️)
+       VIEW 2: CONCISE, FORMAL SETTINGS PAGE WITH ⓘ HOVER TOOLTIPS
        ===================================================================== -->
   <section id="viewRates" class="hidden flex-1 flex-col overflow-y-auto px-3.5 py-3 gap-3">
     <div class="flex items-center justify-between border-b border-obsidian-700 pb-2">
-      <div>
-        <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">⚙️ Add-in Settings &amp; Cost Optimization</h2>
-        <p class="text-[11px] text-slate-400">Configure your Gemini API Key, Token-Saver rules, and INR (₹) tariff schedule.</p>
-      </div>
+      <h2 class="text-xs font-semibold text-slate-100">Settings</h2>
       <button
         id="backToChatFromSettingsBtn"
         type="button"
-        class="px-2.5 py-1 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-mono text-neon-cyan transition"
+        class="px-2.5 py-1 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-medium text-neon-cyan transition"
       >
-        ← Back to Chat
+        ← Back
       </button>
     </div>
 
-    <!-- CARD 1: GEMINI API KEY & TOKEN-FRUGAL CONTROLS -->
-    <div class="bg-obsidian-900/90 rounded-xl p-3 cyber-border space-y-2.5">
+    <!-- CARD 1: API CONNECTION & PREFERENCES -->
+    <div class="bg-obsidian-900/90 rounded-xl p-3 border border-obsidian-700 space-y-2.5">
       <div class="flex items-center justify-between">
-        <span class="font-mono text-[11px] font-semibold uppercase text-neon-cyan">1. Gemini API Key &amp; Token Cost Minimizer</span>
-        <span id="modelCountBadge" class="font-mono text-[10px] px-2 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-600">0 synced</span>
+        <span class="text-[11px] font-semibold text-slate-200">Connection &amp; Controls</span>
+        <span id="modelCountBadge" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-300 border border-obsidian-700">0 synced</span>
       </div>
 
       <div class="flex gap-1.5">
         <input
           id="apiKeyInput"
           type="password"
-          placeholder="Paste Google AI Studio API Key (AIza...)"
+          placeholder="Gemini API Key (AIza...)"
           autocomplete="off"
           class="selectable-text flex-1 bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none"
         />
         <button
           id="toggleKeyVisBtn"
           type="button"
-          class="px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-xs font-mono text-slate-300"
+          title="Show or hide key"
+          class="px-2 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] text-slate-300"
         >
-          EYE
+          Show
         </button>
         <button
           id="fetchModelsBtn"
           type="button"
-          class="px-3 py-1.5 rounded-lg neon-glow-btn text-xs font-mono shrink-0"
+          class="px-2.5 py-1.5 rounded-lg neon-glow-btn text-[11px] shrink-0"
         >
-          Sync Models
+          Sync
         </button>
       </div>
 
-      <div class="flex flex-col gap-1.5 pt-1">
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-neon-cyan cursor-pointer">
-          <input id="onlyGenContentCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
-          <span>Hide non-chat models (TTS, Image, Banana, Lyria, Transcribe, Robotics)</span>
-        </label>
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 cursor-pointer">
-          <input id="autoFallback429Checkbox" type="checkbox" checked class="accent-teal-400 rounded" />
-          <span>Auto-fallback on 503 High Demand, 429 Quota, or Single-Turn restriction</span>
-        </label>
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-300 cursor-pointer">
-          <input id="pruneHistoryTokensCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
-          <span>Token Saver: Prune old tool dumps between every step &amp; cap raw outputs (saves 85% cost)</span>
-        </label>
-        <div class="flex items-center justify-between gap-2 pt-1">
-          <label for="thinkingBudgetSelect" class="text-[11px] font-mono text-purple-300">🧠 Thinking Token Cap (Prevents runaway reasoning bills):</label>
-          <select id="thinkingBudgetSelect" class="bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1 text-[11px] font-mono text-purple-200 outline-none">
-            <option value="1024" selected>Low (1,024 tok — Best Value)</option>
-            <option value="0">Off (0 tok — Ultra Cheap)</option>
-            <option value="4096">Medium (4,096 tok)</option>
-            <option value="-1">Auto / Unlimited (Higher ₹)</option>
+      <div class="space-y-2 pt-1">
+        <div class="flex items-center justify-between gap-2">
+          <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input id="confirmEditsCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
+            <span>Confirm edits</span>
+          </label>
+          <span class="info-tip-wrap">
+            <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+            <span class="info-tip-bubble">Asks for your approval in chat before writing values, formulas, formatting, or PivotTables to Excel.</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input id="pruneHistoryTokensCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
+            <span>Prune old context</span>
+          </label>
+          <span class="info-tip-wrap">
+            <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+            <span class="info-tip-bubble">Clears large sheet data from earlier steps so subsequent turns do not re-bill the same rows.</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input id="autoFallback429Checkbox" type="checkbox" checked class="accent-teal-400 rounded" />
+            <span>Auto-fallback</span>
+          </label>
+          <span class="info-tip-wrap">
+            <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+            <span class="info-tip-bubble">Automatically switches to an available model if the selected model is temporarily busy or restricted.</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input id="onlyGenContentCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
+            <span>Chat models only</span>
+          </label>
+          <span class="info-tip-wrap">
+            <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+            <span class="info-tip-bubble">Hides audio, image, robotics, and single-purpose models from the full model directory.</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <label for="thinkingBudgetSelect" class="text-xs text-slate-200">Thinking cap</label>
+            <span class="info-tip-wrap">
+              <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+              <span class="info-tip-bubble">Limits internal reasoning tokens per reply. NIL (0) keeps cost lowest; increase only for complex analysis.</span>
+            </span>
+          </div>
+          <select id="thinkingBudgetSelect" class="bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-md px-2 py-1 text-[11px] text-slate-100 outline-none">
+            <option value="0" selected>NIL (0)</option>
+            <option value="1024">Low (1,024)</option>
+            <option value="4096">Medium (4,096)</option>
+            <option value="16384">High (16,384)</option>
           </select>
         </div>
       </div>
 
-      <div id="modelMetadataBar" class="pt-2 border-t border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-400">
-        <span id="modelTokenLimits">Input limit: — | Output limit: —</span>
-        <span id="discoveryStatusText" class="text-amber-400">Ready</span>
+      <div id="modelMetadataBar" class="pt-2 border-t border-obsidian-800 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+        <span id="modelTokenLimits" class="truncate">Model: 3.5 Flash-Lite</span>
+        <span id="discoveryStatusText" class="text-emerald-400 shrink-0">Ready</span>
       </div>
     </div>
 
-    <!-- CARD 2: PAY-AS-YOU-GO INR (₹) TARIFF ENGINE -->
-    <div class="bg-obsidian-900/90 rounded-xl p-3 gold-border space-y-2.5">
+    <!-- CARD 2: BILLING & TARIFF RATES -->
+    <div class="bg-obsidian-900/90 rounded-xl p-3 border border-obsidian-700 space-y-2.5">
       <div class="flex items-center justify-between">
         <div>
-          <span class="font-mono text-[11px] font-semibold uppercase text-amber-400">2. Pay-As-You-Go Tariff Rates (INR ₹)</span>
-          <p id="activePricingSummary" class="font-mono text-[10px] text-slate-400">Rate: $0.15/$0.60 • ₹86.50/$</p>
+          <span class="text-[11px] font-semibold text-amber-300">Billing &amp; Rates (INR)</span>
+          <p id="activePricingSummary" class="font-mono text-[10px] text-slate-400">$0.30/$2.50 per 1M • ₹86.50/$</p>
         </div>
         <button
           id="syncFxBtn"
           type="button"
-          class="px-2.5 py-1 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-amber-500/40 text-[11px] font-mono text-amber-300 transition"
+          class="px-2 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[10px] font-medium text-amber-300 transition"
         >
-          ↻ Sync Live USD→INR
+          Sync FX
         </button>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 gap-2">
         <div>
-          <label for="usdInrRateInput" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">USD → INR Rate (₹)</label>
-          <input id="usdInrRateInput" type="number" step="0.01" min="1" value="86.50" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-lg px-2 py-1.5 text-xs font-mono text-amber-300 outline-none" />
+          <label for="usdInrRateInput" class="block text-[10px] text-slate-400 mb-1">USD to INR (₹)</label>
+          <input id="usdInrRateInput" type="number" step="0.01" min="1" value="86.50" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-md px-2 py-1 text-xs font-mono text-amber-300 outline-none" />
         </div>
         <div>
-          <label for="inputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Input ($ / 1M Tok)</label>
-          <input id="inputRatePerMillion" type="number" step="0.001" min="0" value="0.75" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <label for="monthlyBudgetInrInput" class="block text-[10px] text-slate-400 mb-1">Monthly cap (₹)</label>
+          <input id="monthlyBudgetInrInput" type="number" step="10" min="10" value="500" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-md px-2 py-1 text-xs font-mono text-emerald-400 outline-none" />
         </div>
         <div>
-          <label for="outputRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Output ($ / 1M Tok)</label>
-          <input id="outputRatePerMillion" type="number" step="0.001" min="0" value="3.75" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <label for="inputRatePerMillion" class="block text-[10px] text-slate-400 mb-1">Input ($ / 1M)</label>
+          <input id="inputRatePerMillion" type="number" step="0.001" min="0" value="0.30" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-md px-2 py-1 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div>
-          <label for="cachedRatePerMillion" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Cached ($ / 1M Tok)</label>
-          <input id="cachedRatePerMillion" type="number" step="0.001" min="0" value="0.075" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 outline-none" />
+          <label for="outputRatePerMillion" class="block text-[10px] text-slate-400 mb-1">Output ($ / 1M)</label>
+          <input id="outputRatePerMillion" type="number" step="0.001" min="0" value="2.50" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-md px-2 py-1 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div>
-          <label for="monthlyBudgetInrInput" class="block font-mono text-[10px] uppercase text-slate-400 mb-1">Monthly Cap (₹)</label>
-          <input id="monthlyBudgetInrInput" type="number" step="10" min="10" value="500" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-amber-400 rounded-lg px-2 py-1.5 text-xs font-mono text-emerald-400 outline-none" />
+          <label for="cachedRatePerMillion" class="block text-[10px] text-slate-400 mb-1">Cached ($ / 1M)</label>
+          <input id="cachedRatePerMillion" type="number" step="0.001" min="0" value="0.03" class="w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-md px-2 py-1 text-xs font-mono text-slate-100 outline-none" />
         </div>
         <div class="flex items-end">
-          <button id="savePricingBtn" type="button" class="w-full py-1.5 px-2.5 rounded-lg neon-glow-btn text-xs font-mono">
-            Save Rate Profile
+          <button id="savePricingBtn" type="button" class="w-full py-1.5 px-2 rounded-md neon-glow-btn text-[11px]">
+            Save Rates
           </button>
         </div>
       </div>
 
-      <label class="inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-300 cursor-pointer">
-        <input id="includeIndiaGstCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
-        <span>Include 18% India GST &amp; Google Search grounding fee ($14/1K queries) in ₹ estimate</span>
-      </label>
+      <div class="flex items-center justify-between gap-2 pt-0.5">
+        <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+          <input id="includeIndiaGstCheckbox" type="checkbox" checked class="accent-amber-400 rounded" />
+          <span>Include 18% GST</span>
+        </label>
+        <span class="info-tip-wrap">
+          <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+          <span class="info-tip-bubble">Adds 18% GST and Google Search grounding charges ($14 per 1,000 queries) to estimate Indian billing closely.</span>
+        </span>
+      </div>
 
       <div>
         <div class="flex items-center justify-between mb-1">
-          <label for="pricingRulesJson" class="font-mono text-[10px] uppercase text-slate-400">Model Family Auto-Rate Matrix (JSON — Verified Nov 2026)</label>
-          <button id="resetLedgerBtn" type="button" class="text-[10px] font-mono text-rose-400 hover:underline">Reset Cumulative ₹ Ledger</button>
+          <div class="flex items-center gap-1.5">
+            <label for="pricingRulesJson" class="text-[10px] text-slate-400">Model Rate Table (JSON)</label>
+            <span class="info-tip-wrap">
+              <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+              <span class="info-tip-bubble">Maps each Gemini model family to its USD rate per 1M tokens. Edit anytime if Google updates pricing.</span>
+            </span>
+          </div>
+          <button id="resetLedgerBtn" type="button" class="text-[10px] text-rose-400 hover:underline">Reset ledger</button>
         </div>
         <textarea
           id="pricingRulesJson"
           rows="4"
-          class="selectable-text w-full bg-obsidian-950 border border-obsidian-700 rounded-lg p-2 font-mono text-[11px] text-teal-300 outline-none"
+          class="selectable-text w-full bg-obsidian-950 border border-obsidian-700 rounded-lg p-2 font-mono text-[10px] text-teal-300 outline-none"
         ></textarea>
-        <p id="pricingStatusMsg" class="text-[10px] font-mono text-slate-400 mt-1">Rates automatically switch when you pick a different model family below the chat box.</p>
+        <p id="pricingStatusMsg" class="text-[10px] text-slate-400 mt-1">Rates adjust automatically when you switch models.</p>
       </div>
     </div>
 
-    <!-- CARD 3: SESSION & LOG MANAGEMENT -->
+    <!-- CARD 3: SESSION CONTROLS -->
     <div class="bg-obsidian-900/90 rounded-xl p-3 border border-obsidian-700 flex items-center justify-between gap-2">
-      <div>
-        <div class="font-mono text-[11px] font-semibold text-slate-200">Conversation &amp; Telemetry Controls</div>
-        <p class="text-[11px] text-slate-400">Clear current chat messages or open the detailed INR calculation breakdown.</p>
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-slate-200">Clear conversation</span>
+        <span class="info-tip-wrap">
+          <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+          <span class="info-tip-bubble">Archives the current chat to History and starts a blank conversation.</span>
+        </span>
       </div>
-      <div class="flex items-center gap-1.5 shrink-0">
-        <button id="clearChatBtn" type="button" class="px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-mono text-slate-300">
-          Clear Log
-        </button>
-      </div>
+      <button id="clearChatBtn" type="button" class="px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] text-slate-300">
+        Clear
+      </button>
     </div>
   </section>
 
   <!-- =====================================================================
-       VIEW 3: ACTIVE WORKSHEET MIRROR (GRID)
+       MODAL 0: ALL MODELS DIRECTORY & FAVORITES MANAGER ("More models...")
        ===================================================================== -->
-  <section id="viewSheet" class="hidden flex-1 flex-col overflow-y-auto px-3.5 py-3 gap-2.5">
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="font-mono text-xs font-bold uppercase text-neon-cyan">Active Sheet Mirror (<span id="activeSheetNameLabel">Statutory_Audit_FY26</span>)</h2>
-        <p class="text-[11px] text-slate-400">Live Excel.run calls execute directly on your workbook; standalone mode updates this grid.</p>
+  <div id="moreModelsModalOverlay" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-obsidian-900 w-full max-w-sm rounded-2xl border border-obsidian-600 p-3.5 flex flex-col gap-2.5 max-h-[85vh] shadow-2xl">
+      <div class="flex items-center justify-between border-b border-obsidian-800 pb-2">
+        <div>
+          <h3 class="text-xs font-semibold text-slate-100">All Models</h3>
+          <p class="text-[10px] text-slate-400">Star (★) models to show them in the quick dropdown</p>
+        </div>
+        <button id="closeMoreModelsModalBtn" type="button" class="w-6 h-6 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-xs">✕</button>
       </div>
-      <button id="resetSheetBtn" type="button" class="px-2.5 py-1 rounded bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] font-mono text-slate-300">
-        Reset Sample Sheet
-      </button>
+      <div class="flex items-center gap-1.5">
+        <input
+          id="allModelsSearchInput"
+          type="text"
+          placeholder="Search all models..."
+          class="flex-1 bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none"
+        />
+        <button id="syncModelsFromModalBtn" type="button" title="Refresh models from API" class="px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] text-neon-cyan shrink-0">
+          ↻ Sync
+        </button>
+      </div>
+      <div id="allModelsDirectoryList" class="flex-1 overflow-y-auto space-y-1 pr-0.5"></div>
     </div>
-    <div class="overflow-x-auto rounded-lg border border-obsidian-700">
-      <table id="virtualSheetTable" class="selectable-text w-full text-left border-collapse font-mono text-[11px]"></table>
-    </div>
-  </section>
+  </div>
 
   <!-- =====================================================================
        MODAL 1: FLOATING COMPACT TARIFF -> DETAILED WORKINGS & DISCLAIMER
@@ -556,8 +744,8 @@
     <div class="bg-obsidian-900 w-full max-w-md rounded-2xl gold-border p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto shadow-2xl selectable-text">
       <div class="flex items-center justify-between border-b border-obsidian-700 pb-2.5">
         <div>
-          <h3 class="font-mono text-xs font-bold uppercase text-amber-400">₹ Tariff Usage &amp; Detailed Workings</h3>
-          <p class="text-[10px] font-mono text-slate-400">Real-time Pay-As-You-Go calculation from Gemini usageMetadata</p>
+          <h3 class="text-xs font-semibold text-amber-300">Usage &amp; Cost Breakdown</h3>
+          <p class="text-[10px] text-slate-400">Estimated pay-as-you-go cost in INR</p>
         </div>
         <button id="closeTariffModalBtn" type="button" class="w-7 h-7 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-mono text-xs">✕</button>
       </div>
@@ -639,14 +827,14 @@
     <div class="bg-obsidian-900 w-full max-w-xs h-full border-l border-obsidian-700 p-3.5 flex flex-col gap-3 shadow-2xl">
       <div class="flex items-center justify-between border-b border-obsidian-700 pb-2.5">
         <div>
-          <h3 class="font-mono text-xs font-bold uppercase text-neon-cyan">🕒 Saved Chat History</h3>
+          <h3 class="text-xs font-semibold text-slate-100">Conversation History</h3>
           <p class="text-[10px] text-slate-400">Switch between past audit sessions or start fresh</p>
         </div>
         <button id="closeHistoryDrawerBtn" type="button" class="w-7 h-7 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-mono text-xs">✕</button>
       </div>
 
       <button id="newChatFromDrawerBtn" type="button" class="w-full py-2 px-3 rounded-xl neon-glow-btn font-mono text-xs flex items-center justify-center gap-1.5">
-        <span>+ Start New Audit Chat</span>
+        <span>+ New conversation</span>
       </button>
 
       <div id="historySessionsList" class="flex-1 overflow-y-auto space-y-2 pr-0.5"></div>
@@ -659,13 +847,70 @@
      *************************************************************************/
     const STORAGE_KEYS = {
       API_KEY: 'neon_excel_gemini_api_key_v1',
-      PRICING: 'neon_excel_dynamic_pricing_v2',
+      PRICING: 'neon_excel_dynamic_pricing_v3',
       LEDGER: 'neon_excel_inr_ledger_v2',
-      SELECTED_MODEL: 'neon_excel_selected_model_v1',
+      SELECTED_MODEL: 'neon_excel_selected_model_v2',
       CACHED_MODELS: 'neon_excel_cached_models_v1',
+      FAVORITE_MODELS: 'neon_excel_favorite_models_v1',
+      CUSTOM_PROMPTS: 'neon_excel_custom_prompts_v1',
+      CONFIRM_EDITS: 'neon_excel_confirm_edits_v1',
       CHAT_SESSIONS: 'neon_excel_chat_sessions_v1',
       CROSS_WORKBOOK_BRIDGE: 'neon_excel_cross_workbook_bridge_v1'
     };
+
+    const DEFAULT_FAVORITE_MODELS = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-4-hydrogen',
+      'gemini-4-neon',
+      'gemini-4-carbon'
+    ];
+
+    const DEFAULT_SLASH_PROMPTS = [
+      {
+        id: 'builtin_reconcile',
+        name: 'reconcile',
+        desc: 'Reconcile Books (+) vs GSTR-2B (-) ITC and update Remarks',
+        prompt: 'Reconcile the ITC entries on the active sheet. Positive amounts are Books and negative amounts are GSTR-2B. Update the Remarks column as Matched (must sum to zero), Only in Books, Only in 2B, or Partially Matched with the exact difference reason.',
+        builtin: true
+      },
+      {
+        id: 'builtin_audit',
+        name: 'audit',
+        desc: 'Review active sheet for missing formulas and variances',
+        prompt: 'Review the active worksheet for missing formulas, total checks, and notable variances. Summarize your findings before making any edits.',
+        builtin: true
+      },
+      {
+        id: 'builtin_formulas',
+        name: 'formulas',
+        desc: 'Find and fix #REF!, #NAME?, #VALUE!, #N/A, #DIV/0! errors',
+        prompt: 'Scan the active worksheet for formula errors (#REF!, #NAME?, #VALUE!, #N/A, #DIV/0!), explain each issue clearly, and propose corrections.',
+        builtin: true
+      },
+      {
+        id: 'builtin_pivot',
+        name: 'pivot',
+        desc: 'Create a native PivotTable summary on a new worksheet',
+        prompt: 'Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named Pivot_Summary.',
+        builtin: true
+      },
+      {
+        id: 'builtin_gstin',
+        name: 'gstin',
+        desc: 'Look up registered Indian GSTIN details for party names',
+        prompt: 'Read the party names on the active sheet, search online for their registered Indian GSTIN numbers and state codes, and present the findings for review before filling the sheet.',
+        builtin: true
+      },
+      {
+        id: 'builtin_summary',
+        name: 'summary',
+        desc: 'Generate a concise financial summary of the active sheet',
+        prompt: 'Summarize the key totals, trends, and exceptions on the active worksheet in a concise executive table.',
+        builtin: true
+      }
+    ];
 
     function safeStorageGet(key, fallback) {
       try {
@@ -686,13 +931,13 @@
 
     const DEFAULT_PRICING_CONFIG = {
       usdToInr: 86.50,
-      activeInputPer1M: 0.75,
-      activeOutputPer1M: 3.75,
-      activeCachedPer1M: 0.075,
+      activeInputPer1M: 0.30,
+      activeOutputPer1M: 2.50,
+      activeCachedPer1M: 0.03,
       monthlyBudgetInr: 500,
       includeIndiaGst: true,
       searchGroundingUsdPerQuery: 0.014,
-      thinkingBudget: 1024,
+      thinkingBudget: 0,
       // Ordered from most-specific to generic (verified Nov 2026 published Gemini API rates)
       patternRules: [
         { match: '2.5-flash-lite', inputPer1M: 0.10, outputPer1M: 0.40, cachedPer1M: 0.01 },
@@ -706,6 +951,7 @@
         { match: '4-argon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
         { match: '4-carbon', inputPer1M: 2.00, outputPer1M: 10.00, cachedPer1M: 0.20 },
         { match: '4-hydrogen', inputPer1M: 0.75, outputPer1M: 3.75, cachedPer1M: 0.075 },
+        { match: '4-neon', inputPer1M: 1.00, outputPer1M: 5.00, cachedPer1M: 0.10 },
         { match: '3.1-pro', inputPer1M: 2.00, outputPer1M: 12.00, cachedPer1M: 0.20 },
         { match: '2.5-pro', inputPer1M: 1.25, outputPer1M: 10.00, cachedPer1M: 0.125 },
         { match: 'flash-lite', inputPer1M: 0.25, outputPer1M: 1.50, cachedPer1M: 0.025 },
@@ -724,7 +970,13 @@
       apiKey: safeStorageGet(STORAGE_KEYS.API_KEY, ''),
       models: safeStorageGet(STORAGE_KEYS.CACHED_MODELS, []),
       visibleModels: [],
-      selectedModel: safeStorageGet(STORAGE_KEYS.SELECTED_MODEL, ''),
+      selectedModel: safeStorageGet(STORAGE_KEYS.SELECTED_MODEL, 'gemini-3.5-flash-lite'),
+      favoriteModels: safeStorageGet(STORAGE_KEYS.FAVORITE_MODELS, DEFAULT_FAVORITE_MODELS),
+      customPrompts: safeStorageGet(STORAGE_KEYS.CUSTOM_PROMPTS, []),
+      confirmEdits: safeStorageGet(STORAGE_KEYS.CONFIRM_EDITS, true),
+      sessionAutoApproveEdits: false,
+      workbookSheetNames: [],
+      activeWorksheetName: '',
       pricing: safeStorageGet(STORAGE_KEYS.PRICING, DEFAULT_PRICING_CONFIG),
       ledger: safeStorageGet(STORAGE_KEYS.LEDGER, {
         cumulativeInr: 0,
@@ -1253,41 +1505,6 @@
           }
         }
       }
-      renderVirtualGrid();
-    }
-
-    function renderVirtualGrid() {
-      const table = document.getElementById('virtualSheetTable');
-      if (!table) return;
-      const rows = virtualSheet.values;
-      const colCount = rows.reduce((max, r) => Math.max(max, r ? r.length : 0), 6);
-
-      let html = '<thead class="bg-obsidian-950 text-slate-400 border-b border-obsidian-700"><tr><th class="py-1.5 px-2 border-r border-obsidian-800 text-center">#</th>';
-      for (let c = 0; c < colCount; c++) {
-        html += `<th class="py-1.5 px-2.5 border-r border-obsidian-800 text-center text-neon-cyan">${indexToColLetter(c)}</th>`;
-      }
-      html += '</tr></thead><tbody>';
-
-      for (let r = 0; r < rows.length; r++) {
-        html += `<tr class="border-b border-obsidian-800/80 hover:bg-obsidian-800/40"><td class="py-1.5 px-2 border-r border-obsidian-800 text-slate-500 text-center bg-obsidian-950">${r + 1}</td>`;
-        for (let c = 0; c < colCount; c++) {
-          const cellCoord = `${indexToColLetter(c)}${r + 1}`;
-          const val = rows[r] && rows[r][c] !== undefined ? rows[r][c] : '';
-          const formula = (virtualSheet.formulas[r] && virtualSheet.formulas[r][c]) || '';
-          const highlightColor = virtualSheet.highlights[cellCoord];
-          const bgStyle = highlightColor ? `background-color: ${highlightColor}22; border-color: ${highlightColor};` : '';
-          const isHeader = r === 0;
-          html += `<td style="${bgStyle}" class="py-1.5 px-2.5 border-r border-obsidian-800 ${isHeader ? 'font-bold text-amber-300 bg-obsidian-950/60' : 'text-slate-200'}" title="${formula ? 'Formula: ' + formula : cellCoord}">
-            <div class="flex items-center justify-between gap-1.5">
-              <span>${val === '' ? '<span class="text-slate-600">—</span>' : val}</span>
-              ${formula ? `<span class="text-[9px] px-1 rounded bg-teal-500/20 text-neon-cyan border border-teal-500/30">${formula}</span>` : ''}
-            </div>
-          </td>`;
-        }
-        html += '</tr>';
-      }
-      html += '</tbody>';
-      table.innerHTML = html;
     }
 
     /*************************************************************************
@@ -1296,6 +1513,25 @@
     const EXCEL_AGENT_TOOLS = [
       {
         functionDeclarations: [
+          {
+            name: 'ask_user_clarification',
+            description: 'Pauses the workflow cleanly and asks the user a clarifying question inline in chat when there is any ambiguity (such as column mapping, matching tolerance, target sheet, or business logic). Always provide 2 to 4 clear options; the UI automatically adds an "Other" option so the user can enter their own instruction.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                question: {
+                  type: 'STRING',
+                  description: 'Clear, formal question explaining the ambiguity.'
+                },
+                options: {
+                  type: 'ARRAY',
+                  items: { type: 'STRING' },
+                  description: '2 to 4 concise options for the user to choose from.'
+                }
+              },
+              required: ['question', 'options']
+            }
+          },
           {
             name: 'audit_workbook',
             description: 'Audits the active worksheet in one token-frugal pass: returns the active worksheet\'s non-empty rows and cell coordinates, plus ONLY the tab names of other worksheets (to save tokens). Set includeAllSheetsData=true ONLY if the user explicitly asks to inspect all tabs.',
@@ -2752,8 +2988,7 @@
       if (name === 'manage_worksheet') {
         if (args.sheetName) {
           virtualSheet.name = args.newSheetName || args.sheetName;
-          const label = document.getElementById('activeSheetNameLabel');
-          if (label) label.textContent = virtualSheet.name;
+
         }
         return { status: 'simulated_worksheet_action', action: args.action, sheetName: virtualSheet.name };
       }
@@ -2766,7 +3001,6 @@
             virtualSheet.highlights[`${indexToColLetter(c)}${r + 1}`] = color;
           }
         }
-        renderVirtualGrid();
         return { status: 'formatted_virtual_cells', rangeAddress: args.rangeAddress, hexColor: color };
       }
 
@@ -2905,85 +3139,140 @@
       }
     }
 
+    function formatShortModelName(modelId) {
+      if (!modelId) return '3.5 Flash-Lite';
+      const id = String(modelId).replace(/^models\//, '').trim();
+      const lower = id.toLowerCase();
+      const exactMap = {
+        'gemini-3.5-flash-lite': '3.5 Flash-Lite',
+        'gemini-3.1-flash-lite': '3.1 Flash-Lite',
+        'gemini-3.1-flash-lite-preview': '3.1 Flash-Lite',
+        'gemini-3.8-flash': '3.8 Flash',
+        'gemini-3.7-flash': '3.7 Flash',
+        'gemini-3.6-flash': '3.6 Flash',
+        'gemini-3.5-flash': '3.5 Flash',
+        'gemini-2.5-flash-lite': '2.5 Flash-Lite',
+        'gemini-2.5-flash': '2.5 Flash',
+        'gemini-2.5-pro': '2.5 Pro',
+        'gemini-3.1-pro-preview': '3.1 Pro',
+        'gemini-3.1-pro-preview-customtools': '3.1 Pro Tools',
+        'gemini-4-hydrogen': 'Hydrogen',
+        'gemini-4-neon': 'Neon',
+        'gemini-4-carbon': 'Carbon',
+        'gemini-4-argon': 'Argon'
+      };
+      if (exactMap[lower]) return exactMap[lower];
+      if (/hydrogen/i.test(lower)) return 'Hydrogen';
+      if (/neon/i.test(lower)) return 'Neon';
+      if (/carbon/i.test(lower)) return 'Carbon';
+      if (/argon/i.test(lower)) return 'Argon';
+      return id
+        .replace(/^gemini-/i, '')
+        .replace(/-preview.*$/i, '')
+        .replace(/-latest$/i, '')
+        .replace(/flash-lite/i, 'Flash-Lite')
+        .replace(/flash/i, 'Flash')
+        .replace(/pro/i, 'Pro')
+        .replace(/-/g, ' ')
+        .trim();
+    }
+
+    function getThinkingCapLabel(budgetVal) {
+      const n = Number(budgetVal);
+      if (n === 0) return 'NIL (0 tokens)';
+      if (n <= 1024) return 'Low (1,024 tokens)';
+      if (n <= 4096) return 'Medium (4,096 tokens)';
+      return `High (${n.toLocaleString('en-IN')} tokens)`;
+    }
+
+    function updateModelHoverTooltip() {
+      const fullEl = document.getElementById('modelHoverFullName');
+      const capEl = document.getElementById('modelHoverThinkingCap');
+      const activeId = appState.selectedModel || 'gemini-3.5-flash-lite';
+      const capVal = Number(appState.pricing.thinkingBudget ?? 0);
+      if (fullEl) fullEl.textContent = activeId;
+      if (capEl) capEl.textContent = `Thinking Cap: ${getThinkingCapLabel(capVal)}`;
+    }
+
+    function getFavoriteModelIds() {
+      const favs = Array.isArray(appState.favoriteModels) && appState.favoriteModels.length
+        ? appState.favoriteModels
+        : DEFAULT_FAVORITE_MODELS;
+      return favs;
+    }
+
+    function toggleFavoriteModel(modelId) {
+      const cleanId = String(modelId || '').replace(/^models\//, '');
+      if (!cleanId) return;
+      let favs = [...getFavoriteModelIds()];
+      if (favs.includes(cleanId)) {
+        if (favs.length <= 1) return; // keep at least 1 favorite
+        favs = favs.filter(x => x !== cleanId);
+      } else {
+        favs.push(cleanId);
+      }
+      appState.favoriteModels = favs;
+      safeStorageSet(STORAGE_KEYS.FAVORITE_MODELS, favs);
+      renderCustomModelPopoverList();
+      renderAllModelsDirectory(document.getElementById('allModelsSearchInput')?.value || '');
+    }
+
     function populateModelDropdown(models) {
       appState.visibleModels = models || [];
       const select = document.getElementById('modelSelect');
       select.innerHTML = '';
 
-      if (!models || !models.length) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = '⚡ Offline Simulator';
-        select.appendChild(opt);
-        document.getElementById('customModelTriggerLabel').textContent = '⚡ Offline Simulator';
-        renderCustomModelPopoverList('');
-        return;
-      }
+      const discoveredIds = (models || []).map(m => (m.name || '').replace(/^models\//, '')).filter(Boolean);
+      const favIds = getFavoriteModelIds();
+      const combinedIds = Array.from(new Set([...favIds, ...discoveredIds]));
 
-      models.forEach((m) => {
-        const cleanId = (m.name || '').replace(/^models\//, '');
+      combinedIds.forEach((cleanId) => {
         const opt = document.createElement('option');
         opt.value = cleanId;
-        opt.textContent = cleanId;
+        opt.textContent = formatShortModelName(cleanId);
         select.appendChild(opt);
       });
 
-      const saved = appState.selectedModel;
-      const savedIsValid =
-        saved &&
-        !NON_AGENT_MODEL_REGEX.test(saved) &&
-        models.some(m => (m.name || '').replace(/^models\//, '') === saved);
-
-      if (savedIsValid) {
+      const saved = appState.selectedModel || 'gemini-3.5-flash-lite';
+      if (combinedIds.includes(saved)) {
         select.value = saved;
-      } else {
-        select.value = (models[0].name || '').replace(/^models\//, '');
+      } else if (combinedIds.includes('gemini-3.5-flash-lite')) {
+        select.value = 'gemini-3.5-flash-lite';
+      } else if (combinedIds.length) {
+        select.value = combinedIds[0];
       }
+
       onModelSelectionChanged();
-      renderCustomModelPopoverList('');
+      renderCustomModelPopoverList();
     }
 
-    function renderCustomModelPopoverList(searchFilter = '') {
+    function renderCustomModelPopoverList() {
       const container = document.getElementById('customModelListContainer');
       if (!container) return;
 
-      const models = appState.visibleModels || [];
-      const q = (searchFilter || '').trim().toLowerCase();
-      const filtered = q
-        ? models.filter(m => ((m.name || '') + ' ' + (m.displayName || '')).toLowerCase().includes(q))
-        : models;
+      const favIds = getFavoriteModelIds();
+      const activeId = document.getElementById('modelSelect').value || appState.selectedModel || 'gemini-3.5-flash-lite';
 
-      if (!filtered.length) {
-        container.innerHTML = `<div class="py-3 px-2 text-center font-mono text-[11px] text-slate-500">${models.length ? 'No models match filter.' : 'No API models synced yet. Click ⚙️ Settings → Sync Models.'}</div>`;
-        return;
-      }
+      // Ensure currently active model is visible even if picked from More Models
+      const displayIds = favIds.includes(activeId) ? favIds : [activeId, ...favIds];
 
-      const activeId = document.getElementById('modelSelect').value;
-      container.innerHTML = filtered
-        .map((m) => {
-          const cleanId = (m.name || '').replace(/^models\//, '');
+      container.innerHTML = displayIds
+        .map((cleanId) => {
           const isSelected = cleanId === activeId;
-          const isLite = /flash-lite/i.test(cleanId);
-          const isFlash = /flash/i.test(cleanId);
-          const tag = isLite ? 'LOW ₹' : isFlash ? 'FAST' : 'PRO';
-          const tagColor = isLite
-            ? 'text-emerald-300 border-emerald-500/40'
-            : isFlash
-            ? 'text-neon-cyan border-teal-500/30'
-            : 'text-amber-300 border-amber-500/30';
-
+          const shortName = formatShortModelName(cleanId);
           return `
             <button
               type="button"
               data-pick-model="${escapeHtml(cleanId)}"
-              class="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 font-mono text-[11px] transition ${
+              title="${escapeHtml(cleanId)}"
+              class="w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-xs transition ${
                 isSelected
-                  ? 'bg-teal-500/20 text-neon-cyan font-bold border border-teal-500/40'
+                  ? 'bg-teal-500/15 text-neon-cyan font-semibold border border-teal-500/35'
                   : 'text-slate-200 hover:bg-obsidian-800'
               }"
             >
-              <span class="truncate">${isSelected ? '✓ ' : ''}${escapeHtml(cleanId)}</span>
-              <span class="text-[9px] px-1 py-0.5 rounded bg-obsidian-950 border ${tagColor} shrink-0">${tag}</span>
+              <span class="truncate">${isSelected ? '✓ ' : ''}${escapeHtml(shortName)}</span>
+              <span class="text-[9px] font-mono text-slate-500 shrink-0">${favIds.includes(cleanId) ? '★' : ''}</span>
             </button>
           `;
         })
@@ -2993,6 +3282,12 @@
         btn.addEventListener('click', () => {
           const picked = btn.getAttribute('data-pick-model');
           const select = document.getElementById('modelSelect');
+          if (!Array.from(select.options).some(o => o.value === picked)) {
+            const opt = document.createElement('option');
+            opt.value = picked;
+            opt.textContent = formatShortModelName(picked);
+            select.appendChild(opt);
+          }
           select.value = picked;
           onModelSelectionChanged();
           document.getElementById('customModelPopover').classList.add('hidden');
@@ -3000,25 +3295,98 @@
       });
     }
 
+    function renderAllModelsDirectory(searchFilter = '') {
+      const listEl = document.getElementById('allModelsDirectoryList');
+      if (!listEl) return;
+
+      const favIds = getFavoriteModelIds();
+      const discoveredIds = (appState.visibleModels || []).map(m => (m.name || '').replace(/^models\//, '')).filter(Boolean);
+      const allIds = Array.from(new Set([...DEFAULT_FAVORITE_MODELS, ...favIds, ...discoveredIds]));
+      const q = (searchFilter || '').trim().toLowerCase();
+      const filtered = q
+        ? allIds.filter(id => id.toLowerCase().includes(q) || formatShortModelName(id).toLowerCase().includes(q))
+        : allIds;
+
+      const activeId = document.getElementById('modelSelect').value;
+
+      if (!filtered.length) {
+        listEl.innerHTML = '<div class="py-4 text-center text-xs text-slate-500">No matching models found.</div>';
+        return;
+      }
+
+      listEl.innerHTML = filtered
+        .map((id) => {
+          const isFav = favIds.includes(id);
+          const isSel = id === activeId;
+          const shortName = formatShortModelName(id);
+          return `
+            <div class="flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg border ${
+              isSel ? 'bg-teal-500/15 border-teal-500/35' : 'bg-obsidian-950/70 border-obsidian-800 hover:bg-obsidian-800/70'
+            }">
+              <button type="button" data-select-dir-model="${escapeHtml(id)}" class="flex-1 min-w-0 text-left">
+                <div class="text-xs font-medium ${isSel ? 'text-neon-cyan' : 'text-slate-200'} truncate">${escapeHtml(shortName)}</div>
+                <div class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(id)}</div>
+              </button>
+              <button
+                type="button"
+                data-toggle-fav-model="${escapeHtml(id)}"
+                title="${isFav ? 'Remove from quick dropdown' : 'Add to quick dropdown'}"
+                class="w-7 h-7 rounded-md bg-obsidian-900 hover:bg-obsidian-700 border border-obsidian-700 text-xs flex items-center justify-center shrink-0 ${
+                  isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'
+                }"
+              >
+                ${isFav ? '★' : '☆'}
+              </button>
+            </div>
+          `;
+        })
+        .join('');
+
+      listEl.querySelectorAll('[data-select-dir-model]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const picked = btn.getAttribute('data-select-dir-model');
+          const select = document.getElementById('modelSelect');
+          if (!Array.from(select.options).some(o => o.value === picked)) {
+            const opt = document.createElement('option');
+            opt.value = picked;
+            opt.textContent = formatShortModelName(picked);
+            select.appendChild(opt);
+          }
+          select.value = picked;
+          onModelSelectionChanged();
+          document.getElementById('moreModelsModalOverlay').classList.add('hidden');
+        });
+      });
+
+      listEl.querySelectorAll('[data-toggle-fav-model]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleFavoriteModel(btn.getAttribute('data-toggle-fav-model'));
+        });
+      });
+    }
+
     function onModelSelectionChanged() {
       const select = document.getElementById('modelSelect');
-      const modelId = select.value;
+      const modelId = select.value || 'gemini-3.5-flash-lite';
       appState.selectedModel = modelId;
       safeStorageSet(STORAGE_KEYS.SELECTED_MODEL, modelId);
 
       const triggerLabel = document.getElementById('customModelTriggerLabel');
       if (triggerLabel) {
-        triggerLabel.textContent = modelId || '⚡ Offline Simulator';
+        triggerLabel.textContent = formatShortModelName(modelId);
       }
 
       const found = (appState.models || []).find(m => (m.name || '').replace(/^models\//, '') === modelId);
       const limitsEl = document.getElementById('modelTokenLimits');
-      if (found) {
-        const inLim = (found.inputTokenLimit || 0).toLocaleString('en-IN');
-        const outLim = (found.outputTokenLimit || 0).toLocaleString('en-IN');
-        limitsEl.textContent = `Input: ${inLim} | Output: ${outLim}`;
-      } else {
-        limitsEl.textContent = `Model: ${modelId || 'Offline Simulator'}`;
+      if (limitsEl) {
+        if (found) {
+          const inLim = (found.inputTokenLimit || 0).toLocaleString('en-IN');
+          const outLim = (found.outputTokenLimit || 0).toLocaleString('en-IN');
+          limitsEl.textContent = `${formatShortModelName(modelId)} • In ${inLim} / Out ${outLim}`;
+        } else {
+          limitsEl.textContent = `Model: ${formatShortModelName(modelId)}`;
+        }
       }
 
       const matchedRule = resolvePricingRuleForModel(modelId);
@@ -3029,6 +3397,8 @@
         syncPricingInputsFromState();
         updateCostDisplay();
       }
+      updateModelHoverTooltip();
+      renderCustomModelPopoverList();
     }
 
     /*************************************************************************
@@ -3206,8 +3576,14 @@
       document.getElementById('monthlyBudgetInrInput').value = appState.pricing.monthlyBudgetInr;
       const gstBox = document.getElementById('includeIndiaGstCheckbox');
       if (gstBox) gstBox.checked = appState.pricing.includeIndiaGst !== false;
+      const capStr = String(appState.pricing.thinkingBudget ?? 0);
       const thinkSel = document.getElementById('thinkingBudgetSelect');
-      if (thinkSel) thinkSel.value = String(appState.pricing.thinkingBudget ?? 1024);
+      if (thinkSel) thinkSel.value = capStr;
+      const headerThinkSel = document.getElementById('headerThinkingCapSelect');
+      if (headerThinkSel) headerThinkSel.value = capStr;
+      const confirmBox = document.getElementById('confirmEditsCheckbox');
+      if (confirmBox) confirmBox.checked = appState.confirmEdits !== false;
+      updateModelHoverTooltip();
       document.getElementById('pricingRulesJson').value = JSON.stringify(appState.pricing.patternRules, null, 2);
     }
 
@@ -3388,34 +3764,20 @@
     function startNewChatSession() {
       saveCurrentSessionToHistory();
       appState.currentSessionId = 'sess_' + Date.now();
-      appState.currentSessionTitle = 'New Workbook Audit';
+      appState.currentSessionTitle = 'New conversation';
       appState.conversationHistory = [];
       appState.renderedCards = [];
+      appState.sessionAutoApproveEdits = false;
 
       const chatLog = document.getElementById('chatLog');
       chatLog.innerHTML = `
-        <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/80 border border-obsidian-700/90 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="font-mono text-[11px] text-neon-cyan font-semibold uppercase tracking-wider">New Session Started</span>
-            <span class="font-mono text-[9px] text-emerald-400">💰 Low-Token Engine</span>
-          </div>
-          <p class="text-xs text-slate-300 leading-relaxed">
-            Scoped to your <strong>Active Sheet</strong> by default to minimize token spend. Toggle <strong>📄 1-Sheet</strong> below if you want a full multi-sheet scan.
+        <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/75 border border-obsidian-800 space-y-1.5">
+          <div class="text-xs font-semibold text-slate-200">New conversation</div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Type <span class="font-mono text-neon-cyan">/</span> for saved prompts or <span class="font-mono text-amber-300">@</span> to reference a worksheet. Spreadsheet edits will ask for your approval first.
           </p>
-          <div class="flex flex-wrap gap-1.5 pt-0.5">
-            <button type="button" data-prompt="Audit the entire workbook structure, read A1:F7 on the active sheet, check for missing formulas or variance anomalies, and write =D2-C2 through =D6-C6 in column E and percentage variance in column F." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-neon-cyan border border-teal-500/30 transition">
-              ⚡ Audit &amp; Auto-Fill Variance Formulas
-            </button>
-            <button type="button" data-prompt="List all connected/attached external workbooks (such as GSTR-1 / GSTR-2B) and reconcile their taxable value and IGST/CGST/SGST totals against the active workbook, writing a formatted Reconciliation Summary sheet." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-fuchsia-300 border border-fuchsia-500/30 transition">
-              🔄 Cross-Workbook GSTR-1 vs 3B Reconcile
-            </button>
-            <button type="button" data-prompt="Create a native Excel PivotTable from the used range on the active sheet onto a new worksheet named 'Pivot_Summary', grouping rows by the primary category/ledger column and summing the numeric value columns." class="quick-prompt-btn text-[11px] font-mono px-2 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/30 transition">
-              📊 Insert Native PivotTable
-            </button>
-          </div>
         </div>
       `;
-      bindQuickPromptButtons();
       switchTab('agent');
     }
 
@@ -3628,6 +3990,402 @@
       throw lastError || new Error('All candidate Gemini models are currently unavailable.');
     }
 
+    /*************************************************************************
+     * 9A. EDIT PERMISSION GATE & INLINE AMBIGUITY CLARIFICATION (WITH "OTHER")
+     *************************************************************************/
+    const MUTATING_EXCEL_TOOLS = new Set([
+      'write_excel_range_or_formula',
+      'batch_write_excel_ranges',
+      'reconcile_itc_books_vs_2b',
+      'create_pivot_table',
+      'create_excel_table',
+      'create_excel_chart',
+      'manage_worksheet',
+      'format_excel_range',
+      'highlight_audit_cells',
+      'execute_custom_officejs'
+    ]);
+
+    function describePlannedEdit(fc) {
+      const a = fc.args || {};
+      const sheet = a.sheetName ? ` on "${a.sheetName}"` : ' on the active sheet';
+      if (fc.name === 'reconcile_itc_books_vs_2b') {
+        return `Reconcile Books vs. GSTR-2B entries${sheet} and update the Remarks column.`;
+      }
+      if (fc.name === 'write_excel_range_or_formula') {
+        return `Write data or formulas to ${a.rangeAddress || 'selected cells'}${sheet}.`;
+      }
+      if (fc.name === 'batch_write_excel_ranges') {
+        const cnt = Array.isArray(a.writes) ? a.writes.length : 0;
+        return `Update ${cnt} cell range${cnt === 1 ? '' : 's'} in Excel.`;
+      }
+      if (fc.name === 'create_pivot_table') {
+        return `Create PivotTable "${a.pivotTableName || 'Summary'}" from ${a.sourceRangeAddress || 'sheet data'}.`;
+      }
+      if (fc.name === 'create_excel_table') {
+        return `Convert ${a.rangeAddress || 'range'}${sheet} into a formatted Excel Table.`;
+      }
+      if (fc.name === 'create_excel_chart') {
+        return `Insert a ${a.chartType || 'chart'} ("${a.chartTitle || 'Chart'}")${sheet}.`;
+      }
+      if (fc.name === 'manage_worksheet') {
+        return `Worksheet action (${a.action || 'update'}) for "${a.sheetName || 'Active Sheet'}".`;
+      }
+      if (fc.name === 'format_excel_range' || fc.name === 'highlight_audit_cells') {
+        return `Apply formatting to ${a.rangeAddress || 'range'}${sheet}.`;
+      }
+      if (fc.name === 'execute_custom_officejs') {
+        return a.description || 'Run custom spreadsheet update script.';
+      }
+      return `Modify spreadsheet via ${fc.name}.`;
+    }
+
+    function requestEditPermissionInChat(fc, signal) {
+      return new Promise((resolve) => {
+        const chatLog = document.getElementById('chatLog');
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl bg-amber-950/25 border border-amber-500/40 space-y-2';
+        const summary = describePlannedEdit(fc);
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-semibold text-amber-300">Permission Required</span>
+            <span class="text-[10px] font-mono text-slate-400">Excel Edit</span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed">${escapeHtml(summary)}</p>
+          <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer">
+            <input type="checkbox" class="approve-all-chat-chk accent-teal-400 rounded" />
+            <span>Approve remaining edits in this conversation</span>
+          </label>
+          <div class="flex items-center gap-2 pt-0.5">
+            <button type="button" class="perm-approve-btn px-3 py-1 rounded-md neon-glow-btn text-[11px]">Approve</button>
+            <button type="button" class="perm-decline-btn px-3 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[11px] text-slate-200">Decline</button>
+          </div>
+        `;
+        chatLog.appendChild(card);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        const finish = (approved, noteText) => {
+          const allChk = card.querySelector('.approve-all-chat-chk');
+          if (approved && allChk && allChk.checked) {
+            appState.sessionAutoApproveEdits = true;
+          }
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-semibold ${approved ? 'text-emerald-400' : 'text-rose-400'}">${approved ? 'Edit Approved' : 'Edit Declined'}</span>
+              <span class="text-[10px] text-slate-400">${escapeHtml(noteText || '')}</span>
+            </div>
+            <p class="text-[11px] text-slate-300">${escapeHtml(summary)}</p>
+          `;
+          resolve(approved);
+        };
+
+        card.querySelector('.perm-approve-btn').addEventListener('click', () => finish(true, 'Proceeding'));
+        card.querySelector('.perm-decline-btn').addEventListener('click', () => finish(false, 'Skipped'));
+        if (signal) {
+          signal.addEventListener('abort', () => finish(false, 'Cancelled'), { once: true });
+        }
+      });
+    }
+
+    function requestUserClarificationInChat(question, options, signal) {
+      return new Promise((resolve) => {
+        const chatLog = document.getElementById('chatLog');
+        const safeOptions = Array.isArray(options) && options.length ? options : ['Proceed with standard approach', 'Stop and explain further'];
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl bg-obsidian-900 border border-neon-cyan/45 space-y-2.5 shadow-lg';
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-semibold text-neon-cyan">Clarification Needed</span>
+            <span class="text-[10px] text-slate-400">Waiting for your input</span>
+          </div>
+          <p class="text-xs text-slate-100 leading-relaxed">${escapeHtml(question || 'Please clarify how you would like to proceed:')}</p>
+          <div class="clarify-options flex flex-col gap-1.5">
+            ${safeOptions.map(opt => `
+              <button type="button" data-clarify-choice="${escapeHtml(opt)}" class="w-full text-left px-2.5 py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-xs text-slate-200 transition">
+                ${escapeHtml(opt)}
+              </button>
+            `).join('')}
+            <button type="button" class="clarify-other-toggle w-full text-left px-2.5 py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-amber-400 text-xs text-amber-300 transition">
+              Other (enter your own instruction...)
+            </button>
+          </div>
+          <div class="clarify-other-box hidden space-y-1.5 pt-1">
+            <textarea rows="2" class="clarify-other-input selectable-text w-full bg-obsidian-950 border border-obsidian-600 focus:border-neon-cyan rounded-lg p-2 text-xs text-slate-100 outline-none resize-none" placeholder="Type your preference or instruction..."></textarea>
+            <div class="flex justify-end">
+              <button type="button" class="clarify-other-submit px-3 py-1 rounded-md neon-glow-btn text-[11px]">Submit</button>
+            </div>
+          </div>
+        `;
+        chatLog.appendChild(card);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        const done = (answerText) => {
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-semibold text-emerald-400">Your Input</span>
+            </div>
+            <p class="text-[11px] text-slate-400">${escapeHtml(question)}</p>
+            <p class="text-xs text-slate-100 font-medium">${escapeHtml(answerText)}</p>
+          `;
+          resolve({ status: 'user_answered', selectedAnswer: answerText });
+        };
+
+        card.querySelectorAll('[data-clarify-choice]').forEach((btn) => {
+          btn.addEventListener('click', () => done(btn.getAttribute('data-clarify-choice')));
+        });
+
+        const otherToggle = card.querySelector('.clarify-other-toggle');
+        const otherBox = card.querySelector('.clarify-other-box');
+        const otherInput = card.querySelector('.clarify-other-input');
+        otherToggle.addEventListener('click', () => {
+          otherBox.classList.remove('hidden');
+          otherInput.focus();
+          chatLog.scrollTop = chatLog.scrollHeight;
+        });
+
+        card.querySelector('.clarify-other-submit').addEventListener('click', () => {
+          const val = otherInput.value.trim();
+          if (!val) return;
+          done(val);
+        });
+
+        otherInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const val = otherInput.value.trim();
+            if (val) done(val);
+          }
+        });
+
+        if (signal) {
+          signal.addEventListener('abort', () => done('Cancelled by user'), { once: true });
+        }
+      });
+    }
+
+    /*************************************************************************
+     * 9B. SLASH COMMANDS (/) & @ WORKSHEET REFERENCE PICKER
+     *************************************************************************/
+    function getAllSlashPrompts() {
+      const custom = Array.isArray(appState.customPrompts) ? appState.customPrompts : [];
+      return [...custom, ...DEFAULT_SLASH_PROMPTS];
+    }
+
+    function renderSlashMenu(filterQuery = '') {
+      const listEl = document.getElementById('slashMenuList');
+      if (!listEl) return;
+      const q = (filterQuery || '').replace(/^\//, '').trim().toLowerCase();
+      const prompts = getAllSlashPrompts().filter(p =>
+        !q || p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q)
+      );
+
+      if (!prompts.length) {
+        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching prompts. Click "+ Add custom prompt" below.</div>';
+        return;
+      }
+
+      listEl.innerHTML = prompts
+        .map(p => `
+          <div class="flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg hover:bg-obsidian-800 transition group">
+            <button type="button" data-use-slash="${escapeHtml(p.id)}" class="flex-1 min-w-0 text-left">
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-[11px] font-semibold text-neon-cyan">/${escapeHtml(p.name)}</span>
+                ${!p.builtin ? '<span class="text-[9px] px-1 rounded bg-obsidian-950 text-amber-300 border border-amber-500/30">Custom</span>' : ''}
+              </div>
+              <div class="text-[10px] text-slate-400 truncate">${escapeHtml(p.desc || p.prompt)}</div>
+            </button>
+            ${!p.builtin ? `<button type="button" data-del-slash="${escapeHtml(p.id)}" title="Delete custom prompt" class="w-5 h-5 rounded text-[10px] text-slate-500 hover:text-rose-400 hover:bg-obsidian-900 shrink-0">✕</button>` : ''}
+          </div>
+        `)
+        .join('');
+
+      listEl.querySelectorAll('[data-use-slash]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-use-slash');
+          const found = getAllSlashPrompts().find(x => x.id === id);
+          if (!found) return;
+          const input = document.getElementById('userPromptInput');
+          input.value = found.prompt;
+          document.getElementById('slashMenuPopover').classList.add('hidden');
+          input.focus();
+        });
+      });
+
+      listEl.querySelectorAll('[data-del-slash]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-del-slash');
+          appState.customPrompts = (appState.customPrompts || []).filter(x => x.id !== id);
+          safeStorageSet(STORAGE_KEYS.CUSTOM_PROMPTS, appState.customPrompts);
+          renderSlashMenu('');
+        });
+      });
+    }
+
+    async function refreshWorkbookSheetNames() {
+      if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
+        try {
+          await window.Excel.run(async (context) => {
+            const sheets = context.workbook.worksheets;
+            const active = sheets.getActiveWorksheet();
+            sheets.load('items/name');
+            active.load('name');
+            await context.sync();
+            appState.activeWorksheetName = active.name;
+            appState.workbookSheetNames = sheets.items.map(s => s.name);
+          });
+          return;
+        } catch (err) {
+          // Fall back to cached list
+        }
+      }
+      if (!appState.workbookSheetNames.length) {
+        appState.activeWorksheetName = virtualSheet.name || 'Sheet1';
+        appState.workbookSheetNames = [appState.activeWorksheetName];
+      }
+    }
+
+    async function openAtSheetMenu(filterQuery = '') {
+      const pop = document.getElementById('atSheetPopover');
+      const listEl = document.getElementById('atSheetList');
+      if (!pop || !listEl) return;
+      await refreshWorkbookSheetNames();
+
+      const q = (filterQuery || '').trim().toLowerCase();
+      const activeName = appState.activeWorksheetName;
+      const orderedSheets = [
+        ...(activeName ? [activeName] : []),
+        ...appState.workbookSheetNames.filter(n => n !== activeName)
+      ];
+      const externalNames = Object.keys(appState.externalWorkbooks || {});
+
+      const items = [
+        ...orderedSheets.map(name => ({
+          label: name,
+          badge: name === activeName ? 'Active' : 'Sheet',
+          insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
+        })),
+        ...externalNames.map(name => ({
+          label: name,
+          badge: 'File',
+          insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
+        }))
+      ].filter(item => !q || item.label.toLowerCase().includes(q));
+
+      if (!items.length) {
+        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching worksheets.</div>';
+      } else {
+        listEl.innerHTML = items.map(it => `
+          <button type="button" data-insert-sheet="${escapeHtml(it.insertText)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
+            <span class="truncate">${escapeHtml(it.label)}</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 border ${
+              it.badge === 'Active' ? 'text-emerald-300 border-emerald-500/40' : 'text-slate-400 border-obsidian-700'
+            } shrink-0">${it.badge}</span>
+          </button>
+        `).join('');
+
+        listEl.querySelectorAll('[data-insert-sheet]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const ins = btn.getAttribute('data-insert-sheet');
+            const input = document.getElementById('userPromptInput');
+            const cur = input.value;
+            const replaced = cur.replace(/@[^\s@]*$/, ins);
+            input.value = replaced === cur ? `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}${ins}` : replaced;
+            pop.classList.add('hidden');
+            input.focus();
+          });
+        });
+      }
+
+      document.getElementById('slashMenuPopover')?.classList.add('hidden');
+      pop.classList.remove('hidden');
+    }
+
+    /*************************************************************************
+     * 9C. ZERO-OVERLAP DYNAMIC RESPONSIVE OVERFLOW ENGINE (⋯ DOT MENUS)
+     *************************************************************************/
+    function layoutResponsiveToolbars() {
+      // 1. Top Header Bar responsive overflow
+      const header = document.getElementById('appHeaderBar');
+      const inlineWrap = document.getElementById('headerInlineActions');
+      const overflowBtn = document.getElementById('headerOverflowBtn');
+      const overflowMenu = document.getElementById('headerOverflowMenu');
+      if (header && inlineWrap && overflowBtn && overflowMenu) {
+        const items = Array.from(inlineWrap.children);
+        // Reset all visible first to measure true natural fit
+        items.forEach(el => el.classList.remove('hidden'));
+        overflowBtn.classList.add('hidden');
+
+        const hiddenItems = [];
+        // Keep hiding rightmost inline items until header fits cleanly with zero horizontal overflow
+        for (let i = items.length - 1; i >= 0; i--) {
+          const isOverflowing = header.scrollWidth > header.clientWidth + 1;
+          if (!isOverflowing) break;
+          items[i].classList.add('hidden');
+          hiddenItems.unshift(items[i]);
+          overflowBtn.classList.remove('hidden');
+        }
+
+        if (hiddenItems.length > 0) {
+          overflowBtn.classList.remove('hidden');
+          overflowMenu.innerHTML = hiddenItems.map(el => `
+            <button type="button" data-proxy-id="${escapeHtml(el.id)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 text-xs text-slate-200 flex items-center justify-between gap-2">
+              <span>${escapeHtml(el.getAttribute('data-overflow-label') || el.title || 'Action')}</span>
+            </button>
+          `).join('');
+          overflowMenu.querySelectorAll('[data-proxy-id]').forEach(proxy => {
+            proxy.addEventListener('click', () => {
+              overflowMenu.classList.add('hidden');
+              const target = document.getElementById(proxy.getAttribute('data-proxy-id'));
+              if (target) target.click();
+            });
+          });
+        } else {
+          overflowBtn.classList.add('hidden');
+          overflowMenu.classList.add('hidden');
+        }
+      }
+
+      // 2. Bottom Composer Toolbar responsive overflow (Model button ALWAYS visible!)
+      const compBar = document.getElementById('composerToolbar');
+      const compInline = document.getElementById('composerInlineTools');
+      const compOverflowBtn = document.getElementById('composerOverflowBtn');
+      const compOverflowMenu = document.getElementById('composerOverflowMenu');
+      if (compBar && compInline && compOverflowBtn && compOverflowMenu) {
+        const items = Array.from(compInline.children);
+        items.forEach(el => el.classList.remove('hidden'));
+        compOverflowBtn.classList.add('hidden');
+
+        const hiddenComp = [];
+        for (let i = items.length - 1; i >= 0; i--) {
+          const isOverflowing = compBar.scrollWidth > compBar.clientWidth + 1;
+          if (!isOverflowing) break;
+          items[i].classList.add('hidden');
+          hiddenComp.unshift(items[i]);
+          compOverflowBtn.classList.remove('hidden');
+        }
+
+        if (hiddenComp.length > 0) {
+          compOverflowBtn.classList.remove('hidden');
+          compOverflowMenu.innerHTML = hiddenComp.map(el => `
+            <button type="button" data-comp-proxy-id="${escapeHtml(el.id)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 text-xs text-slate-200 flex items-center justify-between gap-2">
+              <span>${escapeHtml(el.getAttribute('data-comp-label') || el.title || 'Tool')}</span>
+            </button>
+          `).join('');
+          compOverflowMenu.querySelectorAll('[data-comp-proxy-id]').forEach(proxy => {
+            proxy.addEventListener('click', () => {
+              compOverflowMenu.classList.add('hidden');
+              const target = document.getElementById(proxy.getAttribute('data-comp-proxy-id'));
+              if (target) target.click();
+            });
+          });
+        } else {
+          compOverflowBtn.classList.add('hidden');
+          compOverflowMenu.classList.add('hidden');
+        }
+      }
+    }
+
     async function runAgenticTurnLoop(userPrompt, isRetry = false) {
       const statusInd = document.getElementById('agentStatusIndicator');
       const sendBtn = document.getElementById('sendPromptBtn');
@@ -3710,12 +4468,12 @@
                     'You are a token-frugal, autonomous Microsoft Excel AI Agent operating inside an Office.js Task Pane.\n' +
                     `Scope Mode: ${appState.scanAllSheetsMode ? 'ALL SHEETS' : 'ACTIVE SHEET ONLY (Default to minimize token cost)'}.\n` +
                     `External workbooks attached: ${connectedNames.length ? connectedNames.join(', ') : 'None'}.\n` +
-                    'STRICT TOKEN-SAVING & COMPLETION RULES:\n' +
-                    '1. ACTIVE SHEET ONLY BY DEFAULT: Call `audit_workbook` (with `includeAllSheetsData: false`) once for a compact 25-row schema preview. NEVER read other worksheets unless explicitly requested.\n' +
-                    '2. ZERO-DUMP RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, ALWAYS call `reconcile_itc_books_vs_2b` directly! It runs 100% locally in Excel JavaScript and writes Remarks in 1 step with ~250 tokens.\n' +
-                    '3. NEVER RETURN RAW ROW ARRAYS FROM `execute_custom_officejs`: Do ALL matching, filtering, math, and Excel writes inside JavaScript and return ONLY compact summary counts (<= 15 sample items).\n' +
-                    '4. ONE-SHOT BATCH WRITES: Use `batch_write_excel_ranges` to write multiple cells/formulas in a SINGLE tool call.\n' +
-                    '5. ALWAYS DELIVER FINAL OUTPUT IN 2–4 STEPS: Immediately after writing/reconciling, output your concise final report.'
+                    'OPERATING RULES:\n' +
+                    '1. ACTIVE SHEET BY DEFAULT: Call `audit_workbook` (includeAllSheetsData: false) once for a 25-row preview. If the user references @SheetName in their message, inspect that referenced worksheet.\n' +
+                    '2. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, call `reconcile_itc_books_vs_2b` directly so all matching runs locally in Excel.\n' +
+                    '3. COMPACT SCRIPT OUTPUTS: Never return raw row arrays from `execute_custom_officejs`; perform loops and writes in JavaScript and return only compact summaries.\n' +
+                    '4. HANDLE AMBIGUITY INTERACTIVELY: Whenever instructions, column mappings, or tolerances are ambiguous, call `ask_user_clarification` with 2–4 clear options instead of guessing. The user can also provide their own view via Other.\n' +
+                    '5. FORMAL TONE: Respond in clear, plain, professional business language.'
                 }
               ]
             },
@@ -3763,7 +4521,7 @@
             const fullText = textParts.join('\n\n');
             appendLogCard({
               role: 'model',
-              title: switchedModel ? `${usedModelId} (Auto-Selected)` : usedModelId,
+              title: formatShortModelName(usedModelId),
               bodyHtml: escapeHtml(fullText),
               rawText: fullText,
               badgeText: costBadge,
@@ -3787,15 +4545,37 @@
             );
             let toolResult;
             try {
-              const rawResult = await executeExcelTool(fc);
-              toolResult = capToolResultSize(fc.name, rawResult, 4200);
+              if (fc.name === 'ask_user_clarification') {
+                updateThinkingPhase('Waiting for your input...', 'Select an option or enter your view in chat');
+                toolResult = await requestUserClarificationInChat(
+                  fc.args?.question,
+                  fc.args?.options,
+                  appState.abortController.signal
+                );
+              } else {
+                const needConfirm = appState.confirmEdits !== false && !appState.sessionAutoApproveEdits && MUTATING_EXCEL_TOOLS.has(fc.name);
+                let allowed = true;
+                if (needConfirm) {
+                  updateThinkingPhase('Awaiting edit approval...', describePlannedEdit(fc));
+                  allowed = await requestEditPermissionInChat(fc, appState.abortController.signal);
+                }
+                if (!allowed) {
+                  toolResult = {
+                    status: 'declined_by_user',
+                    note: 'The user declined this Excel edit. Do not retry the same edit without asking how they want to proceed.'
+                  };
+                } else {
+                  const rawResult = await executeExcelTool(fc);
+                  toolResult = capToolResultSize(fc.name, rawResult, 4200);
+                }
+              }
             } catch (toolErr) {
               toolResult = { error: toolErr.message };
             }
 
             appendLogCard({
               role: 'tool',
-              title: `${isWebTool ? 'WEB' : 'EXCEL'} // ${fc.name}`,
+              title: isWebTool ? 'Web Lookup' : 'Spreadsheet Action',
               isCollapsibleTool: true,
               toolSummary: `${fc.name}(${String(rawTarget).slice(0, 42)}) — ${costBadge}`,
               bodyHtml: `<div><strong>Args:</strong> ${escapeHtml(JSON.stringify(fc.args || {}))}</div><div><strong>Result:</strong> ${escapeHtml(JSON.stringify(toolResult))}</div>`
@@ -3987,10 +4767,10 @@
     function switchTab(activeTab) {
       const views = {
         agent: document.getElementById('viewAgent'),
-        rates: document.getElementById('viewRates'),
-        sheet: document.getElementById('viewSheet')
+        rates: document.getElementById('viewRates')
       };
       Object.keys(views).forEach(k => {
+        if (!views[k]) return;
         if (k === activeTab) {
           views[k].classList.remove('hidden');
           views[k].classList.add('flex');
@@ -3998,15 +4778,6 @@
           views[k].classList.add('hidden');
           views[k].classList.remove('flex');
         }
-      });
-    }
-
-    function bindQuickPromptButtons() {
-      document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
-        btn.onclick = () => {
-          const promptText = btn.getAttribute('data-prompt');
-          runAgenticTurnLoop(promptText);
-        };
       });
     }
 
@@ -4037,9 +4808,9 @@
       if (appState.models && appState.models.length > 0) {
         const cleanModels = filterAndSortModelsForUI(appState.models);
         populateModelDropdown(cleanModels);
-        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} chat models`;
+        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} synced`;
       } else {
-        renderCustomModelPopoverList('');
+        populateModelDropdown([]);
       }
 
       loadSharedWorkbookBridge();
@@ -4047,23 +4818,64 @@
       updateCostDisplay();
       recomputeVirtualSheet();
       updateHistoryBadgeAndList();
-      bindQuickPromptButtons();
+      updateModelHoverTooltip();
 
-      // Scope Mode Toggle (Active Sheet Only vs All Sheets)
-      const scopeBtn = document.getElementById('scopeModeToggleBtn');
-      scopeBtn.addEventListener('click', () => {
-        appState.scanAllSheetsMode = !appState.scanAllSheetsMode;
-        if (appState.scanAllSheetsMode) {
-          scopeBtn.textContent = '📚 All-Sheets';
-          scopeBtn.className = 'px-1.5 h-6 rounded-md bg-amber-950/80 hover:bg-amber-900/80 border border-amber-500/40 text-[10px] font-mono text-amber-300 shrink-0 transition';
-          scopeBtn.title = 'All-Sheets Mode Active (Click to switch back to Token-Saver 1-Sheet Mode)';
-        } else {
-          scopeBtn.textContent = '📄 1-Sheet';
-          scopeBtn.className = 'px-1.5 h-6 rounded-md bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 shrink-0 transition';
-          scopeBtn.title = 'Token Saver Scope: Active Sheet Only (Click to toggle All Sheets scan)';
-        }
+      // Responsive ResizeObserver for Zero-Overlap ⋯ Overflow Menus
+      const resizeObserver = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => layoutResponsiveToolbars())
+        : null;
+      if (resizeObserver) {
+        const hdr = document.getElementById('appHeaderBar');
+        const comp = document.getElementById('composerToolbar');
+        if (hdr) resizeObserver.observe(hdr);
+        if (comp) resizeObserver.observe(comp);
+      }
+      window.addEventListener('resize', layoutResponsiveToolbars);
+      setTimeout(layoutResponsiveToolbars, 60);
+
+      // Header ⋯ Overflow Toggle
+      const headerOverflowBtn = document.getElementById('headerOverflowBtn');
+      const headerOverflowMenu = document.getElementById('headerOverflowMenu');
+      headerOverflowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        headerOverflowMenu.classList.toggle('hidden');
       });
 
+      // Composer ⋯ Overflow Toggle
+      const compOverflowBtn = document.getElementById('composerOverflowBtn');
+      const compOverflowMenu = document.getElementById('composerOverflowMenu');
+      compOverflowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        compOverflowMenu.classList.toggle('hidden');
+      });
+
+      // Header Thinking Cap Selector (synced with Settings Thinking Cap)
+      const headerThinkSel = document.getElementById('headerThinkingCapSelect');
+      const settingsThinkSel = document.getElementById('thinkingBudgetSelect');
+      const applyThinkingCapChange = (val) => {
+        appState.pricing.thinkingBudget = Number(val);
+        safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
+        if (headerThinkSel) headerThinkSel.value = String(val);
+        if (settingsThinkSel) settingsThinkSel.value = String(val);
+        updateModelHoverTooltip();
+      };
+      if (headerThinkSel) {
+        headerThinkSel.addEventListener('change', () => applyThinkingCapChange(headerThinkSel.value));
+      }
+      if (settingsThinkSel) {
+        settingsThinkSel.addEventListener('change', () => applyThinkingCapChange(settingsThinkSel.value));
+      }
+
+      // Confirm Edits checkbox
+      const confirmEditsChk = document.getElementById('confirmEditsCheckbox');
+      if (confirmEditsChk) {
+        confirmEditsChk.addEventListener('change', () => {
+          appState.confirmEdits = confirmEditsChk.checked;
+          safeStorageSet(STORAGE_KEYS.CONFIRM_EDITS, appState.confirmEdits);
+        });
+      }
+
+      // External Workbooks Attach & Drag/Drop
       const fileInput = document.getElementById('externalWorkbookFileInput');
       document.getElementById('attachWorkbookBtn').addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', (e) => {
@@ -4072,9 +4884,7 @@
       });
 
       const dropZone = document.getElementById('appDropZone');
-      dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-      });
+      dropZone.addEventListener('dragover', (e) => e.preventDefault());
       dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -4085,18 +4895,18 @@
       document.getElementById('syncCurrentWorkbookBtn').addEventListener('click', broadcastCurrentWorkbookSnapshot);
       document.getElementById('undoLastAiBtn').addEventListener('click', undoLastAiMutation);
 
+      // Curated Model Popover & "More models..." Directory Modal
       const modelPopover = document.getElementById('customModelPopover');
       const modelTriggerBtn = document.getElementById('customModelTriggerBtn');
-      const modelFilterInput = document.getElementById('modelFilterInput');
+      const moreModelsModal = document.getElementById('moreModelsModalOverlay');
 
       modelTriggerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isHidden = modelPopover.classList.contains('hidden');
-        if (isHidden) {
-          modelFilterInput.value = '';
-          renderCustomModelPopoverList('');
+        document.getElementById('slashMenuPopover').classList.add('hidden');
+        document.getElementById('atSheetPopover').classList.add('hidden');
+        if (modelPopover.classList.contains('hidden')) {
+          renderCustomModelPopoverList();
           modelPopover.classList.remove('hidden');
-          setTimeout(() => modelFilterInput.focus(), 40);
         } else {
           modelPopover.classList.add('hidden');
         }
@@ -4106,22 +4916,108 @@
         modelPopover.classList.add('hidden');
       });
 
-      modelFilterInput.addEventListener('input', () => {
-        renderCustomModelPopoverList(modelFilterInput.value);
+      document.getElementById('openMoreModelsModalBtn').addEventListener('click', () => {
+        modelPopover.classList.add('hidden');
+        const searchIn = document.getElementById('allModelsSearchInput');
+        if (searchIn) searchIn.value = '';
+        renderAllModelsDirectory('');
+        moreModelsModal.classList.remove('hidden');
       });
 
+      document.getElementById('closeMoreModelsModalBtn').addEventListener('click', () => {
+        moreModelsModal.classList.add('hidden');
+      });
+
+      document.getElementById('allModelsSearchInput').addEventListener('input', (e) => {
+        renderAllModelsDirectory(e.target.value);
+      });
+
+      document.getElementById('syncModelsFromModalBtn').addEventListener('click', async () => {
+        await discoverGeminiModels();
+        renderAllModelsDirectory(document.getElementById('allModelsSearchInput').value);
+      });
+
+      // Slash Commands (/) Popover & Custom Prompt Creation
+      const slashPopover = document.getElementById('slashMenuPopover');
+      const addCustomForm = document.getElementById('addCustomPromptForm');
+      document.getElementById('slashTriggerBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('atSheetPopover').classList.add('hidden');
+        modelPopover.classList.add('hidden');
+        addCustomForm.classList.add('hidden');
+        if (slashPopover.classList.contains('hidden')) {
+          renderSlashMenu('');
+          slashPopover.classList.remove('hidden');
+        } else {
+          slashPopover.classList.add('hidden');
+        }
+      });
+      document.getElementById('closeSlashMenuBtn').addEventListener('click', () => slashPopover.classList.add('hidden'));
+      document.getElementById('showAddCustomPromptBtn').addEventListener('click', () => {
+        addCustomForm.classList.remove('hidden');
+        document.getElementById('customPromptNameInput').focus();
+      });
+      document.getElementById('cancelCustomPromptBtn').addEventListener('click', () => {
+        addCustomForm.classList.add('hidden');
+      });
+      document.getElementById('saveCustomPromptBtn').addEventListener('click', () => {
+        const rawName = document.getElementById('customPromptNameInput').value.trim().replace(/^\/+/, '').replace(/\s+/g, '-').toLowerCase();
+        const body = document.getElementById('customPromptBodyInput').value.trim();
+        if (!rawName || !body) return;
+        appState.customPrompts = [
+          {
+            id: 'custom_' + Date.now(),
+            name: rawName,
+            desc: body.slice(0, 65),
+            prompt: body,
+            builtin: false
+          },
+          ...(appState.customPrompts || [])
+        ];
+        safeStorageSet(STORAGE_KEYS.CUSTOM_PROMPTS, appState.customPrompts);
+        document.getElementById('customPromptNameInput').value = '';
+        document.getElementById('customPromptBodyInput').value = '';
+        addCustomForm.classList.add('hidden');
+        renderSlashMenu('');
+      });
+
+      // @ Worksheet Reference Picker
+      const atSheetPopover = document.getElementById('atSheetPopover');
+      document.getElementById('atSheetTriggerBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        modelPopover.classList.add('hidden');
+        slashPopover.classList.add('hidden');
+        if (atSheetPopover.classList.contains('hidden')) {
+          openAtSheetMenu('');
+        } else {
+          atSheetPopover.classList.add('hidden');
+        }
+      });
+      document.getElementById('closeAtSheetBtn').addEventListener('click', () => atSheetPopover.classList.add('hidden'));
+
+      // Close popovers on outside click
       document.addEventListener('click', (e) => {
-        if (!modelPopover.classList.contains('hidden')) {
-          if (!modelPopover.contains(e.target) && !modelTriggerBtn.contains(e.target)) {
-            modelPopover.classList.add('hidden');
-          }
+        if (!modelPopover.classList.contains('hidden') && !modelPopover.contains(e.target) && !modelTriggerBtn.contains(e.target)) {
+          modelPopover.classList.add('hidden');
+        }
+        if (!slashPopover.classList.contains('hidden') && !slashPopover.contains(e.target) && !document.getElementById('slashTriggerBtn').contains(e.target)) {
+          slashPopover.classList.add('hidden');
+        }
+        if (!atSheetPopover.classList.contains('hidden') && !atSheetPopover.contains(e.target) && !document.getElementById('atSheetTriggerBtn').contains(e.target)) {
+          atSheetPopover.classList.add('hidden');
+        }
+        if (!headerOverflowMenu.classList.contains('hidden') && !headerOverflowMenu.contains(e.target) && !headerOverflowBtn.contains(e.target)) {
+          headerOverflowMenu.classList.add('hidden');
+        }
+        if (!compOverflowMenu.classList.contains('hidden') && !compOverflowMenu.contains(e.target) && !compOverflowBtn.contains(e.target)) {
+          compOverflowMenu.classList.add('hidden');
         }
       });
 
+      // Navigation & Drawers
       document.getElementById('tabAgentBtn').addEventListener('click', () => switchTab('agent'));
       document.getElementById('tabRatesBtn').addEventListener('click', () => switchTab('rates'));
       document.getElementById('backToChatFromSettingsBtn').addEventListener('click', () => switchTab('agent'));
-      document.getElementById('tabSheetBtn').addEventListener('click', () => switchTab('sheet'));
 
       document.getElementById('newChatBtn').addEventListener('click', startNewChatSession);
       document.getElementById('newChatFromDrawerBtn').addEventListener('click', () => {
@@ -4156,22 +5052,50 @@
 
       document.getElementById('toggleKeyVisBtn').addEventListener('click', () => {
         const input = document.getElementById('apiKeyInput');
-        input.type = input.type === 'password' ? 'text' : 'password';
+        const btn = document.getElementById('toggleKeyVisBtn');
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.textContent = showing ? 'Show' : 'Hide';
       });
       document.getElementById('fetchModelsBtn').addEventListener('click', discoverGeminiModels);
-      document.getElementById('quickSyncModelsBtn').addEventListener('click', discoverGeminiModels);
       document.getElementById('onlyGenContentCheckbox').addEventListener('change', () => {
         const cleanModels = filterAndSortModelsForUI(appState.models);
         populateModelDropdown(cleanModels);
-        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} models`;
+        document.getElementById('modelCountBadge').textContent = `${cleanModels.length} synced`;
       });
       document.getElementById('modelSelect').addEventListener('change', onModelSelectionChanged);
       document.getElementById('insertSelectionBtn').addEventListener('click', insertActiveExcelSelection);
 
+      // Composer input: live `/` slash command & `@` sheet reference triggers
       const promptInput = document.getElementById('userPromptInput');
+      promptInput.addEventListener('input', () => {
+        const val = promptInput.value;
+        if (val.startsWith('/')) {
+          atSheetPopover.classList.add('hidden');
+          renderSlashMenu(val);
+          slashPopover.classList.remove('hidden');
+        } else {
+          slashPopover.classList.add('hidden');
+        }
+        const atMatch = val.match(/(?:^|\s)@([^\s@]*)$/);
+        if (atMatch) {
+          openAtSheetMenu(atMatch[1] || '');
+        } else if (!val.includes('@')) {
+          atSheetPopover.classList.add('hidden');
+        }
+      });
+
       promptInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          slashPopover.classList.add('hidden');
+          atSheetPopover.classList.add('hidden');
+          modelPopover.classList.add('hidden');
+          return;
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
+          slashPopover.classList.add('hidden');
+          atSheetPopover.classList.add('hidden');
           document.getElementById('promptForm').requestSubmit();
         }
       });
@@ -4181,16 +5105,11 @@
         const text = promptInput.value.trim();
         if (!text) return;
         promptInput.value = '';
+        slashPopover.classList.add('hidden');
+        atSheetPopover.classList.add('hidden');
         runAgenticTurnLoop(text);
       });
 
-      const thinkSelEl = document.getElementById('thinkingBudgetSelect');
-      if (thinkSelEl) {
-        thinkSelEl.addEventListener('change', () => {
-          appState.pricing.thinkingBudget = Number(thinkSelEl.value);
-          safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
-        });
-      }
       const gstBoxEl = document.getElementById('includeIndiaGstCheckbox');
       if (gstBoxEl) {
         gstBoxEl.addEventListener('change', () => {
@@ -4219,16 +5138,17 @@
             monthlyBudgetInr: Math.max(1, Number(document.getElementById('monthlyBudgetInrInput').value) || 500),
             includeIndiaGst: gstBox ? gstBox.checked : true,
             searchGroundingUsdPerQuery: Number(appState.pricing.searchGroundingUsdPerQuery ?? 0.014),
-            thinkingBudget: thinkSel ? Number(thinkSel.value) : 1024,
+            thinkingBudget: thinkSel ? Number(thinkSel.value) : 0,
             patternRules: Array.isArray(parsedRules) ? parsedRules : DEFAULT_PRICING_CONFIG.patternRules
           };
           safeStorageSet(STORAGE_KEYS.PRICING, appState.pricing);
           updateCostDisplay();
-          statusMsg.textContent = 'Saved dynamic INR tariff profile.';
-          statusMsg.className = 'text-[10px] font-mono text-emerald-400 mt-1';
+          updateModelHoverTooltip();
+          statusMsg.textContent = 'Rates saved.';
+          statusMsg.className = 'text-[10px] text-emerald-400 mt-1';
         } catch (err) {
-          statusMsg.textContent = `Invalid JSON in pattern rules: ${err.message}`;
-          statusMsg.className = 'text-[10px] font-mono text-rose-400 mt-1';
+          statusMsg.textContent = `Invalid JSON: ${err.message}`;
+          statusMsg.className = 'text-[10px] text-rose-400 mt-1';
         }
       });
 
@@ -4239,18 +5159,12 @@
           totalInputTokens: 0,
           totalOutputTokens: 0,
           totalThoughtsTokens: 0,
-          totalCachedTokens: 0
+          totalCachedTokens: 0,
+          totalSearchQueries: 0
         };
-        appState.session = { inr: 0, usd: 0, inputTokens: 0, outputTokens: 0, thoughtsTokens: 0, cachedTokens: 0, turnBreakdown: [] };
+        appState.session = { inr: 0, usd: 0, inputTokens: 0, outputTokens: 0, thoughtsTokens: 0, cachedTokens: 0, searchQueries: 0, turnBreakdown: [] };
         safeStorageSet(STORAGE_KEYS.LEDGER, appState.ledger);
         updateCostDisplay();
-      });
-
-      document.getElementById('resetSheetBtn').addEventListener('click', () => {
-        virtualSheet.values = JSON.parse(JSON.stringify(INITIAL_GRID));
-        virtualSheet.formulas = INITIAL_GRID.map(r => r.map(c => (typeof c === 'string' && c.startsWith('=') ? c : '')));
-        virtualSheet.highlights = {};
-        recomputeVirtualSheet();
       });
     }
 
@@ -4266,7 +5180,7 @@
           window.Office.onReady((info) => {
             if (info && info.host === window.Office.HostType.Excel) {
               appState.isExcelHost = true;
-              hostBadge.textContent = 'LIVE';
+              hostBadge.textContent = 'Excel';
               hostBadge.className = 'text-[8px] font-mono px-1 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
               broadcastCurrentWorkbookSnapshot();
             }
