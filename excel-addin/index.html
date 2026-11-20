@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Excel Assistant</title>
+  <title>Office Assistant</title>
+  <!-- Official Microsoft Office.js (must be in <head> for Word, Excel, PowerPoint & Outlook host handshake) -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <!-- SheetJS (xlsx) for instant multi-workbook .xlsx/.xls/.csv parsing & cross-file reconciliation -->
@@ -286,7 +288,7 @@
       <div id="welcomeStarterCard" class="p-3 rounded-xl bg-obsidian-900/75 border border-obsidian-800 space-y-1.5">
         <div class="text-xs font-semibold text-slate-200">Ready to assist</div>
         <p class="text-[11px] text-slate-400 leading-relaxed">
-          Type <span class="font-mono text-neon-cyan">/</span> to use or create saved prompts, or type <span class="font-mono text-amber-300">@</span> to reference a specific worksheet. Spreadsheet edits will ask for your approval before making changes.
+          Type <span class="font-mono text-neon-cyan">/</span> for saved prompts, or <span class="font-mono text-amber-300">@</span> to reference the active workbook, document, presentation, or email. Edits always ask for your approval first.
         </p>
       </div>
     </div>
@@ -375,7 +377,7 @@
         class="hidden absolute left-2.5 right-2.5 bottom-[96px] z-50 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-56"
       >
         <div class="flex items-center justify-between px-1 pb-1 border-b border-obsidian-800">
-          <span class="text-[11px] font-semibold text-slate-200">Reference Worksheet (<span class="font-mono text-amber-300">@</span>)</span>
+          <span class="text-[11px] font-semibold text-slate-200">Reference Active Workbook / Sheet (<span class="font-mono text-amber-300">@</span>)</span>
           <button id="closeAtSheetBtn" type="button" class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center">✕</button>
         </div>
         <div id="atSheetList" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
@@ -391,7 +393,7 @@
         <textarea
           id="userPromptInput"
           rows="2"
-          placeholder="Ask a question, type / for saved prompts, or @ to pick a sheet..."
+          placeholder="Ask a question, type / for prompts, or @ to reference active file..."
           class="selectable-text w-full bg-transparent text-xs text-slate-100 placeholder-slate-500 outline-none resize-none font-sans leading-relaxed"
         ></textarea>
 
@@ -1010,6 +1012,8 @@
 
     const appState = {
       isExcelHost: false,
+      officeHost: 'Preview', // 'Excel' | 'Word' | 'PowerPoint' | 'Outlook' | 'Preview'
+      activeDocumentTitle: '',
       // Default to Active-Sheet-Only mode so background sheets NEVER consume tokens unless requested!
       scanAllSheetsMode: false,
       currentWorkbookName: 'Active_Workbook.xlsx',
@@ -2009,6 +2013,177 @@
       }
     ];
 
+    // Universal Office Host Tool Sets (Only the active host's tools are sent to Gemini to minimize input tokens!)
+    const SHARED_OFFICE_TOOL_NAMES = new Set(['ask_user_clarification', 'google_web_search', 'fetch_web_page_or_api']);
+
+    const WORD_AGENT_DECLARATIONS = [
+      {
+        name: 'word_read_document',
+        description: 'Reads the active Microsoft Word document text, headings, and currently selected text (token-capped preview).',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            includeHeadingsOnly: {
+              type: 'BOOLEAN',
+              description: 'If true, returns only headings/outline and selected text to save tokens.'
+            }
+          }
+        }
+      },
+      {
+        name: 'word_insert_formatted_html',
+        description: 'PREFERRED FOR DOCUMENTS, RESOLUTIONS, LETTERS & MEMOS: Inserts richly formatted HTML directly into Microsoft Word with native alignment (center/justify/right), bold headings, fonts, spacing, borders, and signature blocks.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            htmlContent: {
+              type: 'STRING',
+              description: 'Clean HTML markup with inline CSS (e.g., font-family: Calibri, Arial; text-align: center/justify; line-height: 1.5; margin-bottom: 10px;) for exact Word layout and alignment.'
+            },
+            location: {
+              type: 'STRING',
+              description: 'Where to insert: "End" (default), "Start", "ReplaceSelection", or "ReplaceBody".'
+            }
+          },
+          required: ['htmlContent']
+        }
+      },
+      {
+        name: 'word_insert_or_replace_text',
+        description: 'Inserts or replaces text in the active Microsoft Word document at the current selection, start, or end.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            text: { type: 'STRING', description: 'Text content to insert.' },
+            location: {
+              type: 'STRING',
+              description: 'Where to insert: "ReplaceSelection" (default), "AfterSelection", "Start", or "End".'
+            }
+          },
+          required: ['text']
+        }
+      },
+      {
+        name: 'word_find_and_replace',
+        description: 'Finds and replaces all occurrences of a phrase across the active Microsoft Word document.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            searchText: { type: 'STRING', description: 'Exact text to find.' },
+            replaceText: { type: 'STRING', description: 'Replacement text.' },
+            matchCase: { type: 'BOOLEAN', description: 'Case-sensitive match (default false).' }
+          },
+          required: ['searchText', 'replaceText']
+        }
+      },
+      {
+        name: 'word_insert_table',
+        description: 'Inserts a formatted native Word table at the end of the document or current selection.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            rows: {
+              type: 'ARRAY',
+              description: '2D array of strings (first row is header).',
+              items: { type: 'ARRAY', items: { type: 'STRING' } }
+            },
+            location: { type: 'STRING', description: '"Selection" or "End" (default "End").' }
+          },
+          required: ['rows']
+        }
+      },
+      {
+        name: 'word_add_comment',
+        description: 'Adds a review comment on the currently selected text in Word.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            commentText: { type: 'STRING', description: 'Review comment text.' }
+          },
+          required: ['commentText']
+        }
+      },
+      {
+        name: 'execute_custom_wordjs',
+        description: 'Executes custom Word.run(async (context) => { ... }) JavaScript for advanced formatting or layout operations. Return only a compact summary.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            description: { type: 'STRING', description: 'Short summary of what the script does.' },
+            asyncFunctionBody: { type: 'STRING', description: 'Async body with `context` and `Word` in scope.' }
+          },
+          required: ['description', 'asyncFunctionBody']
+        }
+      }
+    ];
+
+    const PPT_AGENT_DECLARATIONS = [
+      {
+        name: 'ppt_read_presentation',
+        description: 'Reads the active Microsoft PowerPoint presentation slide count, titles, and text shapes (token-capped).',
+        parameters: { type: 'OBJECT', properties: {} }
+      },
+      {
+        name: 'ppt_add_slide',
+        description: 'Adds a new slide to the active PowerPoint presentation with an optional title and bullet text.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING', description: 'Slide title.' },
+            bodyText: { type: 'STRING', description: 'Slide body or bullet points separated by newlines.' }
+          },
+          required: ['title']
+        }
+      },
+      {
+        name: 'ppt_insert_text_on_slide',
+        description: 'Inserts text onto the currently selected shape or active slide in PowerPoint.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            text: { type: 'STRING', description: 'Text to insert on the active slide.' }
+          },
+          required: ['text']
+        }
+      }
+    ];
+
+    const OUTLOOK_AGENT_DECLARATIONS = [
+      {
+        name: 'outlook_read_email',
+        description: 'Reads the active Microsoft Outlook email subject, sender, recipients, and body text.',
+        parameters: { type: 'OBJECT', properties: {} }
+      },
+      {
+        name: 'outlook_insert_reply_or_draft',
+        description: 'Inserts drafted reply text (and optional subject) into the active Outlook compose message.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            bodyText: { type: 'STRING', description: 'Email body text to insert.' },
+            subject: { type: 'STRING', description: 'Optional subject line (compose mode only).' },
+            mode: { type: 'STRING', description: '"Prepend" (default) or "ReplaceSelection".' }
+          },
+          required: ['bodyText']
+        }
+      }
+    ];
+
+    function getToolsForCurrentHost() {
+      const allExcelDecls = (EXCEL_AGENT_TOOLS[0] && EXCEL_AGENT_TOOLS[0].functionDeclarations) || [];
+      const sharedDecls = allExcelDecls.filter(d => SHARED_OFFICE_TOOL_NAMES.has(d.name));
+      if (appState.officeHost === 'Word') {
+        return [{ functionDeclarations: [...sharedDecls, ...WORD_AGENT_DECLARATIONS] }];
+      }
+      if (appState.officeHost === 'PowerPoint') {
+        return [{ functionDeclarations: [...sharedDecls, ...PPT_AGENT_DECLARATIONS] }];
+      }
+      if (appState.officeHost === 'Outlook') {
+        return [{ functionDeclarations: [...sharedDecls, ...OUTLOOK_AGENT_DECLARATIONS] }];
+      }
+      return EXCEL_AGENT_TOOLS;
+    }
+
     /*************************************************************************
      * 5B. LIVE GOOGLE WEB SEARCH & MULTI-WORKBOOK EXECUTORS
      *************************************************************************/
@@ -2205,6 +2380,225 @@
 
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
+
+      // ---------- MICROSOFT WORD TOOLS (Word.run) ----------
+      if (name.startsWith('word_') || name === 'execute_custom_wordjs') {
+        if (!window.Word || typeof window.Word.run !== 'function') {
+          return { status: 'error', message: 'Open this add-in inside Microsoft Word to run Word document actions.' };
+        }
+        return await window.Word.run(async (context) => {
+          const body = context.document.body;
+          const sel = context.document.getSelection();
+
+          if (name === 'word_read_document') {
+            body.load('text');
+            sel.load('text');
+            const paras = body.paragraphs;
+            paras.load('items/text,items/style');
+            await context.sync();
+            const headings = paras.items
+              .filter(p => /heading|title/i.test(String(p.style || '')))
+              .map(p => p.text.trim())
+              .filter(Boolean)
+              .slice(0, 40);
+            if (args.includeHeadingsOnly) {
+              return {
+                host: 'Word',
+                selectedText: (sel.text || '').slice(0, 1200),
+                headings,
+                totalParagraphs: paras.items.length
+              };
+            }
+            return {
+              host: 'Word',
+              selectedText: (sel.text || '').slice(0, 1200),
+              headings,
+              totalParagraphs: paras.items.length,
+              bodyPreview: (body.text || '').slice(0, 3200)
+            };
+          }
+
+          if (name === 'word_insert_formatted_html') {
+            const loc = args.location || 'End';
+            const markup = String(args.htmlContent || '');
+            if (loc === 'ReplaceBody') {
+              body.clear();
+              body.insertHtml(markup, window.Word.InsertLocation.start);
+            } else if (loc === 'Start') {
+              body.insertHtml(markup, window.Word.InsertLocation.start);
+            } else if (loc === 'ReplaceSelection') {
+              sel.insertHtml(markup, window.Word.InsertLocation.replace);
+            } else {
+              body.insertHtml(markup, window.Word.InsertLocation.end);
+            }
+            await context.sync();
+            return { status: 'word_formatted_html_inserted', location: loc, charsWritten: markup.length };
+          }
+
+          if (name === 'word_insert_or_replace_text') {
+            const loc = args.location || 'ReplaceSelection';
+            if (loc === 'Start') body.insertText(args.text, window.Word.InsertLocation.start);
+            else if (loc === 'End') body.insertText('\n' + args.text, window.Word.InsertLocation.end);
+            else if (loc === 'AfterSelection') sel.insertText(args.text, window.Word.InsertLocation.after);
+            else sel.insertText(args.text, window.Word.InsertLocation.replace);
+            await context.sync();
+            return { status: 'word_text_updated', location: loc, charsWritten: String(args.text || '').length };
+          }
+
+          if (name === 'word_find_and_replace') {
+            const results = body.search(args.searchText, { matchCase: Boolean(args.matchCase) });
+            results.load('items');
+            await context.sync();
+            results.items.forEach(item => item.insertText(args.replaceText, window.Word.InsertLocation.replace));
+            await context.sync();
+            return { status: 'word_find_replace_done', replacementsCount: results.items.length };
+          }
+
+          if (name === 'word_insert_table') {
+            const rows = Array.isArray(args.rows) ? args.rows : [];
+            if (!rows.length) return { status: 'error', message: 'No rows provided for Word table.' };
+            const cols = rows.reduce((m, r) => Math.max(m, Array.isArray(r) ? r.length : 0), 1);
+            const normalized = rows.map(r => Array.from({ length: cols }, (_, i) => String((r && r[i]) ?? '')));
+            const target = args.location === 'Selection' ? sel : body;
+            target.insertTable(normalized.length, cols, args.location === 'Selection' ? window.Word.InsertLocation.after : window.Word.InsertLocation.end, normalized);
+            await context.sync();
+            return { status: 'word_table_inserted', rows: normalized.length, columns: cols };
+          }
+
+          if (name === 'word_add_comment') {
+            if (typeof sel.insertComment === 'function') {
+              sel.insertComment(args.commentText);
+              await context.sync();
+              return { status: 'word_comment_added' };
+            }
+            return { status: 'error', message: 'Word Comments API requires a newer version of Microsoft Word.' };
+          }
+
+          if (name === 'execute_custom_wordjs') {
+            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+            const fn = new AsyncFunction('context', 'Word', args.asyncFunctionBody);
+            const out = await fn(context, window.Word);
+            await context.sync();
+            return { status: 'custom_wordjs_executed', description: args.description, result: out || 'completed' };
+          }
+
+          throw new Error(`Unknown Word tool: ${name}`);
+        });
+      }
+
+      // ---------- MICROSOFT POWERPOINT TOOLS (PowerPoint.run / Office.js) ----------
+      if (name.startsWith('ppt_')) {
+        if (name === 'ppt_read_presentation') {
+          if (window.PowerPoint && typeof window.PowerPoint.run === 'function') {
+            try {
+              return await window.PowerPoint.run(async (context) => {
+                const slides = context.presentation.slides;
+                slides.load('items/id');
+                await context.sync();
+                const summaries = [];
+                const limit = Math.min(slides.items.length, 15);
+                for (let i = 0; i < limit; i++) {
+                  const shapes = slides.items[i].shapes;
+                  shapes.load('items/name,items/textFrame/textRange/text');
+                  await context.sync().catch(() => {});
+                  const texts = [];
+                  for (const sh of (shapes.items || [])) {
+                    try {
+                      if (sh.textFrame && sh.textFrame.textRange && sh.textFrame.textRange.text) {
+                        texts.push(sh.textFrame.textRange.text.trim());
+                      }
+                    } catch (_) {}
+                  }
+                  summaries.push({ slide: i + 1, text: texts.filter(Boolean).join(' | ').slice(0, 260) });
+                }
+                return { host: 'PowerPoint', totalSlides: slides.items.length, slidesPreview: summaries };
+              });
+            } catch (err) {
+              return { host: 'PowerPoint', note: `Partial read: ${err.message}` };
+            }
+          }
+          return { status: 'error', message: 'Open this add-in inside Microsoft PowerPoint to read slides.' };
+        }
+
+        if (name === 'ppt_add_slide') {
+          if (window.PowerPoint && typeof window.PowerPoint.run === 'function') {
+            return await window.PowerPoint.run(async (context) => {
+              context.presentation.slides.add();
+              await context.sync();
+              const slides = context.presentation.slides;
+              slides.load('items');
+              await context.sync();
+              const newSlide = slides.items[slides.items.length - 1];
+              if (newSlide && newSlide.shapes && typeof newSlide.shapes.addTextBox === 'function') {
+                const content = args.bodyText ? `${args.title}\n\n${args.bodyText}` : String(args.title || '');
+                newSlide.shapes.addTextBox(content, { left: 48, top: 48, width: 620, height: 400 });
+                await context.sync();
+              }
+              return { status: 'ppt_slide_added', slideNumber: slides.items.length, title: args.title };
+            });
+          }
+          return { status: 'error', message: 'Open this add-in inside Microsoft PowerPoint to add slides.' };
+        }
+
+        if (name === 'ppt_insert_text_on_slide') {
+          return await new Promise((resolve) => {
+            if (!window.Office || !window.Office.context || !window.Office.context.document) {
+              resolve({ status: 'error', message: 'Open inside Microsoft PowerPoint to insert text.' });
+              return;
+            }
+            window.Office.context.document.setSelectedDataAsync(String(args.text || ''), (res) => {
+              if (res.status === window.Office.AsyncResultStatus.Succeeded) {
+                resolve({ status: 'ppt_text_inserted', chars: String(args.text || '').length });
+              } else {
+                resolve({ status: 'error', message: res.error?.message || 'Select a text box on the slide first.' });
+              }
+            });
+          });
+        }
+      }
+
+      // ---------- MICROSOFT OUTLOOK TOOLS (Office.context.mailbox.item) ----------
+      if (name.startsWith('outlook_')) {
+        const item = window.Office && window.Office.context && window.Office.context.mailbox && window.Office.context.mailbox.item;
+        if (!item) {
+          return { status: 'error', message: 'Open this add-in inside Microsoft Outlook on an email message.' };
+        }
+        if (name === 'outlook_read_email') {
+          const subjectVal = await new Promise((resolve) => {
+            if (typeof item.subject === 'string') resolve(item.subject);
+            else if (item.subject && typeof item.subject.getAsync === 'function') {
+              item.subject.getAsync(r => resolve(r.value || ''));
+            } else resolve('');
+          });
+          const bodyVal = await new Promise((resolve) => {
+            item.body.getAsync(window.Office.CoercionType.Text, (r) => resolve(r.value || ''));
+          });
+          return {
+            host: 'Outlook',
+            subject: subjectVal,
+            from: item.from ? `${item.from.displayName || ''} <${item.from.emailAddress || ''}>` : '',
+            bodyPreview: String(bodyVal || '').slice(0, 3200)
+          };
+        }
+        if (name === 'outlook_insert_reply_or_draft') {
+          if (args.subject && item.subject && typeof item.subject.setAsync === 'function') {
+            await new Promise((resolve) => item.subject.setAsync(args.subject, () => resolve()));
+          }
+          const result = await new Promise((resolve) => {
+            const fn = args.mode === 'ReplaceSelection' && item.body.setSelectedDataAsync
+              ? item.body.setSelectedDataAsync.bind(item.body)
+              : item.body.prependAsync.bind(item.body);
+            fn(String(args.bodyText || ''), { coercionType: window.Office.CoercionType.Text }, (r) => {
+              if (r.status === window.Office.AsyncResultStatus.Succeeded) {
+                resolve({ status: 'outlook_draft_inserted' });
+              } else {
+                resolve({ status: 'error', message: r.error?.message || 'Switch to Reply/Compose mode to insert text.' });
+              }
+            });
+          });
+          return result;
+        }
+      }
 
       if (name === 'google_web_search') {
         return await executeGoogleGroundedWebSearch(args.query || '');
@@ -4061,7 +4455,16 @@
       'manage_worksheet',
       'format_excel_range',
       'highlight_audit_cells',
-      'execute_custom_officejs'
+      'execute_custom_officejs',
+      'word_insert_formatted_html',
+      'word_insert_or_replace_text',
+      'word_find_and_replace',
+      'word_insert_table',
+      'word_add_comment',
+      'execute_custom_wordjs',
+      'ppt_add_slide',
+      'ppt_insert_text_on_slide',
+      'outlook_insert_reply_or_draft'
     ]);
 
     function describePlannedEdit(fc) {
@@ -4095,7 +4498,35 @@
       if (fc.name === 'execute_custom_officejs') {
         return a.description || 'Run custom spreadsheet update script.';
       }
-      return `Modify spreadsheet via ${fc.name}.`;
+      if (fc.name === 'word_insert_formatted_html') {
+        return `Insert formatted content into the Word document (${a.location || 'End'}).`;
+      }
+      if (fc.name === 'word_insert_or_replace_text') {
+        return `Insert text into the Word document (${a.location || 'ReplaceSelection'}).`;
+      }
+      if (fc.name === 'word_find_and_replace') {
+        return `Replace "${a.searchText || ''}" with "${a.replaceText || ''}" in Word.`;
+      }
+      if (fc.name === 'word_insert_table') {
+        const rCount = Array.isArray(a.rows) ? a.rows.length : 0;
+        return `Insert a ${rCount}-row table into the Word document.`;
+      }
+      if (fc.name === 'word_add_comment') {
+        return 'Add a review comment to the selected text in Word.';
+      }
+      if (fc.name === 'execute_custom_wordjs') {
+        return a.description || 'Run custom Word formatting script.';
+      }
+      if (fc.name === 'ppt_add_slide') {
+        return `Add a new slide ("${a.title || 'New Slide'}") to PowerPoint.`;
+      }
+      if (fc.name === 'ppt_insert_text_on_slide') {
+        return 'Insert text onto the active PowerPoint slide.';
+      }
+      if (fc.name === 'outlook_insert_reply_or_draft') {
+        return 'Insert drafted email text into the active Outlook message.';
+      }
+      return `Modify active Office file via ${fc.name}.`;
     }
 
     function requestEditPermissionInChat(fc, signal) {
@@ -4377,17 +4808,20 @@
       if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         try {
           await window.Excel.run(async (context) => {
-            const sheets = context.workbook.worksheets;
+            const wb = context.workbook;
+            const sheets = wb.worksheets;
             const active = sheets.getActiveWorksheet();
+            wb.load('name');
             sheets.load('items/name');
             active.load('name');
             await context.sync();
+            if (wb.name) appState.currentWorkbookName = wb.name;
             appState.activeWorksheetName = active.name;
             appState.workbookSheetNames = sheets.items.map(s => s.name);
           });
           return;
         } catch (err) {
-          // Fall back to cached active workbook sheet list
+          // Fall back to cached active workbook info
         }
       }
       if (!appState.workbookSheetNames.length) {
@@ -4396,27 +4830,67 @@
       }
     }
 
-    // @ shows ONLY worksheets of the Active Workbook (never recent/cached external workbooks)
+    // @ shows the Active Office File (Excel Workbook+Sheets, Word Document+Headings, PowerPoint Slides, or Outlook Email)
     async function openAtSheetMenu(filterQuery = '') {
       const pop = document.getElementById('atSheetPopover');
       const listEl = document.getElementById('atSheetList');
       if (!pop || !listEl) return;
-      await refreshWorkbookSheetNames();
-
       const q = (filterQuery || '').trim().toLowerCase();
-      const activeName = appState.activeWorksheetName;
-      const orderedSheets = [
-        ...(activeName ? [activeName] : []),
-        ...appState.workbookSheetNames.filter(n => n !== activeName)
-      ];
+      let items = [];
 
-      const items = orderedSheets
-        .map(name => ({
-          label: name,
-          badge: name === activeName ? 'Active' : 'Sheet',
-          insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
-        }))
-        .filter(item => !q || item.label.toLowerCase().includes(q));
+      if (appState.officeHost === 'Word' && window.Word && typeof window.Word.run === 'function') {
+        items.push({ label: 'Active Word Document', badge: 'Document', insertText: '@ActiveDocument ' });
+        try {
+          await window.Word.run(async (context) => {
+            const paras = context.document.body.paragraphs;
+            paras.load('items/text,items/style');
+            await context.sync();
+            paras.items
+              .filter(p => /heading|title/i.test(String(p.style || '')) && p.text.trim())
+              .slice(0, 20)
+              .forEach(p => {
+                const h = p.text.trim().slice(0, 48);
+                items.push({ label: h, badge: 'Section', insertText: `@'${h}' ` });
+              });
+          });
+        } catch (_) {}
+      } else if (appState.officeHost === 'PowerPoint' && window.PowerPoint && typeof window.PowerPoint.run === 'function') {
+        items.push({ label: 'Active Presentation', badge: 'Slides', insertText: '@ActivePresentation ' });
+        try {
+          await window.PowerPoint.run(async (context) => {
+            const slides = context.presentation.slides;
+            slides.load('items');
+            await context.sync();
+            slides.items.slice(0, 30).forEach((_, i) => {
+              items.push({ label: `Slide ${i + 1}`, badge: 'Slide', insertText: `@Slide${i + 1} ` });
+            });
+          });
+        } catch (_) {}
+      } else if (appState.officeHost === 'Outlook') {
+        items.push({ label: 'Current Email Message', badge: 'Email', insertText: '@CurrentEmail ' });
+      } else {
+        await refreshWorkbookSheetNames();
+        const wbName = appState.currentWorkbookName || 'Active_Workbook.xlsx';
+        const activeName = appState.activeWorksheetName;
+        const orderedSheets = [
+          ...(activeName ? [activeName] : []),
+          ...appState.workbookSheetNames.filter(n => n !== activeName)
+        ];
+        items = [
+          {
+            label: wbName,
+            badge: 'Workbook',
+            insertText: `@${/\s/.test(wbName) ? `'${wbName}'` : wbName} `
+          },
+          ...orderedSheets.map(name => ({
+            label: name,
+            badge: name === activeName ? 'Active' : 'Sheet',
+            insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
+          }))
+        ];
+      }
+
+      items = items.filter(item => !q || item.label.toLowerCase().includes(q) || item.badge.toLowerCase().includes(q));
 
       if (!items.length) {
         listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching worksheets in active workbook.</div>';
@@ -4425,7 +4899,11 @@
           <button type="button" data-insert-sheet="${escapeHtml(it.insertText)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
             <span class="truncate">${escapeHtml(it.label)}</span>
             <span class="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 border ${
-              it.badge === 'Active' ? 'text-emerald-300 border-emerald-500/40' : 'text-slate-400 border-obsidian-700'
+              it.badge === 'Workbook'
+                ? 'text-amber-300 border-amber-500/40'
+                : it.badge === 'Active'
+                ? 'text-emerald-300 border-emerald-500/40'
+                : 'text-slate-400 border-obsidian-700'
             } shrink-0">${it.badge}</span>
           </button>
         `).join('');
@@ -4568,6 +5046,7 @@
     }
 
     async function runAgenticTurnLoop(userPrompt, isRetry = false) {
+      if (appState.officeHost === 'Preview') applyDetectedOfficeHost(null);
       const statusInd = document.getElementById('agentStatusIndicator');
       const sendBtn = document.getElementById('sendPromptBtn');
       sendBtn.disabled = true;
@@ -4583,7 +5062,7 @@
           title: 'YOU',
           bodyHtml: escapeHtml(userPrompt),
           rawText: userPrompt,
-          badgeText: appState.isExcelHost ? 'Excel.run' : 'Simulator',
+          badgeText: appState.officeHost || 'Preview',
           badgeColor: 'text-neon-cyan'
         });
       }
@@ -4649,20 +5128,36 @@
               parts: [
                 {
                   text:
-                    'You are a token-frugal, autonomous Microsoft Excel AI Agent operating inside an Office.js Task Pane.\n' +
+                    `You are a formal, token-frugal Microsoft ${appState.officeHost === 'Preview' ? 'Office' : appState.officeHost} Assistant operating inside an Office.js Task Pane.\n` +
                     `Scope Mode: ${appState.scanAllSheetsMode ? 'ALL SHEETS' : 'ACTIVE SHEET ONLY (Default to minimize token cost)'}.\n` +
                     `External workbooks attached: ${connectedNames.length ? connectedNames.join(', ') : 'None'}.\n` +
-                    'OPERATING RULES:\n' +
-                    '1. ACTIVE SHEET BY DEFAULT: Call `audit_workbook` (includeAllSheetsData: false) once for a 25-row preview. If the user references @SheetName in their message, inspect that referenced worksheet.\n' +
-                    '2. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, call `reconcile_itc_books_vs_2b` directly so all matching runs locally in Excel.\n' +
-                    '3. COMPACT SCRIPT OUTPUTS: Never return raw row arrays from `execute_custom_officejs`; perform loops and writes in JavaScript and return only compact summaries.\n' +
-                    '4. HANDLE AMBIGUITY INTERACTIVELY: Whenever instructions, column mappings, or tolerances are ambiguous, call `ask_user_clarification` with 2–4 clear options instead of guessing. The user can also provide their own view via Other.\n' +
-                    '5. FORMAL TONE: Respond in clear, plain, professional business language.'
+                    (appState.officeHost === 'Word'
+                      ? 'MICROSOFT WORD OPERATING RULES:\n' +
+                        '1. WRITE DIRECTLY INTO WORD: Use `word_insert_formatted_html` with clean inline CSS (centered bold headings, justified body paragraphs, crisp spacing, signature blocks) to insert resolutions, letters, memos, and reports directly into the active Word document.\n' +
+                        '2. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
+                        '3. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing (e.g. company name, DIN, signatories), you may call `ask_user_clarification` with clear options or insert clean brackets and list what to fill.\n' +
+                        '4. FORMAL TONE: Use clear, formal, professional language.'
+                      : appState.officeHost === 'PowerPoint'
+                      ? 'MICROSOFT POWERPOINT OPERATING RULES:\n' +
+                        '1. Use `ppt_read_presentation`, `ppt_add_slide`, and `ppt_insert_text_on_slide` to read and edit slides directly.\n' +
+                        '2. Call `ask_user_clarification` when slide structure or content choices are ambiguous.\n' +
+                        '3. Use formal, concise business language.'
+                      : appState.officeHost === 'Outlook'
+                      ? 'MICROSOFT OUTLOOK OPERATING RULES:\n' +
+                        '1. Use `outlook_read_email` to read the active message and `outlook_insert_reply_or_draft` to insert drafted replies directly into Outlook.\n' +
+                        '2. Call `ask_user_clarification` if tone or reply direction is ambiguous.\n' +
+                        '3. Use formal, clear business language.'
+                      : 'OPERATING RULES:\n' +
+                        '1. ACTIVE WORKBOOK & @ REFERENCES: Call `audit_workbook` (includeAllSheetsData: false) once to inspect the active workbook structure and active sheet. If the user references `@SheetName`, read data from that worksheet via `read_excel_range`. If the user references the active workbook (`@WorkbookName`) to bring data without specifying which sheet and multiple sheets exist, call `ask_user_clarification` with the relevant worksheet names so the user can pick the sheet (or specify another via Other).\n' +
+                        '2. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, call `reconcile_itc_books_vs_2b` directly so all matching runs locally in Excel.\n' +
+                        '3. COMPACT SCRIPT OUTPUTS: Never return raw row arrays from `execute_custom_officejs`; perform loops and writes in JavaScript and return only compact summaries.\n' +
+                        '4. HANDLE AMBIGUITY INTERACTIVELY: Whenever instructions, column mappings, or tolerances are ambiguous, call `ask_user_clarification` with 2–4 clear options instead of guessing. The user can also provide their own view via Other.\n' +
+                        '5. FORMAL TONE: Respond in clear, plain, professional business language.')
                 }
               ]
             },
             contents: appState.conversationHistory,
-            tools: isFinalForcedSynthesisTurn ? undefined : EXCEL_AGENT_TOOLS,
+            tools: isFinalForcedSynthesisTurn ? undefined : getToolsForCurrentHost(),
             generationConfig: genConfig
           };
 
@@ -4968,7 +5463,27 @@
 
     async function insertActiveExcelSelection() {
       const textarea = document.getElementById('userPromptInput');
-      if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
+      if (appState.officeHost === 'Word' && window.Word && typeof window.Word.run === 'function') {
+        try {
+          await window.Word.run(async (context) => {
+            const sel = context.document.getSelection();
+            sel.load('text');
+            await context.sync();
+            const snippet = (sel.text || '').trim().slice(0, 60);
+            textarea.value = `${textarea.value} [Selection: "${snippet || 'Current cursor'}"] `.trimStart();
+            textarea.focus();
+          });
+          return;
+        } catch (_) {}
+      } else if (appState.officeHost === 'PowerPoint') {
+        textarea.value = `${textarea.value} [Active Slide] `.trimStart();
+        textarea.focus();
+        return;
+      } else if (appState.officeHost === 'Outlook') {
+        textarea.value = `${textarea.value} [Current Email] `.trimStart();
+        textarea.focus();
+        return;
+      } else if (appState.isExcelHost && window.Excel && typeof window.Excel.run === 'function') {
         try {
           await window.Excel.run(async (context) => {
             const range = context.workbook.getSelectedRange();
@@ -4978,9 +5493,7 @@
             textarea.focus();
           });
           return;
-        } catch (err) {
-          // Fallback if selection read fails
-        }
+        } catch (_) {}
       }
       textarea.value = `${textarea.value} [Range A1:F7] `.trimStart();
       textarea.focus();
@@ -5366,29 +5879,61 @@
       });
     }
 
+    function applyDetectedOfficeHost(hostVal) {
+      const hostBadge = document.getElementById('hostBadge');
+      const HT = (window.Office && window.Office.HostType) || {};
+      let resolved = hostVal || (window.Office && window.Office.context && window.Office.context.host) || null;
+
+      if (!resolved) {
+        if (window.Word && typeof window.Word.run === 'function') resolved = HT.Word || 'Word';
+        else if (window.Excel && typeof window.Excel.run === 'function') resolved = HT.Excel || 'Excel';
+        else if (window.PowerPoint && typeof window.PowerPoint.run === 'function') resolved = HT.PowerPoint || 'PowerPoint';
+        else if (window.Office && window.Office.context && window.Office.context.mailbox) resolved = HT.Outlook || 'Outlook';
+      }
+
+      if (resolved === HT.Excel || resolved === 'Excel') {
+        appState.isExcelHost = true;
+        appState.officeHost = 'Excel';
+        if (hostBadge) {
+          hostBadge.textContent = 'Excel';
+          hostBadge.className = 'text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 shrink-0';
+        }
+        broadcastCurrentWorkbookSnapshot();
+      } else if (resolved === HT.Word || resolved === 'Word') {
+        appState.isExcelHost = false;
+        appState.officeHost = 'Word';
+        if (hostBadge) {
+          hostBadge.textContent = 'Word';
+          hostBadge.className = 'text-[9px] font-medium px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-500/40 shrink-0';
+        }
+      } else if (resolved === HT.PowerPoint || resolved === 'PowerPoint') {
+        appState.isExcelHost = false;
+        appState.officeHost = 'PowerPoint';
+        if (hostBadge) {
+          hostBadge.textContent = 'Slides';
+          hostBadge.className = 'text-[9px] font-medium px-1.5 py-0.5 rounded bg-orange-950 text-orange-300 border border-orange-500/40 shrink-0';
+        }
+      } else if (resolved === HT.Outlook || resolved === 'Outlook') {
+        appState.isExcelHost = false;
+        appState.officeHost = 'Outlook';
+        if (hostBadge) {
+          hostBadge.textContent = 'Outlook';
+          hostBadge.className = 'text-[9px] font-medium px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-500/40 shrink-0';
+        }
+      }
+      layoutResponsiveToolbars();
+    }
+
     (function bootstrapOfficeOrStandalone() {
       initAppUI();
-      const hostBadge = document.getElementById('hostBadge');
-
-      const officeScript = document.createElement('script');
-      officeScript.src = 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js';
-      officeScript.async = true;
-      officeScript.onload = () => {
-        if (window.Office && typeof window.Office.onReady === 'function') {
-          window.Office.onReady((info) => {
-            if (info && info.host === window.Office.HostType.Excel) {
-              appState.isExcelHost = true;
-              hostBadge.textContent = 'Excel';
-              hostBadge.className = 'text-[8px] font-mono px-1 py-0.5 rounded bg-emerald-950 text-neon-cyan border border-teal-400/40';
-              broadcastCurrentWorkbookSnapshot();
-            }
-          });
-        }
-      };
-      officeScript.onerror = () => {
-        // Standalone browser / Canvas preview mode
-      };
-      document.head.appendChild(officeScript);
+      // 1. Register official Office.onReady handshake (works reliably now that office.js is in <head>)
+      if (window.Office && typeof window.Office.onReady === 'function') {
+        window.Office.onReady((info) => {
+          applyDetectedOfficeHost(info && info.host);
+        });
+      }
+      // 2. Fallback check in case Office.context initialized synchronously
+      setTimeout(() => applyDetectedOfficeHost(null), 400);
     })();
   </script>
 </body>
