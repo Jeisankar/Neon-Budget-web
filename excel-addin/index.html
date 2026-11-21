@@ -377,7 +377,7 @@
         class="hidden absolute left-2.5 right-2.5 bottom-[96px] z-50 bg-obsidian-900 border border-obsidian-600 rounded-xl shadow-2xl p-2 flex flex-col gap-1.5 max-h-56"
       >
         <div class="flex items-center justify-between px-1 pb-1 border-b border-obsidian-800">
-          <span class="text-[11px] font-semibold text-slate-200">Reference Active Workbook / Sheet (<span class="font-mono text-amber-300">@</span>)</span>
+          <span id="atPickerHeading" class="text-[11px] font-semibold text-slate-200">Select Workbook (<span class="font-mono text-amber-300">@</span>)</span>
           <button id="closeAtSheetBtn" type="button" class="w-5 h-5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 text-[10px] flex items-center justify-center">✕</button>
         </div>
         <div id="atSheetList" class="overflow-y-auto space-y-0.5 pr-0.5"></div>
@@ -1166,18 +1166,39 @@
       return { sheetName: parsedSheet, cleanAddress: cleanAddress || 'A1' };
     }
 
+    const LIVE_WORKBOOK_TTL_MS = 35000;
+    let workbookHeartbeatTimer = null;
     let crossWorkbookChannel = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         crossWorkbookChannel = new BroadcastChannel('neon_excel_multi_workbook_bus_v1');
         crossWorkbookChannel.onmessage = (event) => {
           const msg = event.data || {};
+          if (msg.type === 'REQUEST_LIVE_SNAPSHOTS') {
+            if (appState.isExcelHost) broadcastCurrentWorkbookSnapshot();
+            return;
+          }
+          if (msg.type === 'REQUEST_SHEET_DATA' && appState.isExcelHost && msg.workbookName === appState.currentWorkbookName && msg.sheetName) {
+            broadcastCurrentWorkbookSnapshot(msg.sheetName);
+            return;
+          }
+          if (msg.type === 'WORKBOOK_CLOSED' && msg.workbookName) {
+            const existing = appState.externalWorkbooks[msg.workbookName];
+            if (existing && !String(existing.source || '').startsWith('Attached ')) {
+              delete appState.externalWorkbooks[msg.workbookName];
+            }
+            return;
+          }
           if (msg.type === 'WORKBOOK_SNAPSHOT' && msg.workbookName && msg.workbookName !== appState.currentWorkbookName) {
+            const prev = appState.externalWorkbooks[msg.workbookName] || {};
             appState.externalWorkbooks[msg.workbookName] = {
               workbookName: msg.workbookName,
-              source: 'Live Open Excel Window (Cross-Window Sync)',
+              source: 'Open Excel',
               updatedAt: msg.updatedAt,
-              sheets: msg.sheets || {}
+              lastHeartbeatMs: msg.lastHeartbeatMs || Date.now(),
+              activeSheetName: msg.activeSheetName || '',
+              sheetNames: Array.isArray(msg.sheetNames) ? msg.sheetNames : Object.keys(msg.sheets || {}),
+              sheets: { ...(prev.sheets || {}), ...(msg.sheets || {}) }
             };
             renderConnectedWorkbooksStrip();
           }
@@ -1188,46 +1209,86 @@
     }
 
     function loadSharedWorkbookBridge() {
+      const now = Date.now();
       const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
-      Object.keys(bridge).forEach((wbName) => {
-        if (wbName !== appState.currentWorkbookName && bridge[wbName]) {
-          appState.externalWorkbooks[wbName] = bridge[wbName];
+      let bridgeChanged = false;
+
+      // Prune stale/closed Excel windows so ONLY currently active open workbooks appear
+      Object.keys(appState.externalWorkbooks).forEach((wbName) => {
+        const wb = appState.externalWorkbooks[wbName];
+        if (wb && !String(wb.source || '').startsWith('Attached ')) {
+          if (!wb.lastHeartbeatMs || (now - wb.lastHeartbeatMs > LIVE_WORKBOOK_TTL_MS)) {
+            delete appState.externalWorkbooks[wbName];
+          }
         }
       });
+
+      Object.keys(bridge).forEach((wbName) => {
+        const entry = bridge[wbName];
+        if (!entry || !entry.lastHeartbeatMs || (now - entry.lastHeartbeatMs > LIVE_WORKBOOK_TTL_MS)) {
+          delete bridge[wbName];
+          bridgeChanged = true;
+          return;
+        }
+        if (wbName !== appState.currentWorkbookName) {
+          appState.externalWorkbooks[wbName] = entry;
+        }
+      });
+
+      if (bridgeChanged) {
+        safeStorageSet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, bridge);
+      }
       renderConnectedWorkbooksStrip();
     }
 
-    async function broadcastCurrentWorkbookSnapshot() {
+    async function broadcastCurrentWorkbookSnapshot(requestedSheetName = '') {
       if (!appState.isExcelHost || !window.Excel || typeof window.Excel.run !== 'function') return;
       try {
         await window.Excel.run(async (context) => {
           const wb = context.workbook;
+          const allSheets = wb.worksheets;
+          const activeSheet = allSheets.getActiveWorksheet();
           wb.load('name');
-          const activeSheet = wb.worksheets.getActiveWorksheet();
+          allSheets.load('items/name');
           activeSheet.load('name');
-          const ur = activeSheet.getUsedRangeOrNullObject();
+
+          const targetSheet = requestedSheetName
+            ? allSheets.getItemOrNullObject(requestedSheetName)
+            : activeSheet;
+          if (requestedSheetName) targetSheet.load(['isNullObject', 'name']);
+          await context.sync();
+
+          const sheetToRead = (requestedSheetName && !targetSheet.isNullObject) ? targetSheet : activeSheet;
+          const ur = sheetToRead.getUsedRangeOrNullObject();
           ur.load(['isNullObject', 'address', 'values', 'rowCount', 'columnCount']);
           await context.sync();
 
           appState.currentWorkbookName = wb.name || 'Active_Workbook.xlsx';
-          const serializedSheets = {};
+          appState.activeWorksheetName = activeSheet.name;
+          appState.workbookSheetNames = allSheets.items.map(s => s.name);
+
+          const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
+          const prevSheets = (bridge[appState.currentWorkbookName] && bridge[appState.currentWorkbookName].sheets) || {};
+          const serializedSheets = { ...prevSheets };
           if (!ur.isNullObject && Array.isArray(ur.values)) {
-            serializedSheets[activeSheet.name] = {
+            serializedSheets[sheetToRead.name] = {
               rowCount: ur.rowCount,
               columnCount: ur.columnCount,
-              values: ur.values.slice(0, 300)
+              values: ur.values.slice(0, 400)
             };
           }
 
           const payload = {
             type: 'WORKBOOK_SNAPSHOT',
             workbookName: appState.currentWorkbookName,
-            source: 'Live Open Excel Window',
+            source: 'Open Excel',
             updatedAt: new Date().toLocaleTimeString(),
+            lastHeartbeatMs: Date.now(),
+            activeSheetName: activeSheet.name,
+            sheetNames: appState.workbookSheetNames,
             sheets: serializedSheets
           };
 
-          const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
           bridge[appState.currentWorkbookName] = payload;
           safeStorageSet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, bridge);
 
@@ -1240,6 +1301,25 @@
         // Ignore background sync errors
       }
     }
+
+    function startWorkbookLiveHeartbeat() {
+      if (workbookHeartbeatTimer) clearInterval(workbookHeartbeatTimer);
+      broadcastCurrentWorkbookSnapshot();
+      workbookHeartbeatTimer = setInterval(() => {
+        if (appState.isExcelHost) broadcastCurrentWorkbookSnapshot();
+      }, 10000);
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (appState.isExcelHost && appState.currentWorkbookName) {
+        const bridge = safeStorageGet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, {});
+        delete bridge[appState.currentWorkbookName];
+        safeStorageSet(STORAGE_KEYS.CROSS_WORKBOOK_BRIDGE, bridge);
+        if (crossWorkbookChannel) {
+          crossWorkbookChannel.postMessage({ type: 'WORKBOOK_CLOSED', workbookName: appState.currentWorkbookName });
+        }
+      }
+    });
 
     async function handleExternalWorkbookFiles(fileList) {
       if (!fileList || !fileList.length) return;
@@ -2014,7 +2094,7 @@
     ];
 
     // Universal Office Host Tool Sets (Only the active host's tools are sent to Gemini to minimize input tokens!)
-    const SHARED_OFFICE_TOOL_NAMES = new Set(['ask_user_clarification', 'google_web_search', 'fetch_web_page_or_api']);
+    const SHARED_OFFICE_TOOL_NAMES = new Set(['ask_user_clarification', 'list_connected_workbooks', 'read_external_workbook', 'google_web_search', 'fetch_web_page_or_api']);
 
     const WORD_AGENT_DECLARATIONS = [
       {
@@ -2635,7 +2715,14 @@
       }
 
       if (name === 'read_external_workbook') {
-        const matchedWb = findExternalWorkbookMatch(args.workbookName);
+        loadSharedWorkbookBridge();
+        let matchedWb = findExternalWorkbookMatch(args.workbookName);
+        if (matchedWb && crossWorkbookChannel && args.sheetName && (!matchedWb.sheets || !matchedWb.sheets[args.sheetName])) {
+          crossWorkbookChannel.postMessage({ type: 'REQUEST_SHEET_DATA', workbookName: matchedWb.workbookName, sheetName: args.sheetName });
+          await new Promise(r => setTimeout(r, 650));
+          loadSharedWorkbookBridge();
+          matchedWb = findExternalWorkbookMatch(args.workbookName);
+        }
         if (matchedWb && matchedWb.sheets) {
           const sheetNames = Object.keys(matchedWb.sheets);
           const targetSheetName =
@@ -4830,93 +4917,139 @@
       }
     }
 
-    // @ shows the Active Office File (Excel Workbook+Sheets, Word Document+Headings, PowerPoint Slides, or Outlook Email)
+    // Two-Step Cascading @ Picker: Step 1 = Active Open Workbooks -> Step 2 = Sheets -> inserts @workbook[sheetname]
+    function insertAtReferenceIntoPrompt(refString) {
+      const input = document.getElementById('userPromptInput');
+      const cur = input.value;
+      const replaced = cur.replace(/@[^\s@]*$/, refString);
+      input.value = replaced === cur ? `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}${refString}` : replaced;
+      document.getElementById('atSheetPopover')?.classList.add('hidden');
+      input.focus();
+    }
+
+    function renderAtSheetStepForWorkbook(wbEntry) {
+      const heading = document.getElementById('atPickerHeading');
+      const listEl = document.getElementById('atSheetList');
+      if (!listEl) return;
+      if (heading) {
+        heading.innerHTML = `<button type="button" id="atBackToWorkbooksBtn" class="text-neon-cyan hover:underline mr-1">← Back</button><span class="truncate">${escapeHtml(wbEntry.name)}</span>`;
+        document.getElementById('atBackToWorkbooksBtn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openAtSheetMenu('');
+        });
+      }
+
+      const activeSheet = wbEntry.activeSheetName || '';
+      const rawSheets = Array.isArray(wbEntry.sheetNames) && wbEntry.sheetNames.length
+        ? wbEntry.sheetNames
+        : Object.keys(wbEntry.sheets || {});
+      const orderedSheets = [
+        ...(activeSheet && rawSheets.includes(activeSheet) ? [activeSheet] : []),
+        ...rawSheets.filter(s => s !== activeSheet)
+      ];
+
+      if (!orderedSheets.length) {
+        listEl.innerHTML = `
+          <button type="button" data-pick-ref="@${escapeHtml(wbEntry.name)} " class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 text-xs text-slate-200">
+            Use @${escapeHtml(wbEntry.name)}
+          </button>
+        `;
+      } else {
+        listEl.innerHTML = orderedSheets.map(sheetName => `
+          <button type="button" data-pick-ref="@${escapeHtml(wbEntry.name)}[${escapeHtml(sheetName)}] " class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
+            <span class="truncate">${escapeHtml(sheetName)}</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 border ${
+              sheetName === activeSheet ? 'text-emerald-300 border-emerald-500/40' : 'text-slate-400 border-obsidian-700'
+            } shrink-0">${sheetName === activeSheet ? 'Active' : 'Sheet'}</span>
+          </button>
+        `).join('');
+      }
+
+      listEl.querySelectorAll('[data-pick-ref]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          insertAtReferenceIntoPrompt(btn.getAttribute('data-pick-ref'));
+        });
+      });
+    }
+
     async function openAtSheetMenu(filterQuery = '') {
       const pop = document.getElementById('atSheetPopover');
       const listEl = document.getElementById('atSheetList');
+      const heading = document.getElementById('atPickerHeading');
       if (!pop || !listEl) return;
-      const q = (filterQuery || '').trim().toLowerCase();
-      let items = [];
 
-      if (appState.officeHost === 'Word' && window.Word && typeof window.Word.run === 'function') {
-        items.push({ label: 'Active Word Document', badge: 'Document', insertText: '@ActiveDocument ' });
-        try {
-          await window.Word.run(async (context) => {
-            const paras = context.document.body.paragraphs;
-            paras.load('items/text,items/style');
-            await context.sync();
-            paras.items
-              .filter(p => /heading|title/i.test(String(p.style || '')) && p.text.trim())
-              .slice(0, 20)
-              .forEach(p => {
-                const h = p.text.trim().slice(0, 48);
-                items.push({ label: h, badge: 'Section', insertText: `@'${h}' ` });
-              });
-          });
-        } catch (_) {}
-      } else if (appState.officeHost === 'PowerPoint' && window.PowerPoint && typeof window.PowerPoint.run === 'function') {
-        items.push({ label: 'Active Presentation', badge: 'Slides', insertText: '@ActivePresentation ' });
-        try {
-          await window.PowerPoint.run(async (context) => {
-            const slides = context.presentation.slides;
-            slides.load('items');
-            await context.sync();
-            slides.items.slice(0, 30).forEach((_, i) => {
-              items.push({ label: `Slide ${i + 1}`, badge: 'Slide', insertText: `@Slide${i + 1} ` });
-            });
-          });
-        } catch (_) {}
-      } else if (appState.officeHost === 'Outlook') {
-        items.push({ label: 'Current Email Message', badge: 'Email', insertText: '@CurrentEmail ' });
-      } else {
-        await refreshWorkbookSheetNames();
-        const wbName = appState.currentWorkbookName || 'Active_Workbook.xlsx';
-        const activeName = appState.activeWorksheetName;
-        const orderedSheets = [
-          ...(activeName ? [activeName] : []),
-          ...appState.workbookSheetNames.filter(n => n !== activeName)
-        ];
-        items = [
-          {
-            label: wbName,
-            badge: 'Workbook',
-            insertText: `@${/\s/.test(wbName) ? `'${wbName}'` : wbName} `
-          },
-          ...orderedSheets.map(name => ({
-            label: name,
-            badge: name === activeName ? 'Active' : 'Sheet',
-            insertText: `@${/\s/.test(name) ? `'${name}'` : name} `
-          }))
-        ];
+      if (heading) {
+        heading.innerHTML = 'Select Workbook (<span class="font-mono text-amber-300">@</span>)';
       }
 
-      items = items.filter(item => !q || item.label.toLowerCase().includes(q) || item.badge.toLowerCase().includes(q));
+      // Ping any other open Excel instances for live snapshots right now
+      if (crossWorkbookChannel) {
+        crossWorkbookChannel.postMessage({ type: 'REQUEST_LIVE_SNAPSHOTS' });
+      }
+      if (appState.isExcelHost) {
+        await refreshWorkbookSheetNames();
+      }
+      loadSharedWorkbookBridge();
 
-      if (!items.length) {
-        listEl.innerHTML = '<div class="py-2 px-2 text-[11px] text-slate-500">No matching worksheets in active workbook.</div>';
+      const q = (filterQuery || '').trim().toLowerCase();
+      const workbookEntries = [];
+
+      // 1. Current active Excel workbook (when inside Excel)
+      if (appState.isExcelHost) {
+        workbookEntries.push({
+          name: appState.currentWorkbookName || 'Active_Workbook.xlsx',
+          badge: 'Current',
+          activeSheetName: appState.activeWorksheetName,
+          sheetNames: appState.workbookSheetNames,
+          sheets: {}
+        });
+      }
+
+      // 2. Other currently open Excel instances (live heartbeat) & manually attached files
+      Object.keys(appState.externalWorkbooks).forEach(wbName => {
+        const wb = appState.externalWorkbooks[wbName];
+        if (!wb) return;
+        const isAttached = String(wb.source || '').startsWith('Attached ');
+        workbookEntries.push({
+          name: wbName,
+          badge: isAttached ? 'Attached' : 'Open Excel',
+          activeSheetName: wb.activeSheetName || '',
+          sheetNames: Array.isArray(wb.sheetNames) && wb.sheetNames.length ? wb.sheetNames : Object.keys(wb.sheets || {}),
+          sheets: wb.sheets || {}
+        });
+      });
+
+      const filtered = workbookEntries.filter(w => !q || w.name.toLowerCase().includes(q));
+
+      if (!filtered.length) {
+        listEl.innerHTML = `
+          <div class="p-2 text-[11px] text-slate-400 leading-relaxed">
+            No active Excel workbooks detected. Open <strong>Assistant</strong> inside your other Excel workbook to sync it live, or click <strong>📎</strong> to attach a file.
+          </div>
+        `;
       } else {
-        listEl.innerHTML = items.map(it => `
-          <button type="button" data-insert-sheet="${escapeHtml(it.insertText)}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
-            <span class="truncate">${escapeHtml(it.label)}</span>
-            <span class="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 border ${
-              it.badge === 'Workbook'
-                ? 'text-amber-300 border-amber-500/40'
-                : it.badge === 'Active'
-                ? 'text-emerald-300 border-emerald-500/40'
-                : 'text-slate-400 border-obsidian-700'
-            } shrink-0">${it.badge}</span>
+        listEl.innerHTML = filtered.map((w, idx) => `
+          <button type="button" data-pick-wb-idx="${idx}" class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800 flex items-center justify-between gap-2 text-xs text-slate-200 transition">
+            <span class="truncate">${escapeHtml(w.name)}</span>
+            <span class="flex items-center gap-1 shrink-0">
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-950 border ${
+                w.badge === 'Open Excel'
+                  ? 'text-neon-cyan border-teal-500/40'
+                  : w.badge === 'Current'
+                  ? 'text-emerald-300 border-emerald-500/40'
+                  : 'text-amber-300 border-amber-500/40'
+              }">${w.badge}</span>
+              <span class="text-slate-500 text-[10px]">›</span>
+            </span>
           </button>
         `).join('');
 
-        listEl.querySelectorAll('[data-insert-sheet]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const ins = btn.getAttribute('data-insert-sheet');
-            const input = document.getElementById('userPromptInput');
-            const cur = input.value;
-            const replaced = cur.replace(/@[^\s@]*$/, ins);
-            input.value = replaced === cur ? `${cur}${cur && !cur.endsWith(' ') ? ' ' : ''}${ins}` : replaced;
-            pop.classList.add('hidden');
-            input.focus();
+        listEl.querySelectorAll('[data-pick-wb-idx]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chosen = filtered[Number(btn.getAttribute('data-pick-wb-idx'))];
+            if (chosen) renderAtSheetStepForWorkbook(chosen);
           });
         });
       }
@@ -5134,7 +5267,7 @@
                     (appState.officeHost === 'Word'
                       ? 'MICROSOFT WORD OPERATING RULES:\n' +
                         '1. WRITE DIRECTLY INTO WORD: Use `word_insert_formatted_html` with clean inline CSS (centered bold headings, justified body paragraphs, crisp spacing, signature blocks) to insert resolutions, letters, memos, and reports directly into the active Word document.\n' +
-                        '2. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
+                        '2. PULLING DATA FROM @workbook[sheetname]: When the user references `@WorkbookName[SheetName]`, call `read_external_workbook(workbookName, sheetName)` to pull live data from that open Excel workbook and insert it into Word.\n' + '3. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
                         '3. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing (e.g. company name, DIN, signatories), you may call `ask_user_clarification` with clear options or insert clean brackets and list what to fill.\n' +
                         '4. FORMAL TONE: Use clear, formal, professional language.'
                       : appState.officeHost === 'PowerPoint'
@@ -5148,7 +5281,7 @@
                         '2. Call `ask_user_clarification` if tone or reply direction is ambiguous.\n' +
                         '3. Use formal, clear business language.'
                       : 'OPERATING RULES:\n' +
-                        '1. ACTIVE WORKBOOK & @ REFERENCES: Call `audit_workbook` (includeAllSheetsData: false) once to inspect the active workbook structure and active sheet. If the user references `@SheetName`, read data from that worksheet via `read_excel_range`. If the user references the active workbook (`@WorkbookName`) to bring data without specifying which sheet and multiple sheets exist, call `ask_user_clarification` with the relevant worksheet names so the user can pick the sheet (or specify another via Other).\n' +
+                        '1. @workbook[sheetname] CROSS-WORKBOOK & SHEET REFERENCES: When the user references `@WorkbookName[SheetName]`, if `WorkbookName` is another open or attached workbook call `read_external_workbook(workbookName, sheetName)`; if it is the current workbook call `read_excel_range(sheetName, rangeAddress)`. Otherwise call `audit_workbook` (includeAllSheetsData: false) once for the active sheet.\n' +
                         '2. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, call `reconcile_itc_books_vs_2b` directly so all matching runs locally in Excel.\n' +
                         '3. COMPACT SCRIPT OUTPUTS: Never return raw row arrays from `execute_custom_officejs`; perform loops and writes in JavaScript and return only compact summaries.\n' +
                         '4. HANDLE AMBIGUITY INTERACTIVELY: Whenever instructions, column mappings, or tolerances are ambiguous, call `ask_user_clarification` with 2–4 clear options instead of guessing. The user can also provide their own view via Other.\n' +
@@ -5898,7 +6031,7 @@
           hostBadge.textContent = 'Excel';
           hostBadge.className = 'text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 shrink-0';
         }
-        broadcastCurrentWorkbookSnapshot();
+        startWorkbookLiveHeartbeat();
       } else if (resolved === HT.Word || resolved === 'Word') {
         appState.isExcelHost = false;
         appState.officeHost = 'Word';
