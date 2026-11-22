@@ -2,373 +2,385 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pro Mobile NES Emulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NESPro Mobile Emulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        :root {
-            --bg-dark: #0f172a;
-            --accent: #3b82f6;
-            --danger: #ef4444;
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        body {
-            overscroll-behavior-y: contain;
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100dvh;
+            width: 100vw;
+            overflow: hidden;
+            overscroll-behavior: none;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            background-color: var(--bg-dark);
-            color: white;
-            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-            overflow: hidden;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            width: 100vw;
-            position: fixed;
+            background-color: #0b0f19;
         }
 
-        canvas {
+        /* Crisp pixel art on both local canvas and streamed WebRTC video */
+        canvas, #remote-video {
             image-rendering: -moz-crisp-edges;
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            background: #000;
         }
 
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-right: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .drawer {
-            transform: translateX(-100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .drawer.open {
-            transform: translateX(0);
-        }
-
-        #controls-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: 10;
-        }
-        
-        .control-group {
-            position: absolute;
-            pointer-events: auto;
-            transform-origin: center center;
+        .control-btn {
             touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
-        .edit-mode .control-group {
-            border: 2px dashed #fbbf24;
-            background: rgba(251, 191, 36, 0.1);
-            border-radius: 12px;
-            cursor: move;
-            padding: 10px;
-        }
-        .edit-mode .control-btn, .edit-mode .dpad-btn, .edit-mode .joystick-base, .edit-mode .util-btn {
-            pointer-events: none !important; 
-        }
-
-        /* D-Pad Styles */
+        /* D-Pad */
         .dpad-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 2px;
-            width: 140px;
-            height: 140px;
+            gap: 3px;
+            width: 136px;
+            height: 136px;
         }
+
         .dpad-btn {
-            background: linear-gradient(145deg, #334155, #1e293b);
+            background: linear-gradient(180deg, #374151, #1f2937);
+            border: 1px solid #4b5563;
             border-radius: 8px;
-            box-shadow: inset 0 2px 2px rgba(255,255,255,0.1), 0 4px 6px rgba(0,0,0,0.6);
-            display: flex; align-items: center; justify-content: center;
+            box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.5), 0 3px 6px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.04s, background 0.04s;
         }
-        .dpad-btn:active, .dpad-btn.active-input {
-            background: #0f172a;
-            box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);
+
+        .dpad-btn.active-touch {
+            background: #ef4444;
+            border-color: #f87171;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
             transform: scale(0.95);
         }
+
         .dpad-center {
-            background: radial-gradient(circle, #334155 20%, #1e293b 80%);
-            border-radius: 4px;
+            background: #111827;
+            border-radius: 6px;
+            border: 1px solid #374151;
         }
 
         /* Virtual Analog Stick */
-        .joystick-base {
-            width: 140px; height: 140px;
-            background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
+        .analog-base {
+            width: 136px;
+            height: 136px;
             border-radius: 50%;
-            border: 4px solid #334155;
-            box-shadow: inset 0 10px 20px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+            background: radial-gradient(circle, #111827 35%, #1f2937 100%);
+            border: 2px solid #4b5563;
+            box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5);
             position: relative;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             touch-action: none;
         }
-        .joystick-stick {
-            width: 60px; height: 60px;
-            background: radial-gradient(circle at 30% 30%, #64748b, #334155);
+
+        .analog-knob {
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.3);
+            background: radial-gradient(circle at 35% 35%, #ef4444, #991b1b);
+            border: 2px solid #fca5a5;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
             position: absolute;
-            transition: transform 0.05s linear;
             pointer-events: none;
+            transform: translate(0px, 0px);
         }
-        .joystick-base.dragging .joystick-stick { transition: none; }
 
-        /* Action Buttons */
+        /* Action Buttons (A / B) */
         .action-btn {
-            width: 65px; height: 65px;
+            width: 64px;
+            height: 64px;
             border-radius: 50%;
-            background: linear-gradient(145deg, var(--danger), #b91c1c);
-            box-shadow: inset 0 2px 4px rgba(255,255,255,0.3), 0 6px 10px rgba(0,0,0,0.6);
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 800; font-size: 1.4rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-        .action-btn:active, .action-btn.active-input {
-            background: #991b1b;
-            box-shadow: inset 0 4px 8px rgba(0,0,0,0.8);
-            transform: translateY(4px) scale(0.95);
+            background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b);
+            border: 2px solid #f87171;
+            box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 800;
+            font-size: 1.25rem;
+            transition: transform 0.04s;
         }
 
-        .pill-btn {
-            width: 60px; height: 20px;
-            border-radius: 10px;
-            background: #334155;
-            box-shadow: inset 0 2px 2px rgba(255,255,255,0.1), 0 4px 6px rgba(0,0,0,0.6);
+        .action-btn.active-touch {
+            background: #dc2626;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+            transform: translateY(2px) scale(0.94);
         }
-        .pill-btn:active, .pill-btn.active-input {
-            background: #0f172a;
-            box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);
+
+        /* Select / Start */
+        .pill-btn {
+            width: 58px;
+            height: 22px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #4b5563, #1f2937);
+            border: 1px solid #6b7280;
+            box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5);
+            transition: transform 0.04s;
+        }
+
+        .pill-btn.active-touch {
+            background: #ef4444;
             transform: translateY(2px);
         }
 
-        .util-btn {
-            background: rgba(51, 65, 85, 0.8);
-            border-radius: 50%;
-            width: 45px; height: 45px;
-            display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(4px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-            color: #cbd5e1;
-            transition: all 0.1s;
+        /* Layout Edit Mode */
+        .layout-editing .movable-cluster {
+            outline: 2px dashed #38bdf8;
+            outline-offset: 6px;
+            border-radius: 14px;
+            background: rgba(56, 189, 248, 0.12);
+            cursor: move;
         }
-        .util-btn:active, .util-btn.active-input {
-            background: rgba(15, 23, 42, 0.9);
-            transform: scale(0.9);
-            color: white;
+
+        .layout-editing .movable-cluster * {
+            pointer-events: none;
         }
-        
-        .hidden-scale { display: none !important; }
-        
-        #toast-container {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 100; pointer-events: none;
-            display: flex; flex-direction: column; gap: 8px;
+
+        /* Drawer Scrollbar */
+        .drawer-scroll {
+            touch-action: pan-y;
+            -webkit-overflow-scrolling: touch;
         }
-        .toast {
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(59, 130, 246, 0.5);
-            padding: 8px 16px; border-radius: 999px;
-            font-size: 0.875rem; font-weight: bold;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            animation: toast-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body>
+<body class="text-white flex flex-col">
 
-    <div id="toast-container"></div>
-
-    <header id="top-bar" class="absolute top-0 left-0 w-full p-3 flex justify-between items-center z-20 transition-opacity duration-300 pointer-events-none">
-        <button id="menu-btn" class="p-2 bg-gray-800/80 rounded-lg backdrop-blur text-white hover:bg-gray-700 shadow pointer-events-auto">
-            <i class="ph ph-list text-2xl"></i>
-        </button>
-        <div class="font-black text-lg tracking-widest text-white/50 shadow-sm pointer-events-none">
-            <span class="text-red-500/50">NES</span>PRO
+    <!-- Top Header Bar -->
+    <header class="px-3 py-2 bg-gray-900/95 border-b border-gray-800 flex items-center justify-between gap-2 z-30 shrink-0">
+        <div class="flex items-center gap-2">
+            <button id="btn-menu" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700" title="Menu">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <span class="font-extrabold text-base tracking-wider text-red-500">NES<span class="text-white">PRO</span></span>
+            <span id="mp-badge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-600/30 border border-emerald-500 text-emerald-300"></span>
         </div>
-        <div class="w-10"></div>
+
+        <!-- Quick Action Strip -->
+        <div class="flex items-center gap-1.5">
+            <button id="btn-quick-rewind" class="control-btn px-2 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs font-bold text-amber-400 active:bg-amber-600 active:text-white" title="Hold to Rewind">⏪</button>
+            <button id="btn-quick-ff" class="control-btn px-2 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs font-bold text-sky-400 active:bg-sky-600 active:text-white" title="Hold to Fast Forward">⏩</button>
+            <button id="btn-quick-pause" class="px-2 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs font-bold text-gray-200 active:bg-gray-600" title="Pause / Resume">⏸</button>
+            <button id="btn-quick-mute" class="px-2 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs font-bold text-gray-200 active:bg-gray-600" title="Mute Audio">🔊</button>
+            <label for="rom-upload" id="lbl-load-rom" class="cursor-pointer bg-red-600 hover:bg-red-500 active:bg-red-700 px-3 py-1.5 rounded-lg font-bold text-xs shadow">
+                Load ROM
+            </label>
+            <input type="file" id="rom-upload" accept=".nes" class="hidden" />
+        </div>
     </header>
 
-    <div id="side-menu" class="glass-panel drawer fixed inset-y-0 left-0 w-80 z-40 flex flex-col p-5 overflow-y-auto">
-        <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-3">
-            <h2 class="text-2xl font-black"><span class="text-blue-500">Pro</span> Menu</h2>
-            <button id="close-menu-btn" class="text-gray-400 hover:text-white"><i class="ph ph-x text-2xl"></i></button>
-        </div>
-        
-        <label for="rom-upload" class="cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-bold mb-6 transition-all shadow-lg shadow-blue-500/30">
-            <i class="ph ph-game-controller text-xl"></i> Load ROM (.nes)
-        </label>
-        <input type="file" id="rom-upload" accept=".nes" class="hidden" />
-
-        <div class="grid grid-cols-2 gap-3 mb-6">
-            <button id="btn-pause" class="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 p-3 rounded-xl font-semibold transition-colors">
-                <i class="ph ph-pause text-lg" id="pause-icon"></i> <span id="pause-text">Pause</span>
-            </button>
-            <button id="btn-reset" class="flex items-center justify-center gap-2 bg-red-900/80 hover:bg-red-800 p-3 rounded-xl font-semibold transition-colors">
-                <i class="ph ph-arrow-counter-clockwise text-lg"></i> Reset
-            </button>
-        </div>
-
-        <div class="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700">
-            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <i class="ph-fill ph-floppy-disk"></i> Save States
-            </h3>
-            <select id="save-slot" class="bg-gray-900 border border-gray-600 text-white rounded p-2 flex-grow w-full outline-none focus:border-blue-500 text-sm font-bold mb-3">
-                <option value="1">Slot 1</option>
-                <option value="2">Slot 2</option>
-                <option value="3">Slot 3</option>
-            </select>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="btn-save" class="bg-green-700/80 hover:bg-green-600 p-2 rounded-lg text-sm font-bold transition">Save State</button>
-                <button id="btn-load" class="bg-blue-700/80 hover:bg-blue-600 p-2 rounded-lg text-sm font-bold transition">Load State</button>
+    <!-- Layout Editor Toolbar (Visible only in Edit Mode) -->
+    <div id="layout-toolbar" class="hidden bg-sky-950/95 border-b border-sky-500/50 px-3 py-2 z-30 shrink-0">
+        <div class="max-w-xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="font-bold text-sky-300">Drag controls to reposition</span>
+            <div class="flex items-center gap-3 flex-wrap">
+                <label class="flex items-center gap-1">Pad <input id="scale-left" type="range" min="0.7" max="1.4" step="0.05" value="1" class="w-16 accent-sky-400"></label>
+                <label class="flex items-center gap-1">A/B <input id="scale-right" type="range" min="0.7" max="1.4" step="0.05" value="1" class="w-16 accent-sky-400"></label>
+                <label class="flex items-center gap-1">Sys <input id="scale-mid" type="range" min="0.7" max="1.4" step="0.05" value="1" class="w-16 accent-sky-400"></label>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-layout-reset" class="px-2.5 py-1 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700 font-semibold">Reset</button>
+                <button id="btn-layout-done" class="px-3 py-1 rounded bg-sky-500 hover:bg-sky-400 text-gray-950 font-bold">Done</button>
             </div>
         </div>
+    </div>
 
-        <div class="bg-gray-800/80 rounded-xl p-4 mb-6 border border-blue-900/50 shadow-inner">
-            <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <i class="ph-fill ph-users"></i> Netplay (2P)
-            </h3>
-            
-            <div id="mp-idle">
-                <button id="btn-host" class="w-full bg-purple-700/80 hover:bg-purple-600 p-2 rounded-lg text-sm font-bold transition mb-3">Host Game</button>
-                <div class="flex gap-2">
-                    <input type="text" id="join-code" placeholder="Code" class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 outline-none focus:border-blue-500 uppercase text-center font-mono tracking-widest">
-                    <button id="btn-join" class="bg-blue-700/80 hover:bg-blue-600 p-2 rounded-lg text-sm font-bold transition px-4">Join</button>
+    <!-- Main Game Viewport -->
+    <main class="flex-1 relative bg-black flex items-center justify-center overflow-hidden min-h-0">
+        <div id="status-message" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-0 pointer-events-none">
+            <p class="text-gray-400 text-sm font-medium">Tap <span class="text-red-400 font-bold">Load ROM</span> to play solo or host.</p>
+            <p class="text-gray-500 text-xs mt-1">Joining Player 2? Open the menu (☰) and enter the room code.</p>
+        </div>
+
+        <!-- Local Emulator Screen (Solo & Host) -->
+        <canvas id="nes-canvas" width="256" height="240" class="max-h-full max-w-full aspect-[256/240] object-contain z-10"></canvas>
+
+        <!-- Synced Live Stream Screen (Player 2 Client) -->
+        <video id="remote-video" autoplay playsinline class="hidden max-h-full max-w-full aspect-[256/240] object-contain z-10 bg-black"></video>
+
+        <!-- Tap to Unmute Overlay (For strict mobile autoplay policies) -->
+        <button id="btn-unmute-remote" class="hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 bg-amber-500 text-gray-950 font-bold text-xs px-4 py-2 rounded-full shadow-lg">
+            Tap to Enable Stream Sound
+        </button>
+
+        <!-- FPS / Status Toast -->
+        <div id="toast" class="hidden absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-gray-900/90 border border-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg pointer-events-none"></div>
+    </main>
+
+    <!-- On-Screen Controller Deck -->
+    <section id="controller-deck" class="h-60 sm:h-64 bg-gray-900 border-t border-gray-800 relative shrink-0 px-4 py-3">
+        <div class="w-full h-full max-w-2xl mx-auto flex items-center justify-between relative">
+
+            <!-- Left Cluster: D-Pad or Analog Stick -->
+            <div id="cluster-left" class="movable-cluster relative z-10" data-cluster="left">
+                <!-- D-Pad Mode -->
+                <div id="dpad-container" class="dpad-grid control-btn">
+                    <div></div>
+                    <div class="dpad-btn" data-btn="UP">
+                        <svg class="w-6 h-6 text-gray-300 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <div></div>
+
+                    <div class="dpad-btn" data-btn="LEFT">
+                        <svg class="w-6 h-6 text-gray-300 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <div class="dpad-center"></div>
+                    <div class="dpad-btn" data-btn="RIGHT">
+                        <svg class="w-6 h-6 text-gray-300 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                    </div>
+
+                    <div></div>
+                    <div class="dpad-btn" data-btn="DOWN">
+                        <svg class="w-6 h-6 text-gray-300 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <div></div>
+                </div>
+
+                <!-- Virtual Analog Stick Mode -->
+                <div id="analog-container" class="hidden analog-base control-btn">
+                    <div id="analog-knob" class="analog-knob"></div>
                 </div>
             </div>
 
-            <div id="mp-active" class="hidden flex-col items-center">
-                <div class="text-xs text-gray-400 mb-1" id="mp-status-text">Room Code</div>
-                <div class="text-3xl font-mono font-black tracking-widest text-green-400 mb-4 select-all" id="mp-room-code">---</div>
-                <div class="text-xs text-center text-gray-400 mb-4 bg-gray-900 px-3 py-1 rounded-full border border-gray-700 w-full" id="mp-status-msg">Waiting for Player 2...</div>
-                <button id="btn-disconnect" class="w-full bg-red-700/80 hover:bg-red-600 p-2 rounded-lg text-sm font-bold transition">Disconnect</button>
+            <!-- Middle Cluster: Select / Start -->
+            <div id="cluster-mid" class="movable-cluster flex flex-col sm:flex-row gap-4 items-center self-end pb-2 z-10" data-cluster="mid">
+                <div class="flex flex-col items-center">
+                    <div class="pill-btn control-btn" data-btn="SELECT"></div>
+                    <span class="text-[10px] uppercase mt-1 text-gray-400 font-bold tracking-widest">Select</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="pill-btn control-btn" data-btn="START"></div>
+                    <span class="text-[10px] uppercase mt-1 text-gray-400 font-bold tracking-widest">Start</span>
+                </div>
+            </div>
+
+            <!-- Right Cluster: B & A Buttons -->
+            <div id="cluster-right" class="movable-cluster flex items-end gap-4 z-10" data-cluster="right">
+                <div class="mb-5">
+                    <div class="action-btn control-btn" data-btn="B">B</div>
+                </div>
+                <div>
+                    <div class="action-btn control-btn" data-btn="A">A</div>
+                </div>
             </div>
         </div>
+    </section>
 
-        <div class="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700 flex-grow">
-            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <i class="ph-fill ph-sliders-horizontal"></i> Configuration
-            </h3>
-            
-            <div class="flex items-center justify-between mb-4">
-                <span class="text-sm">Input Style</span>
-                <select id="input-style" class="bg-gray-900 border border-gray-600 rounded p-1 text-sm outline-none font-bold">
-                    <option value="dpad">D-Pad</option>
-                    <option value="analog">Analog Stick</option>
-                </select>
-            </div>
-            
-            <div class="mb-4">
-                <div class="flex justify-between text-sm mb-1 text-gray-400"><span>D-Pad Size</span> <span id="val-dpad-size">100%</span></div>
-                <input type="range" id="range-dpad-size" min="50" max="180" value="100" class="w-full accent-blue-500">
-            </div>
-            <div class="mb-4">
-                <div class="flex justify-between text-sm mb-1 text-gray-400"><span>Action Size</span> <span id="val-ab-size">100%</span></div>
-                <input type="range" id="range-ab-size" min="50" max="180" value="100" class="w-full accent-blue-500">
-            </div>
-
-            <button id="btn-edit-layout" class="w-full mt-2 bg-yellow-600 hover:bg-yellow-500 text-black p-2 rounded-lg font-bold transition flex items-center justify-center gap-2">
-                <i class="ph ph-bounding-box text-lg"></i> Edit Layout
-            </button>
-        </div>
-    </div>
-    
-    <div id="menu-backdrop" class="fixed inset-0 bg-black/60 z-30 hidden backdrop-blur-sm transition-opacity"></div>
-
-    <div id="edit-overlay" class="fixed inset-0 bg-blue-900/30 z-20 hidden flex-col items-center justify-start pt-16 pointer-events-none">
-        <div class="bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl animate-pulse pointer-events-auto cursor-pointer border-2 border-white flex items-center gap-2" id="btn-exit-edit">
-            <i class="ph-fill ph-check-circle text-xl"></i> Save & Exit Edit Mode
-        </div>
-        <p class="text-white/80 font-semibold mt-2 drop-shadow-md">Drag components to move them</p>
-    </div>
-
-    <!-- Gameplay Canvas -->
-    <div class="w-full h-full flex flex-col bg-black relative justify-center items-center">
-        <div id="status-message" class="absolute text-gray-500 text-sm z-0 flex flex-col items-center gap-3">
-            <i class="ph ph-game-controller text-6xl text-gray-800"></i>
-            <span class="font-semibold tracking-wider uppercase text-gray-600">No Cartridge Inserted</span>
-        </div>
-        <canvas id="nes-canvas" width="256" height="240" class="z-0 w-full h-full"></canvas>
-    </div>
-
-    <!-- On-screen Controls -->
-    <div id="controls-layer">
-        <div id="group-dpad" class="control-group" style="left: 5%; bottom: 10%; transform: scale(1);">
-            <div id="dpad-ui" class="dpad-grid">
-                <div></div>
-                <div class="dpad-btn control-btn" data-btn="UP"><i class="ph-fill ph-caret-up text-gray-400"></i></div>
-                <div></div>
-                <div class="dpad-btn control-btn" data-btn="LEFT"><i class="ph-fill ph-caret-left text-gray-400"></i></div>
-                <div class="dpad-center"></div>
-                <div class="dpad-btn control-btn" data-btn="RIGHT"><i class="ph-fill ph-caret-right text-gray-400"></i></div>
-                <div></div>
-                <div class="dpad-btn control-btn" data-btn="DOWN"><i class="ph-fill ph-caret-down text-gray-400"></i></div>
-                <div></div>
-            </div>
-            
-            <div id="joystick-ui" class="joystick-base hidden-scale">
-                <div id="joystick-stick" class="joystick-stick"></div>
-            </div>
+    <!-- Slide-Out Pro Menu Drawer -->
+    <div id="menu-backdrop" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"></div>
+    <aside id="pro-menu" class="fixed top-0 left-0 h-full w-80 max-w-[88vw] bg-gray-900 border-r border-gray-800 z-50 transform -translate-x-full transition-transform duration-200 flex flex-col">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 class="font-extrabold text-lg text-white">Pro Controls</h2>
+            <button id="btn-close-menu" class="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300">✕</button>
         </div>
 
-        <div id="group-ab" class="control-group flex gap-3 items-end" style="right: 5%; bottom: 12%; transform: scale(1);">
-            <div class="flex flex-col items-center mb-8">
-                <div class="action-btn control-btn" data-btn="B">B</div>
-            </div>
-            <div class="flex flex-col items-center">
-                <div class="action-btn control-btn" data-btn="A">A</div>
-            </div>
+        <div class="p-4 space-y-5 overflow-y-auto drawer-scroll flex-1">
+
+            <!-- Multiplayer Section (Host-Authoritative Stream) -->
+            <section class="bg-gray-800/70 border border-gray-700 rounded-xl p-3 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-extrabold uppercase tracking-wider text-emerald-400">2P Live Sync Multiplayer</h3>
+                    <span id="auth-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400" title="Firebase Status"></span>
+                </div>
+                <p id="mp-status" class="text-xs text-gray-400">Host streams live 60 FPS video + audio so both screens never desync.</p>
+
+                <!-- Host / Join Controls -->
+                <div id="mp-idle-controls" class="space-y-2">
+                    <button id="btn-host-game" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-xs shadow">
+                        Host Game (Player 1)
+                    </button>
+                    <div class="flex gap-2">
+                        <input id="input-room-code" type="text" maxlength="6" placeholder="ROOM CODE" class="flex-1 bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-2 text-xs font-mono uppercase tracking-widest text-center focus:outline-none focus:border-emerald-500" />
+                        <button id="btn-join-game" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-xs">
+                            Join (P2)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Room Panel -->
+                <div id="mp-active-panel" class="hidden space-y-2">
+                    <div class="flex items-center justify-between bg-gray-950 border border-emerald-500/40 rounded-lg px-3 py-2">
+                        <div>
+                            <div class="text-[10px] uppercase text-gray-400">Room Code</div>
+                            <div id="active-room-code" class="font-mono font-extrabold text-base tracking-widest text-emerald-400">------</div>
+                        </div>
+                        <button id="btn-copy-code" class="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-xs font-bold">Copy</button>
+                    </div>
+                    <button id="btn-leave-room" class="w-full py-2 rounded-lg bg-red-600/90 hover:bg-red-500 font-bold text-xs">
+                        Disconnect Multiplayer
+                    </button>
+                </div>
+            </section>
+
+            <!-- Game State & Speed Controls -->
+            <section class="space-y-2">
+                <h3 class="text-xs font-extrabold uppercase tracking-wider text-gray-400">Emulator</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-menu-pause" class="py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-bold">Pause / Resume</button>
+                    <button id="btn-menu-reset" class="py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-bold text-red-400">Soft Reset</button>
+                </div>
+            </section>
+
+            <!-- Save & Load Slots -->
+            <section class="space-y-2">
+                <h3 class="text-xs font-extrabold uppercase tracking-wider text-gray-400">Save / Load Slots</h3>
+                <div class="space-y-2" id="save-slots-list">
+                    <!-- Rendered dynamically -->
+                </div>
+            </section>
+
+            <!-- Controller & Layout Settings -->
+            <section class="space-y-2">
+                <h3 class="text-xs font-extrabold uppercase tracking-wider text-gray-400">Controller &amp; Layout</h3>
+                <div class="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5">
+                    <span class="text-xs font-semibold">Left Stick Mode</span>
+                    <button id="btn-toggle-stick" class="px-3 py-1 rounded-md bg-red-600 text-xs font-bold">D-Pad</button>
+                </div>
+                <button id="btn-edit-layout" class="w-full py-2.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/50 text-sky-300 text-xs font-bold">
+                    Customize Button Positions &amp; Sizes
+                </button>
+            </section>
+
+            <!-- Desktop Keyboard Guide -->
+            <section class="bg-gray-800/50 border border-gray-800 rounded-xl p-3 text-[11px] text-gray-400 space-y-1">
+                <div class="font-bold text-gray-300 mb-1">Laptop Keyboard Controls</div>
+                <div>Move: <span class="text-white font-mono">Arrow Keys / WASD</span></div>
+                <div>B / A: <span class="text-white font-mono">Z / X</span> or <span class="text-white font-mono">J / K</span></div>
+                <div>Start / Select: <span class="text-white font-mono">Enter / Shift</span></div>
+                <div>Pause / FF / Rewind: <span class="text-white font-mono">P / Tab / Backspace</span></div>
+            </section>
         </div>
+    </aside>
 
-        <div id="group-sys" class="control-group flex gap-6" style="left: 50%; bottom: 8%; transform: translateX(-50%) scale(1);">
-            <div class="flex flex-col items-center">
-                <div class="pill-btn control-btn" data-btn="SELECT"></div>
-                <span class="text-[10px] uppercase mt-1 text-gray-400 font-bold tracking-wider">Select</span>
-            </div>
-            <div class="flex flex-col items-center">
-                <div class="pill-btn control-btn" data-btn="START"></div>
-                <span class="text-[10px] uppercase mt-1 text-gray-400 font-bold tracking-wider">Start</span>
-            </div>
-        </div>
-
-        <div id="group-util" class="control-group flex gap-3" style="right: 5%; top: 5%; transform: scale(1);">
-            <div class="util-btn control-util" data-action="rewind"><i class="ph-fill ph-rewind"></i></div>
-            <div class="util-btn control-util" data-action="ff"><i class="ph-fill ph-fast-forward"></i></div>
-        </div>
-    </div>
-
-    <!-- State Indicators -->
-    <div id="rewind-indicator" class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 backdrop-blur-md text-white px-6 py-3 rounded-full font-bold flex items-center gap-3 pointer-events-none opacity-0 transition-opacity z-50 shadow-2xl border border-yellow-500/30">
-        <i class="ph-fill ph-rewind text-yellow-400 text-2xl animate-pulse"></i> <span class="tracking-widest uppercase">Rewinding</span>
-    </div>
-    <div id="ff-indicator" class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 backdrop-blur-md text-white px-6 py-3 rounded-full font-bold flex items-center gap-3 pointer-events-none opacity-0 transition-opacity z-50 shadow-2xl border border-blue-500/30">
-        <i class="ph-fill ph-fast-forward text-blue-400 text-2xl animate-pulse"></i> <span class="tracking-widest uppercase">Fast Forward</span>
-    </div>
-
+    <!-- Main Application Script (ES Module with Firebase 13.1.0) -->
     <script type="module">
-        // Import exact versions defined by system constraints
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+        import {
+            getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc,
+            collection, addDoc, onSnapshot
+        } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
-        // User's explicit Firebase configuration
+        // ==========================================
+        // 1. FIREBASE CONFIGURATION (nespro-f49eb)
+        // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyD9p_rmaGXgmeZAtZ_uJckDLq5SsjnlKtg",
             authDomain: "nespro-f49eb.firebaseapp.com",
@@ -379,105 +391,157 @@
             measurementId: "G-41FYT8PZBW"
         };
 
-        const appId = "nespro-f49eb"; // Used for mandatory strict path structure
-        
-        let app, auth, db, user = null;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch (e) {
-            console.error("Firebase Initialization Failed", e);
+        const fbApp = initializeApp(firebaseConfig);
+        const auth = getAuth(fbApp);
+        const db = getFirestore(fbApp);
+        let authReady = false;
+
+        async function ensureFirebaseAuth() {
+            if (auth.currentUser) return auth.currentUser;
+            const cred = await signInAnonymously(auth);
+            return cred.user;
         }
 
-        // Must authenticate before database interaction
-        async function authenticate() {
-            if (user) return true;
-            try {
-                const credential = await signInAnonymously(auth);
-                user = credential.user;
-                return true;
-            } catch (e) {
-                console.error("Auth Error", e);
-                return false;
+        onAuthStateChanged(auth, (user) => {
+            const dot = document.getElementById('auth-dot');
+            if (user) {
+                authReady = true;
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+                dot.title = 'Firebase Ready';
+            } else {
+                authReady = false;
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
             }
-        }
+        });
 
-        // --- System Globals ---
+        ensureFirebaseAuth().catch((err) => {
+            console.warn('Initial anonymous auth pending:', err.code || err.message);
+            document.getElementById('auth-dot').className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+        });
+
+        // ==========================================
+        // 2. CORE EMULATOR STATE & FIXED 60 FPS LOOP
+        // ==========================================
         let nes = null;
+        let currentRomData = null;
+        let currentRomName = 'default';
         let animationFrame = null;
-        let isRomLoaded = false;
-        let isPaused = false;
-        let romDataCache = null;
-        
-        let isFastForwarding = false;
-        let isRewinding = false;
-        let rewindBuffer = [];
-        let frameCounter = 0;
-        const REWIND_MAX_STATES = 150; 
-        let isEditLayoutMode = false;
 
-        // --- Video Context ---
+        // Fixed-timestep timing (matches NES NTSC 60.0988 Hz on 60Hz, 90Hz & 120Hz screens)
+        const NES_FPS = 60.0988;
+        const FRAME_TIME = 1000 / NES_FPS;
+        let lastFrameTime = 0;
+        let accumulator = 0;
+
+        let isPaused = false;
+        let isMuted = false;
+        let isFastForward = false;
+        let isRewinding = false;
+
+        // Rewind history buffer (lightweight periodic snapshots)
+        const rewindBuffer = [];
+        const MAX_REWIND_SNAPSHOTS = 45;
+        let frameCounter = 0;
+        let lastRewindStep = 0;
+
+        // Multiplayer state
+        let pc = null;
+        let dataChannel = null;
+        let mpRole = null; // 'host' | 'client' | null
+        let activeRoomId = null;
+        let unsubscribers = [];
+        let pendingIceCandidates = [];
+        let remoteDescriptionSet = false;
+
+        // Canvas & pixel buffer
         const canvas = document.getElementById('nes-canvas');
         const ctx = canvas.getContext('2d', { alpha: false });
+        const remoteVideo = document.getElementById('remote-video');
         const imageData = ctx.createImageData(256, 240);
-        const buf = new ArrayBuffer(imageData.data.length);
-        const buf8 = new Uint8ClampedArray(buf);
+        const buf8 = new Uint8ClampedArray(imageData.data.length);
 
+        // Button Mappings
         const BUTTON_MAP = {
-            'A': jsnes.Controller.BUTTON_A, 'B': jsnes.Controller.BUTTON_B,
-            'SELECT': jsnes.Controller.BUTTON_SELECT, 'START': jsnes.Controller.BUTTON_START,
-            'UP': jsnes.Controller.BUTTON_UP, 'DOWN': jsnes.Controller.BUTTON_DOWN,
-            'LEFT': jsnes.Controller.BUTTON_LEFT, 'RIGHT': jsnes.Controller.BUTTON_RIGHT
-        };
-        const KEY_MAP = {
-            'KeyX': 'A', 'KeyZ': 'B', 'ShiftRight': 'SELECT', 'ShiftLeft': 'SELECT',
-            'Enter': 'START', 'ArrowUp': 'UP', 'ArrowDown': 'DOWN', 
-            'ArrowLeft': 'LEFT', 'ArrowRight': 'RIGHT',
-            'KeyW': 'UP', 'KeyS': 'DOWN', 'KeyA': 'LEFT', 'KeyD': 'RIGHT'
+            UP: jsnes.Controller.BUTTON_UP,
+            DOWN: jsnes.Controller.BUTTON_DOWN,
+            LEFT: jsnes.Controller.BUTTON_LEFT,
+            RIGHT: jsnes.Controller.BUTTON_RIGHT,
+            A: jsnes.Controller.BUTTON_A,
+            B: jsnes.Controller.BUTTON_B,
+            SELECT: jsnes.Controller.BUTTON_SELECT,
+            START: jsnes.Controller.BUTTON_START
         };
 
-        function showToast(msg) {
-            const container = document.getElementById('toast-container');
-            const el = document.createElement('div');
-            el.className = 'toast'; el.innerText = msg;
-            container.appendChild(el);
-            setTimeout(() => {
-                el.style.opacity = '0';
-                setTimeout(() => el.remove(), 300);
-            }, 3000);
+        const KEY_MAP = {
+            ArrowUp: 'UP', KeyW: 'UP',
+            ArrowDown: 'DOWN', KeyS: 'DOWN',
+            ArrowLeft: 'LEFT', KeyA: 'LEFT',
+            ArrowRight: 'RIGHT', KeyD: 'RIGHT',
+            KeyX: 'A', KeyK: 'A',
+            KeyZ: 'B', KeyJ: 'B',
+            Enter: 'START',
+            ShiftLeft: 'SELECT', ShiftRight: 'SELECT'
+        };
+
+        // Toast Helper
+        let toastTimer = null;
+        function showToast(msg, duration = 2000) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add('hidden'), duration);
         }
 
-        // --- Audio System ---
+        // ==========================================
+        // 3. WEB AUDIO + STREAMABLE OUTPUT
+        // ==========================================
         class AudioSystem {
             constructor() {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                this.audioCtx = new AudioContext();
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.audioCtx = new AudioCtx();
                 this.sampleRate = this.audioCtx.sampleRate;
-                this.bufferSize = 4096;
+                this.bufferSize = 2048;
                 this.scriptNode = this.audioCtx.createScriptProcessor(this.bufferSize, 0, 2);
+
                 this.ringSize = this.bufferSize * 8;
                 this.leftRing = new Float32Array(this.ringSize);
                 this.rightRing = new Float32Array(this.ringSize);
-                this.readPtr = 0; this.writePtr = 0; this.queued = 0;
-                
+                this.readPtr = 0;
+                this.writePtr = 0;
+                this.queued = 0;
+
                 this.scriptNode.onaudioprocess = (e) => {
-                    const leftBuf = e.outputBuffer.getChannelData(0);
-                    const rightBuf = e.outputBuffer.getChannelData(1);
-                    for (let i = 0; i < leftBuf.length; i++) {
-                        if (this.queued > 0) {
-                            leftBuf[i] = this.leftRing[this.readPtr];
-                            rightBuf[i] = this.rightRing[this.readPtr];
+                    const leftOut = e.outputBuffer.getChannelData(0);
+                    const rightOut = e.outputBuffer.getChannelData(1);
+                    const silence = isPaused || isFastForward || isRewinding;
+
+                    for (let i = 0; i < leftOut.length; i++) {
+                        if (!silence && this.queued > 0) {
+                            leftOut[i] = this.leftRing[this.readPtr];
+                            rightOut[i] = this.rightRing[this.readPtr];
                             this.readPtr = (this.readPtr + 1) % this.ringSize;
                             this.queued--;
                         } else {
-                            leftBuf[i] = 0; rightBuf[i] = 0;
+                            leftOut[i] = 0;
+                            rightOut[i] = 0;
                         }
                     }
                 };
-                this.scriptNode.connect(this.audioCtx.destination);
+
+                // Local speaker path with independent mute gain
+                this.localGain = this.audioCtx.createGain();
+                this.localGain.gain.value = isMuted ? 0 : 1;
+                this.scriptNode.connect(this.localGain);
+                this.localGain.connect(this.audioCtx.destination);
+
+                // WebRTC live stream path (always active for Player 2)
+                this.streamDest = this.audioCtx.createMediaStreamDestination();
+                this.scriptNode.connect(this.streamDest);
             }
+
             pushSample(left, right) {
+                if (isFastForward || isRewinding) return;
                 if (this.queued < this.ringSize) {
                     this.leftRing[this.writePtr] = left;
                     this.rightRing[this.writePtr] = right;
@@ -485,569 +549,969 @@
                     this.queued++;
                 }
             }
-            resume() { if (this.audioCtx.state === 'suspended') this.audioCtx.resume(); }
-            clear() { this.queued = 0; this.readPtr = 0; this.writePtr = 0; }
-        }
-        let audioSystem = null;
 
-        // --- Emulator Core ---
-        function initNES() {
+            clear() {
+                this.readPtr = 0;
+                this.writePtr = 0;
+                this.queued = 0;
+            }
+
+            setLocalMute(muted) {
+                this.localGain.gain.value = muted ? 0 : 1;
+            }
+
+            resume() {
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
+        }
+
+        let audioSystem = null;
+        function ensureAudio() {
+            if (!audioSystem) {
+                try {
+                    audioSystem = new AudioSystem();
+                } catch (e) {
+                    console.warn('Web Audio unavailable:', e);
+                }
+            } else {
+                audioSystem.resume();
+            }
+        }
+
+        // ==========================================
+        // 4. NES ENGINE & FIXED-TIMESTEP LOOP
+        // ==========================================
+        function renderFramebuffer(framebuffer_24) {
+            for (let i = 0; i < 256 * 240; i++) {
+                const pixel = framebuffer_24[i];
+                const idx = i * 4;
+                buf8[idx] = pixel & 0xFF;             // Red
+                buf8[idx + 1] = (pixel >> 8) & 0xFF;  // Green
+                buf8[idx + 2] = (pixel >> 16) & 0xFF; // Blue
+                buf8[idx + 3] = 0xFF;                 // Alpha
+            }
+            imageData.data.set(buf8);
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function startEmulator(romData, romName = 'game.nes') {
+            if (mpRole === 'client') {
+                showToast('Disconnect from P2 room to load a local ROM');
+                return;
+            }
+
+            cancelAnimationFrame(animationFrame);
+            ensureAudio();
+            if (audioSystem) audioSystem.clear();
+
+            currentRomData = romData;
+            currentRomName = romName;
+            isPaused = false;
+            rewindBuffer.length = 0;
+            frameCounter = 0;
+            updatePauseUI();
+
             nes = new jsnes.NES({
-                onFrame: function(framebuffer_24) {
-                    for (let i = 0; i < 256 * 240; i++) {
-                        const pixel = framebuffer_24[i];
-                        const idx = i * 4;
-                        buf8[idx] = (pixel >> 16) & 0xFF;
-                        buf8[idx + 1] = (pixel >> 8) & 0xFF;
-                        buf8[idx + 2] = pixel & 0xFF;
-                        buf8[idx + 3] = 0xFF;
-                    }
-                    imageData.data.set(buf8);
-                    ctx.putImageData(imageData, 0, 0);
-                },
-                onAudioSample: function(left, right) {
-                    if (audioSystem && !isPaused && !isFastForwarding && !isRewinding) {
-                        audioSystem.pushSample(left, right);
-                    }
+                onFrame: renderFramebuffer,
+                onAudioSample: (left, right) => {
+                    if (audioSystem) audioSystem.pushSample(left, right);
                 },
                 sampleRate: audioSystem ? audioSystem.sampleRate : 44100
             });
-        }
-
-        function runLoop() {
-            if(!nes || !isRomLoaded) return;
-            
-            if (!isPaused) {
-                if (isRewinding && !isMultiplayer) {
-                    if (rewindBuffer.length > 0) {
-                        nes.fromJSON(rewindBuffer.pop());
-                        nes.frame(); 
-                    }
-                } else {
-                    const iterations = (isFastForwarding && !isMultiplayer) ? 3 : 1;
-                    for(let i = 0; i < iterations; i++) {
-                        nes.frame();
-                        frameCounter++;
-                        if (!isMultiplayer && i === iterations - 1 && frameCounter % 30 === 0) {
-                            rewindBuffer.push(JSON.parse(JSON.stringify(nes.toJSON())));
-                            if (rewindBuffer.length > REWIND_MAX_STATES) rewindBuffer.shift();
-                        }
-                    }
-                }
-            }
-            animationFrame = requestAnimationFrame(runLoop);
-        }
-
-        function startEmulator(romData, isSyncStart = false) {
-            cancelAnimationFrame(animationFrame);
-            romDataCache = romData;
-            
-            if (!audioSystem) {
-                try { audioSystem = new AudioSystem(); } catch(e) {}
-            } else {
-                audioSystem.resume(); audioSystem.clear();
-            }
-
-            initNES();
-            rewindBuffer = [];
-            frameCounter = 0;
 
             try {
                 nes.loadROM(romData);
-                isRomLoaded = true;
                 document.getElementById('status-message').style.display = 'none';
-                
-                isPaused = isSyncStart;
-                
-                runLoop();
-                closeMenu();
-                showToast("ROM Loaded Successfully!");
+                canvas.classList.remove('hidden');
+                remoteVideo.classList.add('hidden');
+                renderSaveSlots();
+                lastFrameTime = 0;
+                accumulator = 0;
+                animationFrame = requestAnimationFrame(runFrame);
+                showToast(`Loaded: ${romName}`);
             } catch (err) {
-                showToast("Error loading ROM. Ensure valid .nes format.");
+                console.error(err);
+                showToast('Invalid .nes ROM file', 3000);
             }
         }
 
+        function runFrame(now) {
+            animationFrame = requestAnimationFrame(runFrame);
+            if (!nes || mpRole === 'client') {
+                lastFrameTime = now;
+                return;
+            }
+
+            if (isPaused) {
+                lastFrameTime = now;
+                return;
+            }
+
+            // Rewind Mode (Solo only to keep multiplayer stream stable)
+            if (isRewinding && mpRole !== 'host') {
+                if (now - lastRewindStep > 90 && rewindBuffer.length > 0) {
+                    const snap = rewindBuffer.pop();
+                    try {
+                        nes.fromJSON(snap);
+                        nes.frame();
+                    } catch (e) {}
+                    lastRewindStep = now;
+                }
+                lastFrameTime = now;
+                return;
+            }
+
+            if (!lastFrameTime) lastFrameTime = now;
+            let delta = now - lastFrameTime;
+            lastFrameTime = now;
+
+            // Cap delta after tab switches / lag spikes
+            if (delta > 100) delta = 100;
+
+            const speedMultiplier = (isFastForward && mpRole !== 'host') ? 2.2 : 1;
+            accumulator += delta * speedMultiplier;
+
+            let steps = 0;
+            while (accumulator >= FRAME_TIME && steps < 5) {
+                nes.frame();
+                accumulator -= FRAME_TIME;
+                steps++;
+
+                // Capture periodic rewind snapshot (solo mode)
+                frameCounter++;
+                if (mpRole !== 'host' && frameCounter % 18 === 0) {
+                    try {
+                        rewindBuffer.push(nes.toJSON());
+                        if (rewindBuffer.length > MAX_REWIND_SNAPSHOTS) {
+                            rewindBuffer.shift();
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+
+        // File Loader
         document.getElementById('rom-upload').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const u8 = new Uint8Array(e.target.result);
-                let binString = '';
-                for (let i = 0; i < u8.length; i += 8192) {
-                    binString += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+            reader.onload = (ev) => {
+                const u8 = new Uint8Array(ev.target.result);
+                let binary = '';
+                const chunkSize = 8192;
+                for (let i = 0; i < u8.length; i += chunkSize) {
+                    binary += String.fromCharCode.apply(null, u8.subarray(i, i + chunkSize));
                 }
-                startEmulator(binString);
+                startEmulator(binary, file.name);
             };
             reader.readAsArrayBuffer(file);
+            e.target.value = '';
         });
 
-        // --- Multiplayer WebRTC (Firebase Signaling) ---
-        let rtcPeer = null;
-        let rtcChannel = null;
-        let localPlayer = 1; // 1 = Host, 2 = Client
-        let isMultiplayer = false;
-        let roomCode = null;
-        let unsubscribeRoom = null;
-        const iceServers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        // ==========================================
+        // 5. INPUT ROUTING (SOLO, HOST P1, CLIENT P2)
+        // ==========================================
+        const pressedState = {};
 
-        function setMpUI(active, code = '---', msg = 'Waiting...') {
-            document.getElementById('mp-idle').style.display = active ? 'none' : 'block';
-            document.getElementById('mp-active').style.display = active ? 'flex' : 'none';
-            document.getElementById('mp-room-code').innerText = code;
-            const statusEl = document.getElementById('mp-status-msg');
-            statusEl.innerText = msg;
-            statusEl.className = msg.includes("Connected") 
-                ? "text-xs text-center text-white font-bold mb-4 bg-green-600 px-3 py-1 rounded-full w-full"
-                : "text-xs text-center text-gray-400 mb-4 bg-gray-900 px-3 py-1 rounded-full border border-gray-700 w-full";
-        }
-
-        function setupDataChannel(channel) {
-            channel.onopen = () => {
-                showToast("Player Connected!");
-                setMpUI(true, roomCode, "Connected! Player 2 is in.");
-                
-                if (localPlayer === 1 && romDataCache) {
-                    showToast("Streaming ROM to Player 2...");
-                    const chunkSize = 16384; 
-                    const totalChunks = Math.ceil(romDataCache.length / chunkSize);
-                    channel.send(JSON.stringify({ type: 'rom_start', chunks: totalChunks }));
-                    
-                    for (let i = 0; i < totalChunks; i++) {
-                        const chunk = romDataCache.substring(i * chunkSize, (i + 1) * chunkSize);
-                        channel.send(JSON.stringify({ type: 'rom_chunk', idx: i, data: btoa(chunk) }));
-                    }
-                }
-            };
-            
-            channel.onclose = () => {
-                showToast("Player Disconnected");
-                disconnectMultiplayer();
-            };
-            
-            let rxChunks = [];
-            let expectedChunks = 0;
-
-            channel.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                
-                if (msg.type === 'input') {
-                    if (nes && isRomLoaded) {
-                        msg.isDown ? nes.buttonDown(msg.player, msg.btn) : nes.buttonUp(msg.player, msg.btn);
-                    }
-                } 
-                else if (msg.type === 'rom_start') {
-                    expectedChunks = msg.chunks;
-                    rxChunks = [];
-                    showToast("Downloading ROM from Host...");
-                } 
-                else if (msg.type === 'rom_chunk') {
-                    rxChunks[msg.idx] = atob(msg.data);
-                    if (rxChunks.length === expectedChunks && !rxChunks.includes(undefined)) {
-                        showToast("ROM Received! Booting up...");
-                        startEmulator(rxChunks.join(''), true); 
-                        channel.send(JSON.stringify({ type: 'rom_loaded' }));
-                    }
-                } 
-                else if (msg.type === 'rom_loaded') {
-                    showToast("Player 2 Ready! Syncing Start...");
-                    channel.send(JSON.stringify({ type: 'start_sync' }));
-                    isPaused = false;
-                }
-                else if (msg.type === 'start_sync') {
-                    isPaused = false;
-                    showToast("Game Started!");
-                }
-            };
-        }
-
-        async function hostGame() {
-            if (!isRomLoaded) return showToast("Please load a ROM first.");
-            const isAuthenticated = await authenticate();
-            if (!isAuthenticated) return showToast("Authentication failed.");
-            
-            isMultiplayer = true;
-            localPlayer = 1;
-            roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-            setMpUI(true, roomCode, "Generating room...");
-
-            // Mandatory Path formatting Rule 1
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rtc_rooms', roomCode);
-            rtcPeer = new RTCPeerConnection(iceServers);
-            
-            rtcChannel = rtcPeer.createDataChannel('nes_sync');
-            setupDataChannel(rtcChannel);
-
-            rtcPeer.onicecandidate = async (e) => {
-                if (e.candidate) {
-                    const snap = await getDoc(roomRef);
-                    if(snap.exists()) {
-                        const d = snap.data();
-                        await updateDoc(roomRef, { hostCandidates: [...(d.hostCandidates||[]), JSON.stringify(e.candidate)] });
-                    }
-                }
-            };
-
-            const offer = await rtcPeer.createOffer();
-            await rtcPeer.setLocalDescription(offer);
-            
-            await setDoc(roomRef, {
-                offer: { type: offer.type, sdp: offer.sdp },
-                hostCandidates: [], clientCandidates: [], timestamp: Date.now()
-            });
-
-            setMpUI(true, roomCode, "Waiting for Player 2 to join...");
-
-            unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
-                const data = snapshot.data();
-                if (!data) return;
-                
-                if (!rtcPeer.currentRemoteDescription && data.answer) {
-                    rtcPeer.setRemoteDescription(new RTCSessionDescription(data.answer));
-                }
-                
-                if (data.clientCandidates) {
-                    data.clientCandidates.forEach(c => {
-                        rtcPeer.addIceCandidate(new RTCIceCandidate(JSON.parse(c))).catch(e=>{});
-                    });
-                }
-            }, (error) => console.error("Snapshot error:", error));
-        }
-
-        async function joinGame() {
-            const codeInput = document.getElementById('join-code').value.toUpperCase().trim();
-            if (!codeInput) return showToast("Enter a room code.");
-            
-            const isAuthenticated = await authenticate();
-            if (!isAuthenticated) return showToast("Authentication failed.");
-
-            isMultiplayer = true;
-            localPlayer = 2; 
-            roomCode = codeInput;
-            setMpUI(true, roomCode, "Connecting to Host...");
-
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rtc_rooms', roomCode);
-            const roomSnap = await getDoc(roomRef);
-            
-            if (!roomSnap.exists()) {
-                disconnectMultiplayer();
-                return showToast("Room Code not found!");
-            }
-
-            rtcPeer = new RTCPeerConnection(iceServers);
-            rtcPeer.ondatachannel = (e) => {
-                rtcChannel = e.channel;
-                setupDataChannel(rtcChannel);
-            };
-
-            rtcPeer.onicecandidate = async (e) => {
-                if (e.candidate) {
-                    const snap = await getDoc(roomRef);
-                    if(snap.exists()) {
-                        const d = snap.data();
-                        await updateDoc(roomRef, { clientCandidates: [...(d.clientCandidates||[]), JSON.stringify(e.candidate)] });
-                    }
-                }
-            };
-
-            const data = roomSnap.data();
-            await rtcPeer.setRemoteDescription(new RTCSessionDescription(data.offer));
-            const answer = await rtcPeer.createAnswer();
-            await rtcPeer.setLocalDescription(answer);
-            
-            await updateDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } });
-
-            unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
-                const d = snapshot.data();
-                if (d && d.hostCandidates) {
-                    d.hostCandidates.forEach(c => {
-                        rtcPeer.addIceCandidate(new RTCIceCandidate(JSON.parse(c))).catch(e=>{});
-                    });
-                }
-            }, (err) => console.error(err));
-        }
-
-        function disconnectMultiplayer() {
-            if(unsubscribeRoom) unsubscribeRoom();
-            if(rtcChannel) rtcChannel.close();
-            if(rtcPeer) rtcPeer.close();
-            
-            rtcChannel = null; rtcPeer = null;
-            isMultiplayer = false; 
-            localPlayer = 1; 
-            roomCode = null;
-            
-            setMpUI(false);
-            showToast("Disconnected from Multiplayer");
-        }
-
-        // --- Inputs ---
-        function triggerInput(type, buttonStr) {
-            if (!nes || !isRomLoaded || isEditLayoutMode) return;
+        function handleInput(action, buttonStr) {
             const btnCode = BUTTON_MAP[buttonStr];
             if (btnCode === undefined) return;
-            
-            if (type === 'down') nes.buttonDown(localPlayer, btnCode);
-            else nes.buttonUp(localPlayer, btnCode);
-            
-            if (isMultiplayer && rtcChannel && rtcChannel.readyState === 'open') {
-                rtcChannel.send(JSON.stringify({ type: 'input', player: localPlayer, btn: btnCode, isDown: type === 'down' }));
+
+            // Avoid duplicate network/engine calls
+            const isDown = action === 'down';
+            if (pressedState[buttonStr] === isDown) return;
+            pressedState[buttonStr] = isDown;
+
+            // Player 2 (Client): send input over WebRTC DataChannel to Host
+            if (mpRole === 'client') {
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    dataChannel.send(JSON.stringify({ type: 'input', action, btn: btnCode }));
+                }
+                return;
             }
+
+            // Player 1 (Solo or Host): apply directly to local NES
+            if (!nes) return;
+            if (isDown) nes.buttonDown(1, btnCode);
+            else nes.buttonUp(1, btnCode);
         }
 
-        document.querySelectorAll('.control-btn').forEach(btn => {
-            const btnName = btn.dataset.btn;
-            if(!btnName) return;
+        function releaseAllDirections() {
+            ['UP', 'DOWN', 'LEFT', 'RIGHT'].forEach((dir) => {
+                handleInput('up', dir);
+                const el = document.querySelector(`.dpad-btn[data-btn="${dir}"]`);
+                if (el) el.classList.remove('active-touch');
+            });
+        }
 
+        function releaseAllP2ButtonsOnHost() {
+            if (!nes) return;
+            Object.values(BUTTON_MAP).forEach((code) => nes.buttonUp(2, code));
+        }
+
+        // Standard Pointer Controls (A, B, Select, Start)
+        document.querySelectorAll('.action-btn, .pill-btn').forEach((btn) => {
+            const btnName = btn.dataset.btn;
             btn.addEventListener('pointerdown', (e) => {
-                if(isEditLayoutMode) return;
-                e.preventDefault(); e.stopPropagation();
-                btn.classList.add('active-input');
+                if (isEditingLayout) return;
+                e.preventDefault();
+                ensureAudio();
                 btn.setPointerCapture(e.pointerId);
-                triggerInput('down', btnName);
-                if(audioSystem) audioSystem.resume();
+                btn.classList.add('active-touch');
+                handleInput('down', btnName);
             });
 
             const release = (e) => {
-                if(isEditLayoutMode) return;
+                if (isEditingLayout) return;
                 e.preventDefault();
-                btn.classList.remove('active-input');
-                btn.releasePointerCapture(e.pointerId);
-                triggerInput('up', btnName);
+                btn.classList.remove('active-touch');
+                handleInput('up', btnName);
             };
+
             btn.addEventListener('pointerup', release);
             btn.addEventListener('pointercancel', release);
         });
 
-        // Virtual Analog Logic
-        const dpadUI = document.getElementById('dpad-ui');
-        const joystickUI = document.getElementById('joystick-ui');
-        const joyStick = document.getElementById('joystick-stick');
-        let activeJoyDirs = { UP: false, DOWN: false, LEFT: false, RIGHT: false };
-        let joyActivePointerId = null;
+        // Smooth Slide-Capable D-Pad (Supports rolling thumb across directions + diagonals)
+        const dpadContainer = document.getElementById('dpad-container');
+        let dpadPointerId = null;
 
-        function resetJoyDirections() {
-            if(!nes) return;
-            for (let dir in activeJoyDirs) {
-                if (activeJoyDirs[dir]) { 
-                    triggerInput('up', dir); activeJoyDirs[dir] = false; 
+        function updateDpadFromPoint(clientX, clientY) {
+            const rect = dpadContainer.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dx = clientX - cx;
+            const dy = clientY - cy;
+            const deadzone = rect.width * 0.12;
+
+            const activeDirs = {
+                UP: dy < -deadzone,
+                DOWN: dy > deadzone,
+                LEFT: dx < -deadzone,
+                RIGHT: dx > deadzone
+            };
+
+            ['UP', 'DOWN', 'LEFT', 'RIGHT'].forEach((dir) => {
+                const el = dpadContainer.querySelector(`[data-btn="${dir}"]`);
+                if (activeDirs[dir]) {
+                    el.classList.add('active-touch');
+                    handleInput('down', dir);
+                } else {
+                    el.classList.remove('active-touch');
+                    handleInput('up', dir);
                 }
-            }
+            });
         }
 
-        document.getElementById('input-style').addEventListener('change', (e) => {
-            if(e.target.value === 'analog') {
-                dpadUI.classList.add('hidden-scale'); joystickUI.classList.remove('hidden-scale');
-            } else {
-                joystickUI.classList.add('hidden-scale'); dpadUI.classList.remove('hidden-scale');
-            }
-            resetJoyDirections();
-        });
-
-        joystickUI.addEventListener('pointerdown', (e) => {
-            if(isEditLayoutMode || joyActivePointerId !== null) return;
-            e.preventDefault(); e.stopPropagation();
-            joyActivePointerId = e.pointerId;
-            joystickUI.setPointerCapture(e.pointerId);
-            joystickUI.classList.add('dragging');
-            if(audioSystem) audioSystem.resume();
-            calcJoystick(e);
-        });
-
-        joystickUI.addEventListener('pointermove', (e) => {
-            if(e.pointerId !== joyActivePointerId || isEditLayoutMode) return;
-            e.preventDefault(); e.stopPropagation();
-            calcJoystick(e);
-        });
-
-        const releaseJoystick = (e) => {
-            if(e.pointerId !== joyActivePointerId || isEditLayoutMode) return;
+        dpadContainer.addEventListener('pointerdown', (e) => {
+            if (isEditingLayout) return;
             e.preventDefault();
-            joyActivePointerId = null;
-            joystickUI.releasePointerCapture(e.pointerId);
-            joystickUI.classList.remove('dragging');
-            joyStick.style.transform = `translate(0px, 0px)`;
-            resetJoyDirections();
+            ensureAudio();
+            dpadPointerId = e.pointerId;
+            dpadContainer.setPointerCapture(e.pointerId);
+            updateDpadFromPoint(e.clientX, e.clientY);
+        });
+
+        dpadContainer.addEventListener('pointermove', (e) => {
+            if (isEditingLayout || e.pointerId !== dpadPointerId) return;
+            e.preventDefault();
+            updateDpadFromPoint(e.clientX, e.clientY);
+        });
+
+        const releaseDpad = (e) => {
+            if (e.pointerId !== dpadPointerId) return;
+            dpadPointerId = null;
+            releaseAllDirections();
         };
-        joystickUI.addEventListener('pointerup', releaseJoystick);
-        joystickUI.addEventListener('pointercancel', releaseJoystick);
+        dpadContainer.addEventListener('pointerup', releaseDpad);
+        dpadContainer.addEventListener('pointercancel', releaseDpad);
 
-        function calcJoystick(e) {
-            const rect = joystickUI.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            
-            let dx = e.clientX - centerX;
-            let dy = e.clientY - centerY;
-            
-            const maxRadius = rect.width / 2 - 30;
+        // Virtual Analog Stick (Math.hypot 8-way vector mapping)
+        const analogContainer = document.getElementById('analog-container');
+        const analogKnob = document.getElementById('analog-knob');
+        let analogPointerId = null;
+
+        function updateAnalogFromPoint(clientX, clientY) {
+            const rect = analogContainer.getBoundingClientRect();
+            const maxRadius = rect.width * 0.34;
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+
+            let dx = clientX - cx;
+            let dy = clientY - cy;
             const dist = Math.hypot(dx, dy);
-            
-            if (dist > maxRadius) { dx = (dx / dist) * maxRadius; dy = (dy / dist) * maxRadius; }
-            joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
 
-            const threshold = 0.35; 
-            const newDirs = { 
-                UP: (dy/maxRadius) < -threshold, DOWN: (dy/maxRadius) > threshold, 
-                LEFT: (dx/maxRadius) < -threshold, RIGHT: (dx/maxRadius) > threshold 
-            };
-
-            if(nes && isRomLoaded) {
-                for (let dir in newDirs) {
-                    if (newDirs[dir] !== activeJoyDirs[dir]) {
-                        triggerInput(newDirs[dir] ? 'down' : 'up', dir);
-                        activeJoyDirs[dir] = newDirs[dir];
-                    }
-                }
+            if (dist > maxRadius) {
+                dx = (dx / dist) * maxRadius;
+                dy = (dy / dist) * maxRadius;
             }
+
+            analogKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+
+            const nx = dx / maxRadius;
+            const ny = dy / maxRadius;
+            const threshold = 0.32;
+
+            handleInput(ny < -threshold ? 'down' : 'up', 'UP');
+            handleInput(ny > threshold ? 'down' : 'up', 'DOWN');
+            handleInput(nx < -threshold ? 'down' : 'up', 'LEFT');
+            handleInput(nx > threshold ? 'down' : 'up', 'RIGHT');
         }
 
-        // Rewind/FF
-        const indFF = document.getElementById('ff-indicator');
-        const indRW = document.getElementById('rewind-indicator');
-        
-        document.querySelectorAll('.control-util').forEach(btn => {
-            const action = btn.dataset.action;
-            btn.addEventListener('pointerdown', (e) => {
-                if(isEditLayoutMode || isMultiplayer) return; 
-                e.preventDefault(); e.stopPropagation();
-                btn.setPointerCapture(e.pointerId); btn.classList.add('active-input');
-                if(action === 'ff') { isFastForwarding = true; indFF.style.opacity = '1'; }
-                else if(action === 'rewind') { isRewinding = true; indRW.style.opacity = '1'; }
-            });
-            const release = (e) => {
-                if(isEditLayoutMode || isMultiplayer) return;
-                btn.classList.remove('active-input'); btn.releasePointerCapture(e.pointerId);
-                if(action === 'ff') { isFastForwarding = false; indFF.style.opacity = '0'; if(audioSystem) audioSystem.clear(); }
-                else if(action === 'rewind') { isRewinding = false; indRW.style.opacity = '0'; if(audioSystem) audioSystem.clear(); }
-            };
-            btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release);
+        analogContainer.addEventListener('pointerdown', (e) => {
+            if (isEditingLayout) return;
+            e.preventDefault();
+            ensureAudio();
+            analogPointerId = e.pointerId;
+            analogContainer.setPointerCapture(e.pointerId);
+            updateAnalogFromPoint(e.clientX, e.clientY);
         });
 
-        // Layout Editor
-        const editOverlay = document.getElementById('edit-overlay');
-        const controlsLayer = document.getElementById('controls-layer');
-        const groups = document.querySelectorAll('.control-group');
-        
-        document.getElementById('btn-edit-layout').addEventListener('click', () => {
-            closeMenu(); isEditLayoutMode = true;
-            controlsLayer.classList.add('edit-mode');
-            editOverlay.classList.remove('hidden'); editOverlay.classList.add('flex');
-            
-            groups.forEach(g => {
-                const rect = g.getBoundingClientRect();
-                g.style.right = 'auto'; g.style.bottom = 'auto';
-                g.style.left = rect.left + 'px'; g.style.top = rect.top + 'px';
-            });
+        analogContainer.addEventListener('pointermove', (e) => {
+            if (isEditingLayout || e.pointerId !== analogPointerId) return;
+            e.preventDefault();
+            updateAnalogFromPoint(e.clientX, e.clientY);
         });
 
-        document.getElementById('btn-exit-edit').addEventListener('click', () => {
-            isEditLayoutMode = false;
-            controlsLayer.classList.remove('edit-mode');
-            editOverlay.classList.add('hidden'); editOverlay.classList.remove('flex');
-            
-            const layout = { dpadScale: document.getElementById('range-dpad-size').value, abScale: document.getElementById('range-ab-size').value };
-            groups.forEach(g => layout[g.id] = { left: g.style.left, top: g.style.top, transform: g.style.transform });
-            localStorage.setItem('nes_pro_layout', JSON.stringify(layout));
-            showToast("Layout Saved Successfully");
+        const releaseAnalog = (e) => {
+            if (e.pointerId !== analogPointerId) return;
+            analogPointerId = null;
+            analogKnob.style.transform = 'translate(0px, 0px)';
+            releaseAllDirections();
+        };
+        analogContainer.addEventListener('pointerup', releaseAnalog);
+        analogContainer.addEventListener('pointercancel', releaseAnalog);
+
+        // Toggle D-Pad / Analog Mode
+        let useAnalog = localStorage.getItem('nespro_stick_mode') === 'analog';
+        function applyStickMode() {
+            releaseAllDirections();
+            const btn = document.getElementById('btn-toggle-stick');
+            if (useAnalog) {
+                dpadContainer.classList.add('hidden');
+                analogContainer.classList.remove('hidden');
+                btn.textContent = 'Analog Stick';
+                btn.className = 'px-3 py-1 rounded-md bg-emerald-600 text-xs font-bold';
+            } else {
+                analogContainer.classList.add('hidden');
+                dpadContainer.classList.remove('hidden');
+                btn.textContent = 'D-Pad';
+                btn.className = 'px-3 py-1 rounded-md bg-red-600 text-xs font-bold';
+            }
+        }
+        applyStickMode();
+
+        document.getElementById('btn-toggle-stick').addEventListener('click', () => {
+            useAnalog = !useAnalog;
+            localStorage.setItem('nespro_stick_mode', useAnalog ? 'analog' : 'dpad');
+            applyStickMode();
         });
 
-        let dragTarget = null, dragStartX, dragStartY, initialElemLeft, initialElemTop;
-        groups.forEach(g => {
-            g.addEventListener('pointerdown', (e) => {
-                if(!isEditLayoutMode) return;
-                e.preventDefault(); e.stopPropagation();
-                dragTarget = g; g.setPointerCapture(e.pointerId);
-                dragStartX = e.clientX; dragStartY = e.clientY;
-                initialElemLeft = parseFloat(g.style.left || g.offsetLeft); 
-                initialElemTop = parseFloat(g.style.top || g.offsetTop);
-            });
-            g.addEventListener('pointermove', (e) => {
-                if(!isEditLayoutMode || dragTarget !== g) return;
-                e.preventDefault(); e.stopPropagation();
-                g.style.left = (initialElemLeft + (e.clientX - dragStartX)) + 'px'; 
-                g.style.top = (initialElemTop + (e.clientY - dragStartY)) + 'px';
-            });
-            const releaseDrag = (e) => { if(isEditLayoutMode && dragTarget === g) { dragTarget = null; g.releasePointerCapture(e.pointerId); } };
-            g.addEventListener('pointerup', releaseDrag); g.addEventListener('pointercancel', releaseDrag);
+        // Keyboard Support (Works for Solo, Host P1, and Client P2!)
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+            if (e.code === 'KeyP') { togglePause(); e.preventDefault(); return; }
+            if (e.code === 'Tab') { isFastForward = true; e.preventDefault(); return; }
+            if (e.code === 'Backspace') { isRewinding = true; e.preventDefault(); return; }
+
+            const btnName = KEY_MAP[e.code];
+            if (btnName) {
+                e.preventDefault();
+                handleInput('down', btnName);
+            }
         });
 
-        // Scales
-        document.getElementById('range-dpad-size').addEventListener('input', (e) => {
-            document.getElementById('val-dpad-size').innerText = e.target.value + '%';
-            document.getElementById('group-dpad').style.transform = `scale(${e.target.value / 100})`;
-        });
-        document.getElementById('range-ab-size').addEventListener('input', (e) => {
-            document.getElementById('val-ab-size').innerText = e.target.value + '%';
-            document.getElementById('group-ab').style.transform = `scale(${e.target.value / 100})`;
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Tab') { isFastForward = false; return; }
+            if (e.code === 'Backspace') { isRewinding = false; return; }
+
+            const btnName = KEY_MAP[e.code];
+            if (btnName) {
+                e.preventDefault();
+                handleInput('up', btnName);
+            }
         });
 
-        // Load Saved Layout
-        try {
-            const savedLayout = JSON.parse(localStorage.getItem('nes_pro_layout'));
-            if(savedLayout) {
-                groups.forEach(g => {
-                    if(savedLayout[g.id]) { 
-                        g.style.right = 'auto'; g.style.bottom = 'auto'; 
-                        g.style.left = savedLayout[g.id].left; g.style.top = savedLayout[g.id].top; 
-                        g.style.transform = savedLayout[g.id].transform; 
+        // ==========================================
+        // 6. PAUSE, RESET, MUTE, FF, REWIND & SLOTS
+        // ==========================================
+        function updatePauseUI() {
+            const quickBtn = document.getElementById('btn-quick-pause');
+            quickBtn.textContent = isPaused ? '▶' : '⏸';
+        }
+
+        function togglePause() {
+            if (!nes || mpRole === 'client') return;
+            isPaused = !isPaused;
+            if (!isPaused) lastFrameTime = performance.now();
+            updatePauseUI();
+            showToast(isPaused ? 'Paused' : 'Resumed', 1200);
+        }
+
+        document.getElementById('btn-quick-pause').addEventListener('click', togglePause);
+        document.getElementById('btn-menu-pause').addEventListener('click', () => { togglePause(); closeMenu(); });
+
+        document.getElementById('btn-menu-reset').addEventListener('click', () => {
+            if (!currentRomData || mpRole === 'client') return;
+            startEmulator(currentRomData, currentRomName);
+            closeMenu();
+        });
+
+        document.getElementById('btn-quick-mute').addEventListener('click', () => {
+            isMuted = !isMuted;
+            document.getElementById('btn-quick-mute').textContent = isMuted ? '🔇' : '🔊';
+            if (audioSystem) audioSystem.setLocalMute(isMuted);
+            if (mpRole === 'client') remoteVideo.muted = isMuted;
+        });
+
+        // Hold Fast Forward
+        const ffBtn = document.getElementById('btn-quick-ff');
+        ffBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            if (mpRole) { showToast('Disabled during live sync'); return; }
+            isFastForward = true;
+            ffBtn.classList.add('bg-sky-600', 'text-white');
+        });
+        const stopFF = () => {
+            isFastForward = false;
+            ffBtn.classList.remove('bg-sky-600', 'text-white');
+        };
+        ffBtn.addEventListener('pointerup', stopFF);
+        ffBtn.addEventListener('pointercancel', stopFF);
+        ffBtn.addEventListener('pointerleave', stopFF);
+
+        // Hold Rewind
+        const rwBtn = document.getElementById('btn-quick-rewind');
+        rwBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            if (mpRole) { showToast('Disabled during live sync'); return; }
+            isRewinding = true;
+            rwBtn.classList.add('bg-amber-600', 'text-white');
+        });
+        const stopRW = () => {
+            isRewinding = false;
+            rwBtn.classList.remove('bg-amber-600', 'text-white');
+        };
+        rwBtn.addEventListener('pointerup', stopRW);
+        rwBtn.addEventListener('pointercancel', stopRW);
+        rwBtn.addEventListener('pointerleave', stopRW);
+
+        // Save & Load Slots (Per ROM)
+        function getSlotKey(slot) {
+            return `nespro_save_${currentRomName}_slot${slot}`;
+        }
+
+        function renderSaveSlots() {
+            const container = document.getElementById('save-slots-list');
+            container.innerHTML = '';
+            for (let slot = 1; slot <= 3; slot++) {
+                const savedRaw = localStorage.getItem(getSlotKey(slot));
+                let metaText = 'Empty';
+                if (savedRaw) {
+                    try {
+                        const parsed = JSON.parse(savedRaw);
+                        metaText = parsed.time || 'Saved';
+                    } catch { metaText = 'Saved'; }
+                }
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-2';
+                row.innerHTML = `
+                    <div>
+                        <div class="text-xs font-bold">Slot ${slot}</div>
+                        <div class="text-[10px] text-gray-400">${metaText}</div>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <button data-save="${slot}" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-[11px] font-bold">Save</button>
+                        <button data-load="${slot}" class="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-[11px] font-bold ${savedRaw ? '' : 'opacity-40'}">Load</button>
+                    </div>
+                `;
+                container.appendChild(row);
+            }
+
+            container.querySelectorAll('[data-save]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    if (!nes || mpRole === 'client') { showToast('Load a ROM first'); return; }
+                    const slot = btn.dataset.save;
+                    try {
+                        const payload = {
+                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            state: nes.toJSON()
+                        };
+                        localStorage.setItem(getSlotKey(slot), JSON.stringify(payload));
+                        renderSaveSlots();
+                        showToast(`Saved to Slot ${slot}`);
+                    } catch (e) {
+                        showToast('Storage full (clear an old slot)', 2500);
                     }
                 });
-                if(savedLayout.dpadScale) { document.getElementById('range-dpad-size').value = savedLayout.dpadScale; document.getElementById('val-dpad-size').innerText = savedLayout.dpadScale + '%'; }
-                if(savedLayout.abScale) { document.getElementById('range-ab-size').value = savedLayout.abScale; document.getElementById('val-ab-size').innerText = savedLayout.abScale + '%'; }
-            }
-        } catch(e) {}
+            });
 
-        // Menu Bindings
-        const sideMenu = document.getElementById('side-menu');
+            container.querySelectorAll('[data-load]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    if (!nes || mpRole === 'client') { showToast('Load a ROM first'); return; }
+                    const slot = btn.dataset.load;
+                    const raw = localStorage.getItem(getSlotKey(slot));
+                    if (!raw) { showToast(`Slot ${slot} is empty`); return; }
+                    try {
+                        const parsed = JSON.parse(raw);
+                        nes.fromJSON(parsed.state);
+                        nes.frame();
+                        showToast(`Loaded Slot ${slot}`);
+                        closeMenu();
+                    } catch (e) {
+                        showToast('Failed to load save state');
+                    }
+                });
+            });
+        }
+        renderSaveSlots();
+
+        // ==========================================
+        // 7. CUSTOMIZABLE BUTTON LAYOUT ENGINE
+        // ==========================================
+        let isEditingLayout = false;
+        const defaultLayout = {
+            left: { x: 0, y: 0, scale: 1 },
+            mid: { x: 0, y: 0, scale: 1 },
+            right: { x: 0, y: 0, scale: 1 }
+        };
+
+        let layoutConfig = (() => {
+            try {
+                return JSON.parse(localStorage.getItem('nespro_layout')) || structuredClone(defaultLayout);
+            } catch {
+                return structuredClone(defaultLayout);
+            }
+        })();
+
+        function applyLayout() {
+            ['left', 'mid', 'right'].forEach((key) => {
+                const el = document.getElementById(`cluster-${key}`);
+                const cfg = layoutConfig[key] || defaultLayout[key];
+                el.style.transform = `translate(${cfg.x}px, ${cfg.y}px) scale(${cfg.scale})`;
+                document.getElementById(`scale-${key}`).value = cfg.scale;
+            });
+        }
+
+        function saveLayout() {
+            localStorage.setItem('nespro_layout', JSON.stringify(layoutConfig));
+        }
+        applyLayout();
+
+        // Drag clusters when in layout edit mode
+        document.querySelectorAll('.movable-cluster').forEach((cluster) => {
+            const key = cluster.dataset.cluster;
+            let dragging = false;
+            let startX = 0, startY = 0, origX = 0, origY = 0;
+
+            cluster.addEventListener('pointerdown', (e) => {
+                if (!isEditingLayout) return;
+                e.preventDefault();
+                dragging = true;
+                cluster.setPointerCapture(e.pointerId);
+                startX = e.clientX;
+                startY = e.clientY;
+                origX = layoutConfig[key].x;
+                origY = layoutConfig[key].y;
+            });
+
+            cluster.addEventListener('pointermove', (e) => {
+                if (!dragging || !isEditingLayout) return;
+                e.preventDefault();
+                layoutConfig[key].x = Math.round(origX + (e.clientX - startX));
+                layoutConfig[key].y = Math.round(origY + (e.clientY - startY));
+                applyLayout();
+            });
+
+            const endDrag = () => {
+                if (!dragging) return;
+                dragging = false;
+                saveLayout();
+            };
+            cluster.addEventListener('pointerup', endDrag);
+            cluster.addEventListener('pointercancel', endDrag);
+        });
+
+        ['left', 'mid', 'right'].forEach((key) => {
+            document.getElementById(`scale-${key}`).addEventListener('input', (e) => {
+                layoutConfig[key].scale = parseFloat(e.target.value);
+                applyLayout();
+                saveLayout();
+            });
+        });
+
+        function setLayoutEditMode(enabled) {
+            isEditingLayout = enabled;
+            document.body.classList.toggle('layout-editing', enabled);
+            document.getElementById('layout-toolbar').classList.toggle('hidden', !enabled);
+        }
+
+        document.getElementById('btn-edit-layout').addEventListener('click', () => {
+            closeMenu();
+            setLayoutEditMode(true);
+        });
+        document.getElementById('btn-layout-done').addEventListener('click', () => setLayoutEditMode(false));
+        document.getElementById('btn-layout-reset').addEventListener('click', () => {
+            layoutConfig = structuredClone(defaultLayout);
+            applyLayout();
+            saveLayout();
+        });
+
+        // ==========================================
+        // 8. HOST-AUTHORITATIVE WEBRTC MULTIPLAYER
+        // ==========================================
+        const RTC_CONFIG = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        function setMPStatus(text, badgeText = null) {
+            document.getElementById('mp-status').textContent = text;
+            const badge = document.getElementById('mp-badge');
+            if (badgeText) {
+                badge.textContent = badgeText;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function updateMPPanels(active, roomCode = '') {
+            document.getElementById('mp-idle-controls').classList.toggle('hidden', active);
+            document.getElementById('mp-active-panel').classList.toggle('hidden', !active);
+            document.getElementById('active-room-code').textContent = roomCode || '------';
+        }
+
+        async function flushPendingIce() {
+            if (!pc || !remoteDescriptionSet) return;
+            while (pendingIceCandidates.length > 0) {
+                const candidate = pendingIceCandidates.shift();
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.warn('ICE add error:', e);
+                }
+            }
+        }
+
+        async function disconnectMultiplayer(silent = false) {
+            unsubscribers.forEach((unsub) => { try { unsub(); } catch {} });
+            unsubscribers = [];
+
+            if (dataChannel) { try { dataChannel.close(); } catch {} dataChannel = null; }
+            if (pc) { try { pc.close(); } catch {} pc = null; }
+
+            if (mpRole === 'host') {
+                releaseAllP2ButtonsOnHost();
+                if (activeRoomId) {
+                    deleteDoc(doc(db, 'rooms', activeRoomId)).catch(() => {});
+                }
+            }
+
+            if (mpRole === 'client') {
+                remoteVideo.srcObject = null;
+                remoteVideo.classList.add('hidden');
+                document.getElementById('btn-unmute-remote').classList.add('hidden');
+                canvas.classList.remove('hidden');
+                if (!nes) {
+                    document.getElementById('status-message').style.display = 'flex';
+                }
+            }
+
+            mpRole = null;
+            activeRoomId = null;
+            pendingIceCandidates = [];
+            remoteDescriptionSet = false;
+            updateMPPanels(false);
+            setMPStatus('Host streams live 60 FPS video + audio so both screens never desync.', null);
+            if (!silent) showToast('Multiplayer disconnected');
+        }
+
+        // HOST GAME (Player 1)
+        document.getElementById('btn-host-game').addEventListener('click', async () => {
+            if (!nes || !currentRomData) {
+                alert('Load a .nes ROM file first before hosting.');
+                return;
+            }
+
+            try {
+                await ensureFirebaseAuth();
+            } catch (err) {
+                alert(`Firebase Auth failed (${err.code || err.message}).\n\nCheck Firebase Console:\n1. Enable Anonymous Auth\n2. Add neonbudget.in to Authorized Domains`);
+                return;
+            }
+
+            await disconnectMultiplayer(true);
+            ensureAudio();
+            mpRole = 'host';
+            isPaused = false;
+            isFastForward = false;
+            isRewinding = false;
+            updatePauseUI();
+
+            activeRoomId = generateRoomCode();
+            updateMPPanels(true, activeRoomId);
+            setMPStatus('Creating room...', `HOST: ${activeRoomId}`);
+
+            try {
+                const roomRef = doc(db, 'rooms', activeRoomId);
+                const offerCandidatesRef = collection(roomRef, 'offerCandidates');
+                const answerCandidatesRef = collection(roomRef, 'answerCandidates');
+
+                pc = new RTCPeerConnection(RTC_CONFIG);
+
+                // 1. Attach live 60 FPS canvas video + Web Audio tracks BEFORE createOffer()
+                const hostStream = new MediaStream();
+                const canvasStream = canvas.captureStream ? canvas.captureStream(60) : canvas.mozCaptureStream(60);
+                canvasStream.getVideoTracks().forEach((track) => {
+                    if ('contentHint' in track) track.contentHint = 'motion';
+                    hostStream.addTrack(track);
+                });
+                if (audioSystem && audioSystem.streamDest) {
+                    audioSystem.streamDest.stream.getAudioTracks().forEach((track) => {
+                        hostStream.addTrack(track);
+                    });
+                }
+                hostStream.getTracks().forEach((track) => pc.addTrack(track, hostStream));
+
+                // 2. Create ordered DataChannel for Player 2 controller inputs
+                dataChannel = pc.createDataChannel('nes-input', { ordered: true });
+                dataChannel.onopen = () => {
+                    setMPStatus('Player 2 connected! Screens are 100% synced.', `P1 LIVE (${activeRoomId})`);
+                    showToast('Player 2 Joined!');
+                    closeMenu();
+                };
+                dataChannel.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'input' && nes) {
+                            if (msg.action === 'down') nes.buttonDown(2, msg.btn);
+                            else if (msg.action === 'up') nes.buttonUp(2, msg.btn);
+                        }
+                    } catch (e) {}
+                };
+                dataChannel.onclose = () => {
+                    releaseAllP2ButtonsOnHost();
+                    setMPStatus('Player 2 disconnected.', `HOST: ${activeRoomId}`);
+                };
+
+                // 3. Exchange ICE candidates
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        addDoc(offerCandidatesRef, event.candidate.toJSON()).catch(() => {});
+                    }
+                };
+
+                pc.onconnectionstatechange = () => {
+                    if (!pc) return;
+                    if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+                        releaseAllP2ButtonsOnHost();
+                        setMPStatus('Connection lost. Disconnect and host again.', 'P1 DISCONNECTED');
+                    }
+                };
+
+                // 4. Create & publish SDP offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await setDoc(roomRef, {
+                    offer: { type: offer.type, sdp: offer.sdp },
+                    createdAt: Date.now()
+                });
+
+                setMPStatus(`Waiting for Player 2 to enter code: ${activeRoomId}`, `HOST: ${activeRoomId}`);
+
+                // 5. Listen for Player 2 answer
+                const unsubRoom = onSnapshot(roomRef, async (snapshot) => {
+                    const data = snapshot.data();
+                    if (pc && !pc.currentRemoteDescription && data && data.answer) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                        remoteDescriptionSet = true;
+                        await flushPendingIce();
+                    }
+                });
+                unsubscribers.push(unsubRoom);
+
+                // 6. Listen for Player 2 ICE candidates
+                const unsubCandidates = onSnapshot(answerCandidatesRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === 'added') {
+                            const cand = change.doc.data();
+                            if (remoteDescriptionSet && pc) {
+                                pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+                            } else {
+                                pendingIceCandidates.push(cand);
+                            }
+                        }
+                    });
+                });
+                unsubscribers.push(unsubCandidates);
+
+            } catch (err) {
+                console.error('Host error:', err);
+                alert(`Failed to host room: ${err.message}`);
+                await disconnectMultiplayer(true);
+            }
+        });
+
+        // JOIN GAME (Player 2 Client)
+        document.getElementById('btn-join-game').addEventListener('click', async () => {
+            const code = document.getElementById('input-room-code').value.trim().toUpperCase();
+            if (code.length < 4) {
+                alert('Enter a valid room code.');
+                return;
+            }
+
+            try {
+                await ensureFirebaseAuth();
+            } catch (err) {
+                alert(`Firebase Auth failed (${err.code || err.message}).\n\nCheck Firebase Console:\n1. Enable Anonymous Auth\n2. Add neonbudget.in to Authorized Domains`);
+                return;
+            }
+
+            await disconnectMultiplayer(true);
+            cancelAnimationFrame(animationFrame);
+            if (audioSystem) audioSystem.clear();
+
+            mpRole = 'client';
+            activeRoomId = code;
+            updateMPPanels(true, code);
+            setMPStatus('Connecting to Host...', `JOINING ${code}`);
+
+            try {
+                const roomRef = doc(db, 'rooms', code);
+                const roomSnap = await getDoc(roomRef);
+
+                if (!roomSnap.exists() || !roomSnap.data().offer) {
+                    alert('Room not found. Double-check the room code.');
+                    await disconnectMultiplayer(true);
+                    return;
+                }
+
+                const offerCandidatesRef = collection(roomRef, 'offerCandidates');
+                const answerCandidatesRef = collection(roomRef, 'answerCandidates');
+
+                pc = new RTCPeerConnection(RTC_CONFIG);
+
+                // Receive Host's live synced video + audio stream
+                const remoteStream = new MediaStream();
+                pc.ontrack = (event) => {
+                    remoteStream.addTrack(event.track);
+                    remoteVideo.srcObject = remoteStream;
+                    remoteVideo.muted = isMuted;
+                    canvas.classList.add('hidden');
+                    remoteVideo.classList.remove('hidden');
+                    document.getElementById('status-message').style.display = 'none';
+
+                    remoteVideo.play().catch(() => {
+                        const unmuteBtn = document.getElementById('btn-unmute-remote');
+                        unmuteBtn.classList.remove('hidden');
+                    });
+                };
+
+                // Receive DataChannel for sending P2 inputs
+                pc.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    dataChannel.onopen = () => {
+                        setMPStatus('Synced live with Host as Player 2!', `P2 LIVE (${code})`);
+                        showToast('Connected as Player 2!');
+                        closeMenu();
+                    };
+                    dataChannel.onclose = () => {
+                        setMPStatus('Host ended the session.', 'P2 DISCONNECTED');
+                    };
+                };
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        addDoc(answerCandidatesRef, event.candidate.toJSON()).catch(() => {});
+                    }
+                };
+
+                pc.onconnectionstatechange = () => {
+                    if (!pc) return;
+                    if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+                        setMPStatus('Disconnected from Host.', 'P2 DISCONNECTED');
+                    }
+                };
+
+                // Set Host offer & send Client answer
+                await pc.setRemoteDescription(new RTCSessionDescription(roomSnap.data().offer));
+                remoteDescriptionSet = true;
+
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                await updateDoc(roomRef, {
+                    answer: { type: answer.type, sdp: answer.sdp }
+                });
+
+                // Listen for Host ICE candidates
+                const unsubOfferCands = onSnapshot(offerCandidatesRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === 'added') {
+                            pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(() => {});
+                        }
+                    });
+                });
+                unsubscribers.push(unsubOfferCands);
+
+            } catch (err) {
+                console.error('Join error:', err);
+                alert(`Failed to join room: ${err.message}`);
+                await disconnectMultiplayer(true);
+            }
+        });
+
+        // Mobile stream sound unlock button
+        document.getElementById('btn-unmute-remote').addEventListener('click', () => {
+            remoteVideo.muted = false;
+            remoteVideo.play().catch(() => {});
+            document.getElementById('btn-unmute-remote').classList.add('hidden');
+        });
+
+        document.getElementById('btn-leave-room').addEventListener('click', () => disconnectMultiplayer(false));
+
+        document.getElementById('btn-copy-code').addEventListener('click', () => {
+            if (!activeRoomId) return;
+            navigator.clipboard?.writeText(activeRoomId);
+            showToast(`Copied: ${activeRoomId}`);
+        });
+
+        // ==========================================
+        // 9. DRAWER MENU CONTROLS
+        // ==========================================
+        const proMenu = document.getElementById('pro-menu');
         const menuBackdrop = document.getElementById('menu-backdrop');
-        const openMenu = () => { sideMenu.classList.add('open'); menuBackdrop.classList.remove('hidden'); }
-        const closeMenu = () => { sideMenu.classList.remove('open'); menuBackdrop.classList.add('hidden'); }
-        
-        document.getElementById('menu-btn').addEventListener('click', () => sideMenu.classList.contains('open') ? closeMenu() : openMenu());
-        document.getElementById('close-menu-btn').addEventListener('click', closeMenu);
+
+        function openMenu() {
+            proMenu.classList.remove('-translate-x-full');
+            menuBackdrop.classList.remove('hidden');
+        }
+
+        function closeMenu() {
+            proMenu.classList.add('-translate-x-full');
+            menuBackdrop.classList.add('hidden');
+        }
+
+        document.getElementById('btn-menu').addEventListener('click', openMenu);
+        document.getElementById('btn-close-menu').addEventListener('click', closeMenu);
         menuBackdrop.addEventListener('click', closeMenu);
 
-        // Save/Load
-        document.getElementById('btn-save').addEventListener('click', () => {
-            if(!nes || !isRomLoaded) return showToast("Load a game first!");
-            const slot = document.getElementById('save-slot').value;
-            localStorage.setItem(`nes_save_slot_${slot}`, JSON.stringify(nes.toJSON()));
-            showToast(`Game Saved to Slot ${slot}`);
-        });
-        document.getElementById('btn-load').addEventListener('click', () => {
-            if(!nes || !isRomLoaded) return showToast("Load a game first!");
-            const slot = document.getElementById('save-slot').value;
-            const data = localStorage.getItem(`nes_save_slot_${slot}`);
-            if(data) { nes.fromJSON(JSON.parse(data)); closeMenu(); showToast(`Game Loaded!`); } 
-            else { showToast("No save found in slot."); }
-        });
-
-        document.getElementById('btn-pause').addEventListener('click', () => {
-            isPaused = !isPaused;
-            document.getElementById('pause-icon').className = isPaused ? 'ph ph-play text-lg' : 'ph ph-pause text-lg';
-            document.getElementById('pause-text').innerText = isPaused ? 'Resume Game' : 'Pause Game';
-            if(!isPaused && audioSystem) { audioSystem.resume(); audioSystem.clear(); }
-        });
-        
-        document.getElementById('btn-reset').addEventListener('click', () => { if(romDataCache) { startEmulator(romDataCache); } });
-
-        document.getElementById('btn-host').addEventListener('click', hostGame);
-        document.getElementById('btn-join').addEventListener('click', joinGame);
-        document.getElementById('btn-disconnect').addEventListener('click', disconnectMultiplayer);
-
-        document.addEventListener('keydown', (e) => {
-            if(!nes || !isRomLoaded || document.activeElement.tagName === 'INPUT') return;
-            const btnName = KEY_MAP[e.code];
-            if (btnName) { triggerInput('down', btnName); const uiBtn = document.querySelector(`[data-btn="${btnName}"]`); if(uiBtn) uiBtn.classList.add('active-input'); }
-        });
-        document.addEventListener('keyup', (e) => {
-            if(!nes || !isRomLoaded || document.activeElement.tagName === 'INPUT') return;
-            const btnName = KEY_MAP[e.code];
-            if (btnName) { triggerInput('up', btnName); const uiBtn = document.querySelector(`[data-btn="${btnName}"]`); if(uiBtn) uiBtn.classList.remove('active-input'); }
-        });
-
-        initNES();
+        // Prevent long-press context menu on controls
+        document.getElementById('controller-deck').addEventListener('contextmenu', (e) => e.preventDefault());
     </script>
 </body>
 </html>
