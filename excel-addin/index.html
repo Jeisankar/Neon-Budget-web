@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Office Assistant</title>
   <!-- Official Microsoft Office.js (must be in <head> for Word, Excel, PowerPoint & Outlook host handshake) -->
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
@@ -1062,35 +1065,29 @@
     /*************************************************************************
      * 2. MULTI-WORKBOOK ENGINE & TOKEN-FRUGAL COMPACT SERIALIZER
      *************************************************************************/
-    function buildCompactSheetRowsRepresentation(values, formulas, maxRows = 100) {
+    function buildCompactSheetRowsRepresentation(values, formulas, maxRows = 100, startRowNum = 1, startColIdx = 0) {
       if (!Array.isArray(values) || values.length === 0) return [];
-      const compactRows = [];
-      for (let r = 0; r < values.length && compactRows.length < maxRows; r++) {
+      const compactLines = [];
+      for (let r = 0; r < values.length && compactLines.length < maxRows; r++) {
         const vRow = values[r] || [];
         const fRow = (formulas && formulas[r]) || [];
-        let lastNonEmptyCol = -1;
-        for (let c = vRow.length - 1; c >= 0; c--) {
-          if (vRow[c] !== '' && vRow[c] !== null && vRow[c] !== undefined) {
-            lastNonEmptyCol = c;
-            break;
+        const parts = [];
+        for (let c = 0; c < vRow.length; c++) {
+          const val = vRow[c];
+          const form = fRow[c];
+          const hasVal = val !== '' && val !== null && val !== undefined;
+          const hasForm = typeof form === 'string' && form.startsWith('=');
+          if (hasVal || hasForm) {
+            const coord = `${indexToColLetter(startColIdx + c)}${startRowNum + r}`;
+            const cleanVal = String(val ?? '').replace(/\s+/g, ' ').trim();
+            parts.push(hasForm && form !== cleanVal ? `${coord}:${cleanVal}[${form}]` : `${coord}:${cleanVal}`);
           }
         }
-        if (lastNonEmptyCol >= 0) {
-          const cellsObj = {};
-          for (let c = 0; c <= lastNonEmptyCol; c++) {
-            const val = vRow[c];
-            const form = fRow[c];
-            if ((val !== '' && val !== null && val !== undefined) || (typeof form === 'string' && form.startsWith('='))) {
-              const coord = `${indexToColLetter(c)}${r + 1}`;
-              cellsObj[coord] = typeof form === 'string' && form.startsWith('=') && form !== String(val)
-                ? { v: val, f: form }
-                : val;
-            }
-          }
-          compactRows.push({ r: r + 1, c: cellsObj });
+        if (parts.length > 0) {
+          compactLines.push(parts.join(' | '));
         }
       }
-      return compactRows;
+      return compactLines;
     }
 
     // Hard safety cap on EVERY tool result so no script or range read can dump 20K–89K tokens into the LLM prompt!
@@ -1105,7 +1102,7 @@
           originalChars: serialized.length,
           estimatedTokensSaved: Math.round((serialized.length - maxChars) / 4),
           truncatedPreview: preview + '... [TRUNCATED]',
-          tokenSaverInstruction: 'Output exceeded 4,200 chars and was capped to prevent token leakage. Perform filtering, aggregation, and sheet writes locally inside Excel JS (or use reconcile_itc_books_vs_2b) and return ONLY compact summary counts.'
+          tokenSaverInstruction: `Output exceeded ${maxChars.toLocaleString('en-IN')} chars and was capped to prevent token leakage. Perform filtering, aggregation, and sheet writes locally inside Excel JS and return compact summaries.`
         };
       } catch (err) {
         return { status: 'completed', note: String(result).slice(0, 1000) };
@@ -1136,7 +1133,8 @@
           if (p.functionResponse && p.functionResponse.response && p.functionResponse.response.result) {
             const res = p.functionResponse.response.result;
             const serialized = JSON.stringify(res);
-            if (serialized.length > 650) {
+            const threshold = keepLastToolTurns > 0 ? 6000 : 800;
+            if (serialized.length > threshold) {
               p.functionResponse.response.result = {
                 status: res.status || 'completed_and_pruned_to_save_tokens',
                 sheetName: res.sheetName || res.activeWorksheet || 'ActiveSheet',
@@ -2249,9 +2247,20 @@
       }
     ];
 
-    function getToolsForCurrentHost() {
+    function getToolsForCurrentHost(userPrompt = '') {
       const allExcelDecls = (EXCEL_AGENT_TOOLS[0] && EXCEL_AGENT_TOOLS[0].functionDeclarations) || [];
-      const sharedDecls = allExcelDecls.filter(d => SHARED_OFFICE_TOOL_NAMES.has(d.name));
+      const p = String(userPrompt || '').toLowerCase();
+      const needsWeb = /(web|search|online|gstin|internet|url|http|verify|lookup|news|rate|price|act|section|circular)/i.test(p);
+      const needsExternal = /@|external|other workbook|attached|gstr|reconcil|cross.?workbook/i.test(p) || Object.keys(appState.externalWorkbooks || {}).length > 0;
+
+      const filterShared = (decls) => decls.filter(d => {
+        if (d.name === 'ask_user_clarification') return true;
+        if ((d.name === 'google_web_search' || d.name === 'fetch_web_page_or_api') && !needsWeb) return false;
+        if ((d.name === 'list_connected_workbooks' || d.name === 'read_external_workbook') && !needsExternal) return false;
+        return SHARED_OFFICE_TOOL_NAMES.has(d.name);
+      });
+
+      const sharedDecls = filterShared(allExcelDecls);
       if (appState.officeHost === 'Word') {
         return [{ functionDeclarations: [...sharedDecls, ...WORD_AGENT_DECLARATIONS] }];
       }
@@ -2261,7 +2270,34 @@
       if (appState.officeHost === 'Outlook') {
         return [{ functionDeclarations: [...sharedDecls, ...OUTLOOK_AGENT_DECLARATIONS] }];
       }
-      return EXCEL_AGENT_TOOLS;
+
+      // Excel Intent-Based Dynamic Tool Subset (saves 2,500–3,500 tokens on every turn!)
+      const coreExcel = new Set([
+        'ask_user_clarification',
+        'audit_workbook',
+        'read_excel_range',
+        'write_excel_range_or_formula',
+        'batch_write_excel_ranges',
+        'manage_worksheet',
+        'format_excel_range',
+        'execute_custom_officejs'
+      ]);
+      if (/reconcil|2b|itc|gstr/i.test(p)) coreExcel.add('reconcile_itc_books_vs_2b');
+      if (/pivot/i.test(p)) coreExcel.add('create_pivot_table');
+      if (/table/i.test(p)) coreExcel.add('create_excel_table');
+      if (/chart|graph|plot/i.test(p)) coreExcel.add('create_excel_chart');
+      if (/highlight|flag|color|colour/i.test(p)) coreExcel.add('highlight_audit_cells');
+      if (/formula|error|#ref|#name|#div|#value|#n\/a/i.test(p)) coreExcel.add('diagnose_and_fix_formula_errors');
+      if (needsWeb) {
+        coreExcel.add('google_web_search');
+        coreExcel.add('fetch_web_page_or_api');
+      }
+      if (needsExternal) {
+        coreExcel.add('list_connected_workbooks');
+        coreExcel.add('read_external_workbook');
+      }
+
+      return [{ functionDeclarations: allExcelDecls.filter(d => coreExcel.has(d.name)) }];
     }
 
     /*************************************************************************
@@ -4367,20 +4403,115 @@
      * 9. RESILIENT FETCH & MULTI-TURN AGENTIC LOOP (TOKEN-SAVER ARCHITECTURE)
      *************************************************************************/
     function buildFallbackCandidateOrder(primaryModelId) {
+      const favs = getFavoriteModelIds().filter(id => id && id !== primaryModelId && !NON_AGENT_MODEL_REGEX.test(id));
       const agentPool = (appState.models || [])
         .filter(m => isMultiTurnAgentCapableModel(m))
         .map(m => (m.name || '').replace(/^models\//, ''))
-        .filter(Boolean)
+        .filter(id => id && id !== primaryModelId && !favs.includes(id))
         .sort((a, b) => scoreModelForExcelAgent(b) - scoreModelForExcelAgent(a));
 
-      const fallbacks = agentPool.filter(id => id !== primaryModelId);
-      const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
+      const defaultFallbacks = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+      const merged = [...favs, ...agentPool];
       for (const df of defaultFallbacks) {
-        if (df !== primaryModelId && !fallbacks.includes(df)) {
-          fallbacks.push(df);
+        if (df !== primaryModelId && !merged.includes(df)) {
+          merged.push(df);
         }
       }
-      return [primaryModelId, ...fallbacks.slice(0, 5)];
+      return [primaryModelId, ...merged.slice(0, 8)];
+    }
+
+    // Strips model-specific internal thought/thoughtSignature tokens when handing off full conversation memory
+    // from one Gemini model to a different Gemini model so the new model never throws HTTP 400 on foreign signatures!
+    function sanitizePayloadForCrossModelHandoff(originalPayload) {
+      const clone = JSON.parse(JSON.stringify(originalPayload));
+      if (Array.isArray(clone.contents)) {
+        clone.contents = clone.contents
+          .map((turn) => {
+            if (!Array.isArray(turn.parts)) return turn;
+            const cleanParts = turn.parts
+              .filter(p => !p.thought)
+              .map(p => {
+                const copy = { ...p };
+                delete copy.thoughtSignature;
+                delete copy.thought;
+                return copy;
+              });
+            return { ...turn, parts: cleanParts };
+          })
+          .filter(turn => Array.isArray(turn.parts) && turn.parts.length > 0);
+      }
+      return clone;
+    }
+
+    // Ensures conversationHistory never ends on an orphaned model functionCall without a matching functionResponse
+    function repairIncompleteHistoryTail() {
+      while (appState.conversationHistory.length > 0) {
+        const last = appState.conversationHistory[appState.conversationHistory.length - 1];
+        if (last && last.role === 'model' && Array.isArray(last.parts) && last.parts.some(p => p.functionCall)) {
+          appState.conversationHistory.pop();
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Renders an inline "Continue from here" + "Switch Model & Continue" card so work is NEVER lost!
+    function appendResumeFromHereCard({ reasonTitle, reasonDetail, showModelSwitch = true }) {
+      const chatLog = document.getElementById('chatLog');
+      if (!chatLog) return;
+      const favIds = Array.from(new Set([...getFavoriteModelIds(), 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite']));
+      const currentId = appState.selectedModel || 'gemini-3.5-flash-lite';
+      const altOptions = favIds.map(id => `<option value="${escapeHtml(id)}" ${id === currentId ? 'selected' : ''}>${escapeHtml(formatShortModelName(id))}</option>`).join('');
+
+      const card = document.createElement('div');
+      card.className = 'p-3 rounded-xl bg-amber-950/25 border border-amber-500/40 space-y-2';
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[11px] font-semibold text-amber-300">${escapeHtml(reasonTitle || 'Run Paused')}</span>
+          <span class="text-[10px] text-slate-400">Progress preserved</span>
+        </div>
+        <p class="text-xs text-slate-200 leading-relaxed">${escapeHtml(reasonDetail || 'Previous findings and context are saved. You can continue from where it left off.')}</p>
+        <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <button type="button" class="resume-same-model-btn px-3 py-1 rounded-md neon-glow-btn text-[11px]">
+            ▶ Continue from here
+          </button>
+          ${showModelSwitch ? `
+            <select class="resume-model-select h-7 px-2 rounded-md bg-obsidian-950 border border-obsidian-600 text-[11px] text-slate-200 outline-none">
+              ${altOptions}
+            </select>
+            <button type="button" class="resume-switch-model-btn px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 border border-neon-cyan/40 text-[11px] text-neon-cyan">
+              ⇄ Switch &amp; Continue
+            </button>
+          ` : ''}
+        </div>
+      `;
+      chatLog.appendChild(card);
+      chatLog.scrollTop = chatLog.scrollHeight;
+
+      const triggerResume = (targetModelId) => {
+        card.querySelectorAll('button, select').forEach(el => { el.disabled = true; });
+        if (targetModelId && targetModelId !== appState.selectedModel) {
+          const select = document.getElementById('modelSelect');
+          if (select) {
+            if (!Array.from(select.options).some(o => o.value === targetModelId)) {
+              const opt = document.createElement('option');
+              opt.value = targetModelId;
+              opt.textContent = formatShortModelName(targetModelId);
+              select.appendChild(opt);
+            }
+            select.value = targetModelId;
+            onModelSelectionChanged();
+          }
+          appState.conversationHistory = sanitizePayloadForCrossModelHandoff({ contents: appState.conversationHistory }).contents;
+        }
+        runAgenticTurnLoop('Continue directly from where you left off using the data and findings already gathered above. Do not re-read sheets you already inspected. Complete any remaining output sheet writes and provide the final conclusion.', false);
+      };
+
+      card.querySelector('.resume-same-model-btn')?.addEventListener('click', () => triggerResume(appState.selectedModel));
+      card.querySelector('.resume-switch-model-btn')?.addEventListener('click', () => {
+        const picked = card.querySelector('.resume-model-select')?.value;
+        triggerResume(picked);
+      });
     }
 
     function buildSingleTurnCompactedPayload(originalPayload) {
@@ -4422,11 +4553,12 @@
         const maxAttemptsPerModel = mIdx === 0 ? 2 : 1;
 
         for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt++) {
+          const activePayload = mIdx === 0 ? payload : sanitizePayloadForCrossModelHandoff(payload);
           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(activePayload),
             signal
           });
 
@@ -4486,9 +4618,9 @@
             }
           }
 
-          // Do NOT blindly retry 5 models if Google Project Monthly Spend Cap was hit!
-          if (/monthly spending cap|spend cap|billing account|quota exceeded for quota metric/i.test(errMsg)) {
-            throw new Error(`Google Cloud Spend Cap Reached: ${errMsg} (Tip: Raise your project spend cap in Google AI Studio / Cloud Billing, or switch to gemini-2.5-flash-lite).`);
+          // Only hard-stop on a project-wide billing/monthly spend cap; per-model quota/rate limits auto-handoff to the next model with full memory!
+          if (/monthly spending cap|spend cap|billing account/i.test(errMsg)) {
+            throw new Error(`Google Cloud Monthly Spend Cap Reached: ${errMsg}`);
           }
 
           const isCapabilityMismatch = /function calling is not enabled|tool use.*not supported|developer instruction is not enabled|modality/i.test(errMsg);
@@ -5223,24 +5355,27 @@
         parts: [{ text: userPrompt }]
       });
 
-      const MAX_AGENT_TURNS = 15;
+      const MAX_AGENT_TURNS = 20;
+      const activeHostTools = getToolsForCurrentHost(userPrompt);
       let turn = 0;
-      let producedFinalText = false;
+      let lastTurnHadFinalText = false;
+      let lastUsedModelId = modelId;
       appState.abortController = new AbortController();
 
       try {
         while (turn < MAX_AGENT_TURNS) {
           turn++;
-          // CRITICAL TOKEN-SAVER: Prune bulky payloads from earlier steps BEFORE sending the next API call!
-          if (turn > 1) {
-            pruneHeavyToolDumpsInHistory(1);
+          // Keep last 4 tool turns in-loop so multi-sheet audits NEVER lose sheets they just read!
+          if (turn > 4) {
+            pruneHeavyToolDumpsInHistory(4);
           }
 
           const isFinalForcedSynthesisTurn = turn === MAX_AGENT_TURNS;
-          statusInd.textContent = `Step ${turn}`;
+          const remainingToolTurns = MAX_AGENT_TURNS - turn;
+          statusInd.textContent = `Step ${turn}/${MAX_AGENT_TURNS}`;
           startContinuousThinkingFeedback(
-            isFinalForcedSynthesisTurn ? `Synthesizing Final Output...` : `Gemini Thinking (Step ${turn})`,
-            `Active model: ${modelId}...`
+            isFinalForcedSynthesisTurn ? 'Finalizing Conclusion...' : `Working (Step ${turn})`,
+            `Model: ${formatShortModelName(modelId)}`
           );
 
           const isThinkingModel = /argon|carbon|hydrogen|neon|pro|3\.|4\./i.test(modelId);
@@ -5262,14 +5397,13 @@
                 {
                   text:
                     `You are a formal, token-frugal Microsoft ${appState.officeHost === 'Preview' ? 'Office' : appState.officeHost} Assistant operating inside an Office.js Task Pane.\n` +
-                    `Scope Mode: ${appState.scanAllSheetsMode ? 'ALL SHEETS' : 'ACTIVE SHEET ONLY (Default to minimize token cost)'}.\n` +
-                    `External workbooks attached: ${connectedNames.length ? connectedNames.join(', ') : 'None'}.\n` +
                     (appState.officeHost === 'Word'
                       ? 'MICROSOFT WORD OPERATING RULES:\n' +
                         '1. WRITE DIRECTLY INTO WORD: Use `word_insert_formatted_html` with clean inline CSS (centered bold headings, justified body paragraphs, crisp spacing, signature blocks) to insert resolutions, letters, memos, and reports directly into the active Word document.\n' +
-                        '2. PULLING DATA FROM @workbook[sheetname]: When the user references `@WorkbookName[SheetName]`, call `read_external_workbook(workbookName, sheetName)` to pull live data from that open Excel workbook and insert it into Word.\n' + '3. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
-                        '3. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing (e.g. company name, DIN, signatories), you may call `ask_user_clarification` with clear options or insert clean brackets and list what to fill.\n' +
-                        '4. FORMAL TONE: Use clear, formal, professional language.'
+                        '2. PULLING DATA FROM @workbook[sheetname]: When the user references `@WorkbookName[SheetName]`, call `read_external_workbook(workbookName, sheetName)` to pull live data from that open Excel workbook and insert it into Word.\n' +
+                        '3. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
+                        '4. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing, call `ask_user_clarification` with clear options.\n' +
+                        '5. FORMAL TONE: Use clear, formal, professional language.'
                       : appState.officeHost === 'PowerPoint'
                       ? 'MICROSOFT POWERPOINT OPERATING RULES:\n' +
                         '1. Use `ppt_read_presentation`, `ppt_add_slide`, and `ppt_insert_text_on_slide` to read and edit slides directly.\n' +
@@ -5280,19 +5414,25 @@
                         '1. Use `outlook_read_email` to read the active message and `outlook_insert_reply_or_draft` to insert drafted replies directly into Outlook.\n' +
                         '2. Call `ask_user_clarification` if tone or reply direction is ambiguous.\n' +
                         '3. Use formal, clear business language.'
-                      : 'OPERATING RULES:\n' +
-                        '1. @workbook[sheetname] CROSS-WORKBOOK & SHEET REFERENCES: When the user references `@WorkbookName[SheetName]`, if `WorkbookName` is another open or attached workbook call `read_external_workbook(workbookName, sheetName)`; if it is the current workbook call `read_excel_range(sheetName, rangeAddress)`. Otherwise call `audit_workbook` (includeAllSheetsData: false) once for the active sheet.\n' +
-                        '2. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-) reconciliation, call `reconcile_itc_books_vs_2b` directly so all matching runs locally in Excel.\n' +
-                        '3. COMPACT SCRIPT OUTPUTS: Never return raw row arrays from `execute_custom_officejs`; perform loops and writes in JavaScript and return only compact summaries.\n' +
-                        '4. HANDLE AMBIGUITY INTERACTIVELY: Whenever instructions, column mappings, or tolerances are ambiguous, call `ask_user_clarification` with 2–4 clear options instead of guessing. The user can also provide their own view via Other.\n' +
-                        '5. FORMAL TONE: Respond in clear, plain, professional business language.')
+                      : 'EXCEL OPERATING RULES:\n' +
+                        '1. @workbook[sheetname] REFERENCES: For another open/attached workbook call `read_external_workbook(workbookName, sheetName)`; for the current workbook call `read_excel_range(sheetName, rangeAddress)`. Otherwise call `audit_workbook` (includeAllSheetsData: false) once.\n' +
+                        '2. BATCH READS & WRITES: When reviewing multiple sheets (e.g., Balance Sheet, P&L, Notes, Ratios), read them in parallel in ONE turn, do NOT re-read sheets you already read, and create/populate any output comment sheet in 1–2 batched writes (using `=HYPERLINK("#\x27SheetName\x27!A1","SheetName!A1")` for cell links).\n' +
+                        '3. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-), call `reconcile_itc_books_vs_2b` directly.\n' +
+                        '4. COMPACT SCRIPT OUTPUTS: Never dump giant raw arrays from `execute_custom_officejs`; aggregate or write inside JS and return compact summaries.\n' +
+                        '5. ALWAYS FINISH WITH A CLEAR CONCLUSION: After completing sheet writes, provide a concise executive summary of findings in chat.')
                 }
               ]
             },
             contents: appState.conversationHistory,
-            tools: isFinalForcedSynthesisTurn ? undefined : getToolsForCurrentHost(),
+            tools: activeHostTools,
             generationConfig: genConfig
           };
+
+          // On the final turn, keep `tools` declared (required when history has functionResponse parts)
+          // and set functionCallingConfig mode: 'NONE' so Gemini is GUARANTEED to output final text!
+          if (isFinalForcedSynthesisTurn) {
+            payload.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
+          }
 
           const { data, usedModelId, switchedModel } = await fetchGeminiWithResilience({
             apiKey,
@@ -5300,11 +5440,22 @@
             payload,
             signal: appState.abortController.signal
           });
+          lastUsedModelId = usedModelId;
 
           if (switchedModel) {
+            const prevShort = formatShortModelName(modelId);
             modelId = usedModelId;
             document.getElementById('modelSelect').value = usedModelId;
             onModelSelectionChanged();
+            appState.conversationHistory = sanitizePayloadForCrossModelHandoff({ contents: appState.conversationHistory }).contents;
+            appendLogCard({
+              role: 'model',
+              title: 'Model Handoff',
+              bodyHtml: escapeHtml(`${prevShort} reached its limit or was unavailable. Automatically continued with ${formatShortModelName(usedModelId)} carrying over full conversation memory.`),
+              rawText: `Switched from ${prevShort} to ${formatShortModelName(usedModelId)} with full memory.`,
+              badgeText: 'Auto-Continue',
+              badgeColor: 'text-neon-cyan'
+            });
           }
 
           const costSnap = recordTokenUsage(data.usageMetadata, usedModelId);
@@ -5329,7 +5480,6 @@
             .map(p => p.text);
 
           if (textParts.length > 0) {
-            producedFinalText = true;
             const fullText = textParts.join('\n\n');
             appendLogCard({
               role: 'model',
@@ -5342,8 +5492,12 @@
           }
 
           if (functionCalls.length === 0) {
+            lastTurnHadFinalText = textParts.length > 0;
             break;
           }
+
+          // Model issued more tool calls, so we do NOT have a final conclusion yet
+          lastTurnHadFinalText = false;
 
           const toolResponseParts = [];
           for (const fc of functionCalls) {
@@ -5352,7 +5506,7 @@
             const rawTarget = fc.args?.workbookName || fc.args?.query || fc.args?.url || fc.args?.pivotTableName || (sheetPrefix + (fc.args?.rangeAddress || fc.args?.sourceRangeAddress || '')) || (fc.args?.writes ? `${fc.args.writes.length} ranges` : 'active sheet');
 
             updateThinkingPhase(
-              isWebTool ? `🌐 Live Web Search: ${fc.name}` : `Executing: ${fc.name}`,
+              isWebTool ? `Web Lookup: ${fc.name}` : `Running: ${fc.name}`,
               `Target: ${rawTarget}...`
             );
             let toolResult;
@@ -5374,11 +5528,11 @@
                 if (!allowed) {
                   toolResult = {
                     status: 'declined_by_user',
-                    note: 'The user declined this Excel edit. Do not retry the same edit without asking how they want to proceed.'
+                    note: 'The user declined this edit. Do not retry the same edit without asking how they want to proceed.'
                   };
                 } else {
                   const rawResult = await executeExcelTool(fc);
-                  toolResult = capToolResultSize(fc.name, rawResult, 4200);
+                  toolResult = capToolResultSize(fc.name, rawResult, 14000);
                 }
               }
             } catch (toolErr) {
@@ -5401,26 +5555,35 @@
             });
           }
 
+          // Inject a step-budget nudge when 3 or fewer steps remain so the model writes its sheet and concludes cleanly!
+          if (remainingToolTurns <= 3 && remainingToolTurns > 0) {
+            toolResponseParts.push({
+              text: `[System Notice: ${remainingToolTurns} step(s) remaining in this run. Finish writing your output sheet now if not yet written, and prepare your final executive conclusion.]`
+            });
+          }
+
           appState.conversationHistory.push({
             role: 'user',
             parts: toolResponseParts
           });
         }
 
-        if (!producedFinalText) {
-          updateThinkingPhase('Finalizing Summary...', 'Generating completion report & ambiguity questions...');
+        // Guaranteed Final Conclusion fallback (valid Gemini turn structure: NEVER two consecutive user turns!)
+        if (!lastTurnHadFinalText) {
+          updateThinkingPhase('Finalizing Conclusion...', 'Compiling summary of completed work...');
+          const synthContents = JSON.parse(JSON.stringify(appState.conversationHistory));
+          const wrapInstruction = 'All tool steps for this run are complete. Provide a clear, complete summary of what you reviewed, what was written to Excel/Office, key compliance findings, and any remaining items.';
+          const lastEntry = synthContents[synthContents.length - 1];
+          if (lastEntry && lastEntry.role === 'user' && Array.isArray(lastEntry.parts)) {
+            lastEntry.parts.push({ text: wrapInstruction });
+          } else {
+            synthContents.push({ role: 'user', parts: [{ text: wrapInstruction }] });
+          }
+
           const finalPayload = {
-            contents: [
-              ...appState.conversationHistory,
-              {
-                role: 'user',
-                parts: [
-                  {
-                    text: 'Please provide your complete response now based on the active sheet data gathered above: state what you have filled or found, and ask any clarifying questions for ambiguous checklist items.'
-                  }
-                ]
-              }
-            ]
+            contents: synthContents,
+            tools: activeHostTools,
+            toolConfig: { functionCallingConfig: { mode: 'NONE' } }
           };
           const { data, usedModelId } = await fetchGeminiWithResilience({
             apiKey,
@@ -5431,15 +5594,20 @@
           const costSnap = recordTokenUsage(data.usageMetadata, usedModelId);
           const parts = data.candidates?.[0]?.content?.parts || [];
           const textOut = parts.filter(p => !p.thought && p.text).map(p => p.text).join('\n\n').trim();
-          if (textOut) {
-            appState.conversationHistory.push({ role: 'model', parts: [{ text: textOut }] });
-            appendLogCard({
-              role: 'model',
-              title: usedModelId,
-              bodyHtml: escapeHtml(textOut),
-              rawText: textOut,
-              badgeText: costSnap ? `₹${costSnap.inrCost.toFixed(4)}` : 'Complete',
-              badgeColor: 'text-emerald-400'
+          const finalMsg = textOut || 'The assistant reached the 20-step limit for this run. Type "continue" to resume from where it stopped.';
+          appState.conversationHistory.push({ role: 'model', parts: [{ text: finalMsg }] });
+          appendLogCard({
+            role: 'model',
+            title: formatShortModelName(usedModelId || lastUsedModelId),
+            bodyHtml: escapeHtml(finalMsg),
+            rawText: finalMsg,
+            badgeText: costSnap ? `₹${costSnap.inrCost.toFixed(4)}` : 'Complete',
+            badgeColor: 'text-emerald-400'
+          });
+          if (turn >= MAX_AGENT_TURNS) {
+            appendResumeFromHereCard({
+              reasonTitle: 'Step Limit Reached (20/20)',
+              reasonDetail: 'All findings and completed steps are preserved. Click below to continue where it left off, or switch models with full memory.'
             });
           }
         }
@@ -5447,19 +5615,32 @@
         // Prune bulky raw cell dumps from history after turn completes so the next question doesn't re-bill old sheet dumps!
         pruneHeavyToolDumpsInHistory();
       } catch (err) {
-        appState.conversationHistory = historyCheckpoint;
         const isAborted = err.name === 'AbortError';
+        // Preserve all completed steps in memory instead of wiping progress!
+        if (turn <= 1) {
+          appState.conversationHistory = historyCheckpoint;
+        } else {
+          repairIncompleteHistoryTail();
+        }
         appendLogCard({
           role: 'error',
-          title: isAborted ? 'GENERATION STOPPED' : 'AGENT ERROR',
+          title: isAborted ? 'Paused by User' : 'Run Interrupted',
           bodyHtml: isAborted
-            ? 'Request cancelled by user.'
-            : `${escapeHtml(err.message)}\n\nTip: Click "↻ Retry" above or choose gemini-3.5-flash-lite / gemini-2.5-flash-lite below.`,
+            ? 'Stopped by user. All completed steps remain in memory.'
+            : escapeHtml(err.message),
           rawText: err.message,
-          badgeText: isAborted ? 'Aborted' : 'API Notice',
+          badgeText: isAborted ? 'Paused' : 'Notice',
           badgeColor: 'text-rose-400',
-          showRetry: !isAborted
+          showRetry: turn <= 1 && !isAborted
         });
+        if (turn > 1) {
+          appendResumeFromHereCard({
+            reasonTitle: isAborted ? 'Continue When Ready' : 'Continue With Saved Memory',
+            reasonDetail: isAborted
+              ? 'Resume from where you stopped without re-reading earlier sheets.'
+              : 'Your prior steps are saved. Continue with the same model or switch to another model carrying over full memory.'
+          });
+        }
       } finally {
         stopContinuousThinkingFeedback();
         statusInd.textContent = 'Ready';
