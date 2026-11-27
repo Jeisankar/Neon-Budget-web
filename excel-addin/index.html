@@ -13,6 +13,8 @@
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <!-- SheetJS (xlsx) for instant multi-workbook .xlsx/.xls/.csv parsing & cross-file reconciliation -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Mammoth.js for instant in-browser Word (.docx) text extraction -->
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -174,8 +176,8 @@
 </head>
 <body id="appDropZone" class="h-screen w-full max-w-full flex flex-col overflow-hidden overflow-x-hidden selection:bg-neon-cyan selection:text-obsidian-950">
 
-  <!-- Hidden Multi-File Input for External Workbooks (.xlsx, .xls, .csv, .json) -->
-  <input id="externalWorkbookFileInput" type="file" multiple accept=".xlsx,.xls,.csv,.json" class="hidden" />
+  <!-- Hidden Multi-File Input for Workbooks & Documents (.pdf, .docx, .xlsx, .csv, .txt, .md, images) -->
+  <input id="externalWorkbookFileInput" type="file" multiple accept=".xlsx,.xls,.csv,.json,.pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" class="hidden" />
 
   <!-- =====================================================================
        RESPONSIVE ZERO-OVERLAP HEADER BAR (WITH DYNAMIC ⋯ OVERFLOW MENU)
@@ -452,7 +454,7 @@
                 type="button"
                 data-comp-key="attachFile"
                 data-comp-label="📎 Attach file"
-                title="Attach external workbook (.xlsx, .csv, .json)"
+                title="Attach PDF, Word (.docx), Excel, CSV, Text, or Image"
                 class="px-1.5 h-6 rounded-md bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 hover:border-neon-cyan text-[10px] font-mono text-slate-300 hover:text-neon-cyan flex items-center gap-0.5 shrink-0 transition"
               >
                 <span>📎</span>
@@ -991,6 +993,10 @@
       thinkingBudget: 0,
       // Ordered from most-specific to generic (verified Nov 2026 published Gemini API rates)
       patternRules: [
+        { match: '3.1-flash-lite-image', inputPer1M: 0.25, outputPer1M: 15.00, cachedPer1M: 0.025 },
+        { match: '3.1-flash-image', inputPer1M: 0.50, outputPer1M: 30.00, cachedPer1M: 0.05 },
+        { match: '2.5-flash-image', inputPer1M: 0.30, outputPer1M: 30.00, cachedPer1M: 0.03 },
+        { match: '3-pro-image', inputPer1M: 2.00, outputPer1M: 120.00, cachedPer1M: 0.20 },
         { match: '2.5-flash-lite', inputPer1M: 0.10, outputPer1M: 0.40, cachedPer1M: 0.01 },
         { match: '3.1-flash-lite', inputPer1M: 0.25, outputPer1M: 1.50, cachedPer1M: 0.025 },
         { match: '3.5-flash-lite', inputPer1M: 0.30, outputPer1M: 2.50, cachedPer1M: 0.03 },
@@ -1051,6 +1057,7 @@
         turnBreakdown: []
       },
       externalWorkbooks: {},
+      attachedDocuments: {},
       undoStack: [],
       currentSessionId: 'sess_' + Date.now(),
       currentSessionTitle: 'New Workbook Audit',
@@ -1127,6 +1134,22 @@
       const cutoffCount = Math.max(0, toolTurnIndices.length - keepLastToolTurns);
       const indicesToPrune = new Set(toolTurnIndices.slice(0, cutoffCount));
 
+      // Also prune binary inlineData (PDF/image) from completed earlier user turns so follow-up turns never re-bill binary files
+      if (keepLastToolTurns === 0) {
+        for (let i = 0; i < appState.conversationHistory.length; i++) {
+          const turn = appState.conversationHistory[i];
+          if (turn.role === 'user' && Array.isArray(turn.parts)) {
+            turn.parts = turn.parts.map(p => {
+              if (p.inlineData && p.inlineData.data) {
+                const mime = p.inlineData.mimeType || 'file';
+                return { text: `[Attached ${mime} file already processed in this turn — binary pruned to save tokens]` };
+              }
+              return p;
+            });
+          }
+        }
+      }
+
       for (const idx of indicesToPrune) {
         const turn = appState.conversationHistory[idx];
         for (const p of turn.parts) {
@@ -1150,18 +1173,35 @@
 
     function extractSheetAndCleanAddress(explicitSheetName, rawRangeAddress) {
       const raw = String(rawRangeAddress || 'A1:F7').trim();
-      let parsedSheet = explicitSheetName ? String(explicitSheetName).trim() : '';
+      // Preserve exact spaces (e.g. "BS ", "P & L ", "Notes  BS 2") so Excel sheet matching never fails!
+      let parsedSheet = explicitSheetName ? String(explicitSheetName).replace(/^'+|'+$/g, '') : '';
       let cleanAddress = raw;
 
       if (raw.includes('!')) {
         const bangIdx = raw.lastIndexOf('!');
-        const sheetPart = raw.slice(0, bangIdx).trim().replace(/^'+|'+$/g, '');
+        const sheetPart = raw.slice(0, bangIdx).replace(/^'+|'+$/g, '');
         cleanAddress = raw.slice(bangIdx + 1).trim();
         if (!parsedSheet && sheetPart) {
           parsedSheet = sheetPart;
         }
       }
       return { sheetName: parsedSheet, cleanAddress: cleanAddress || 'A1' };
+    }
+
+    // Resolves Excel worksheet by exact name first, then whitespace/case-normalized fallback (handles "BS " vs "BS" & "Notes  BS 2" vs "Notes BS 2")
+    async function resolveWorksheetInExcel(context, sheets, requestedName, activeSheetObj) {
+      if (!requestedName) return activeSheetObj;
+      const exact = sheets.getItemOrNullObject(requestedName);
+      exact.load('isNullObject');
+      await context.sync();
+      if (!exact.isNullObject) return exact;
+
+      sheets.load('items/name');
+      await context.sync();
+      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const targetNorm = norm(requestedName);
+      const found = sheets.items.find(s => norm(s.name) === targetNorm);
+      return found || activeSheetObj;
     }
 
     const LIVE_WORKBOOK_TTL_MS = 35000;
@@ -1319,12 +1359,71 @@
       }
     });
 
+    function arrayBufferToBase64(arrayBuffer) {
+      const uint8 = new Uint8Array(arrayBuffer);
+      const chunkSize = 0x8000;
+      let binary = '';
+      for (let i = 0; i < uint8.byteLength; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, uint8.subarray(i, i + chunkSize));
+      }
+      return window.btoa(binary);
+    }
+
     async function handleExternalWorkbookFiles(fileList) {
       if (!fileList || !fileList.length) return;
+      const MAX_BINARY_BYTES = 15 * 1024 * 1024; // 15 MB safety limit for inline Gemini upload
       for (const file of Array.from(fileList)) {
         try {
           const ext = (file.name.split('.').pop() || '').toLowerCase();
-          if (ext === 'json') {
+          const sizeKb = Math.max(1, Math.round(file.size / 1024));
+
+          if (ext === 'pdf' || ['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+            if (file.size > MAX_BINARY_BYTES) {
+              throw new Error(`File exceeds 15 MB limit (${Math.round(file.size / (1024 * 1024))} MB).`);
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const base64Data = arrayBufferToBase64(arrayBuffer);
+            const mimeMap = {
+              pdf: 'application/pdf',
+              png: 'image/png',
+              jpg: 'image/jpeg',
+              jpeg: 'image/jpeg',
+              webp: 'image/webp'
+            };
+            appState.attachedDocuments[file.name] = {
+              name: file.name,
+              kind: ext === 'pdf' ? 'pdf' : 'image',
+              mimeType: file.type || mimeMap[ext] || 'application/octet-stream',
+              base64Data,
+              sizeKb,
+              sentToModel: false
+            };
+          } else if (ext === 'docx') {
+            if (!window.mammoth) {
+              throw new Error('Word (.docx) reader library did not load. Please check internet access.');
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await window.mammoth.extractRawText({ arrayBuffer });
+            const extractedText = String(result.value || '').trim();
+            appState.attachedDocuments[file.name] = {
+              name: file.name,
+              kind: 'docx',
+              mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              extractedText: extractedText.slice(0, 60000),
+              sizeKb,
+              sentToModel: false
+            };
+          } else if (ext === 'txt' || ext === 'md') {
+            const text = await file.text();
+            appState.attachedDocuments[file.name] = {
+              name: file.name,
+              kind: 'text',
+              mimeType: 'text/plain',
+              extractedText: String(text || '').slice(0, 60000),
+              sizeKb,
+              sentToModel: false
+            };
+          } else if (ext === 'json') {
             const text = await file.text();
             const jsonObj = JSON.parse(text);
             const sheetsMap = {};
@@ -1350,14 +1449,9 @@
               updatedAt: new Date().toLocaleTimeString(),
               sheets: sheetsMap
             };
-          } else if (window.XLSX) {
+          } else if (['xlsx', 'xls', 'csv'].includes(ext) && window.XLSX) {
             const arrayBuffer = await file.arrayBuffer();
-            const uint8 = new Uint8Array(arrayBuffer);
-            let binary = '';
-            for (let i = 0; i < uint8.byteLength; i++) {
-              binary += String.fromCharCode(uint8[i]);
-            }
-            const base64Str = window.btoa(binary);
+            const base64Str = arrayBufferToBase64(arrayBuffer);
             const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellFormula: true });
             const sheetsMap = {};
             workbook.SheetNames.forEach((sheetName) => {
@@ -1376,6 +1470,8 @@
               updatedAt: new Date().toLocaleTimeString(),
               sheets: sheetsMap
             };
+          } else {
+            throw new Error(`Unsupported file type ".${ext}". Supported: PDF, DOCX, XLSX, CSV, JSON, TXT, MD, PNG, JPG, WEBP.`);
           }
         } catch (err) {
           appendLogCard({
@@ -1394,34 +1490,58 @@
       const strip = document.getElementById('connectedWorkbooksStrip');
       const badgesContainer = document.getElementById('connectedWorkbooksBadges');
       const countBadge = document.getElementById('attachedFilesCountBadge');
-      // Only show files explicitly attached by the user in this session (never cached/recent workbooks or sheet names)
-      const attachedNames = Object.keys(appState.externalWorkbooks).filter(
+      // Show explicitly attached spreadsheets AND documents (PDF, Word, Text, Images)
+      const attachedWbNames = Object.keys(appState.externalWorkbooks).filter(
         name => appState.externalWorkbooks[name] && String(appState.externalWorkbooks[name].source || '').startsWith('Attached ')
       );
+      const attachedDocNames = Object.keys(appState.attachedDocuments || {});
+      const totalCount = attachedWbNames.length + attachedDocNames.length;
 
-      if (countBadge) countBadge.textContent = String(attachedNames.length);
+      if (countBadge) countBadge.textContent = String(totalCount);
       if (!strip || !badgesContainer) return;
 
-      if (attachedNames.length === 0) {
+      if (totalCount === 0) {
         strip.classList.add('hidden');
         badgesContainer.innerHTML = '';
         return;
       }
 
       strip.classList.remove('hidden');
-      badgesContainer.innerHTML = attachedNames
+      const wbHtml = attachedWbNames
         .map((name) => `
           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-obsidian-950 border border-obsidian-700 text-[10px] font-mono text-neon-cyan shrink-0">
-            <span class="truncate max-w-[140px]">📎 ${escapeHtml(name)}</span>
+            <span class="truncate max-w-[140px]">📊 ${escapeHtml(name)}</span>
             <button type="button" data-remove-wb="${escapeHtml(name)}" class="text-slate-400 hover:text-rose-400 ml-0.5">✕</button>
           </span>
         `)
         .join('');
 
+      const docHtml = attachedDocNames
+        .map((name) => {
+          const doc = appState.attachedDocuments[name];
+          const icon = doc.kind === 'pdf' ? '📄' : doc.kind === 'docx' ? '📝' : doc.kind === 'image' ? '🖼️' : '📃';
+          return `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-obsidian-950 border border-emerald-500/40 text-[10px] font-mono text-emerald-300 shrink-0" title="${escapeHtml(name)} (${doc.sizeKb} KB)">
+            <span class="truncate max-w-[140px]">${icon} ${escapeHtml(name)}</span>
+            <button type="button" data-remove-doc="${escapeHtml(name)}" class="text-slate-400 hover:text-rose-400 ml-0.5">✕</button>
+          </span>
+        `;
+        })
+        .join('');
+
+      badgesContainer.innerHTML = wbHtml + docHtml;
+
       badgesContainer.querySelectorAll('[data-remove-wb]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const target = btn.getAttribute('data-remove-wb');
           delete appState.externalWorkbooks[target];
+          renderConnectedWorkbooksStrip();
+        });
+      });
+      badgesContainer.querySelectorAll('[data-remove-doc]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-remove-doc');
+          delete appState.attachedDocuments[target];
           renderConnectedWorkbooksStrip();
         });
       });
@@ -1833,6 +1953,25 @@
             }
           },
           {
+            name: 'read_multiple_sheets_compact',
+            description: 'Reads up to 10 worksheets in ONE single low-token call using compact pipe-delimited rows (with exact cell coordinates & formulas). ALWAYS prefer this over multiple execute_custom_officejs calls when reviewing multi-sheet financials!',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                sheetNames: {
+                  type: 'ARRAY',
+                  items: { type: 'STRING' },
+                  description: 'List of worksheet names to read together (e.g., ["BS ", "P & L ", "Notes BS 2", "Ratio"]).'
+                },
+                maxRowsPerSheet: {
+                  type: 'NUMBER',
+                  description: 'Max non-empty rows per sheet (default 120, max 250).'
+                }
+              },
+              required: ['sheetNames']
+            }
+          },
+          {
             name: 'read_excel_range',
             description: 'Reads cell values and formulas from a specific A1-notation range (supports "SheetName!A1:L16" or separate sheetName parameter) on any worksheet in the active workbook.',
             parameters: {
@@ -2086,13 +2225,51 @@
               },
               required: ['description', 'asyncFunctionBody']
             }
+          },
+          {
+            name: 'generate_and_insert_image',
+            description: 'Generates a context-aware image using Gemini Image Generation and inserts it directly into the active Word report (at a specific paragraph or cursor), PowerPoint slide (active or new slide), Excel sheet, or Outlook draft. ALWAYS read the surrounding paragraph or slide first so the image prompt matches the exact context.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                prompt: {
+                  type: 'STRING',
+                  description: 'Rich, specific visual description matching the surrounding paragraph, report section, or slide context (clean corporate/editorial illustration, diagram, or photo; avoid tiny illegible text).'
+                },
+                aspectRatio: {
+                  type: 'STRING',
+                  description: 'Image aspect ratio: "16:9" (default for slides & banners), "4:3", "3:2", "1:1", or "9:16".'
+                },
+                placement: {
+                  type: 'STRING',
+                  description: 'Word: "AfterParagraph" (uses targetParagraphText), "AtCursor", "Start", or "End". PowerPoint: "ActiveSlide" (default) or "NewSlide". Excel: "ActiveSheet". Outlook: "InsertInDraft".'
+                },
+                targetParagraphText: {
+                  type: 'STRING',
+                  description: 'Word only (when placement is "AfterParagraph"): a short distinctive phrase from the paragraph or heading directly above where the image should be inserted.'
+                },
+                slideTitle: {
+                  type: 'STRING',
+                  description: 'PowerPoint only (when placement is "NewSlide"): optional title for the newly created slide.'
+                },
+                caption: {
+                  type: 'STRING',
+                  description: 'Optional short figure caption to place directly beneath the image in Word or Outlook.'
+                },
+                widthPx: {
+                  type: 'NUMBER',
+                  description: 'Optional display width in points/pixels (default 460 in Word, 380 in PowerPoint, 420 in Excel/Outlook).'
+                }
+              },
+              required: ['prompt']
+            }
           }
         ]
       }
     ];
 
     // Universal Office Host Tool Sets (Only the active host's tools are sent to Gemini to minimize input tokens!)
-    const SHARED_OFFICE_TOOL_NAMES = new Set(['ask_user_clarification', 'list_connected_workbooks', 'read_external_workbook', 'google_web_search', 'fetch_web_page_or_api']);
+    const SHARED_OFFICE_TOOL_NAMES = new Set(['ask_user_clarification', 'list_connected_workbooks', 'read_external_workbook', 'google_web_search', 'fetch_web_page_or_api', 'generate_and_insert_image']);
 
     const WORD_AGENT_DECLARATIONS = [
       {
@@ -2229,18 +2406,53 @@
     const OUTLOOK_AGENT_DECLARATIONS = [
       {
         name: 'outlook_read_email',
-        description: 'Reads the active Microsoft Outlook email subject, sender, recipients, and body text.',
+        description: 'Reads the active Outlook email mode ("Compose" or "Read"), subject, sender, recipients, and body text. Always call this first before editing or replying.',
         parameters: { type: 'OBJECT', properties: {} }
       },
       {
-        name: 'outlook_insert_reply_or_draft',
-        description: 'Inserts drafted reply text (and optional subject) into the active Outlook compose message.',
+        name: 'outlook_patch_draft_text',
+        description: 'SURGICAL IN-PLACE EDITOR (Compose mode): Applies exact targeted find-and-replace edits inside the existing Outlook draft without deleting or rewriting the rest of the email, formatting, signature, or quoted thread.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            bodyText: { type: 'STRING', description: 'Email body text to insert.' },
-            subject: { type: 'STRING', description: 'Optional subject line (compose mode only).' },
-            mode: { type: 'STRING', description: '"Prepend" (default) or "ReplaceSelection".' }
+            edits: {
+              type: 'ARRAY',
+              description: 'List of targeted text replacements to apply in-place.',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  findText: { type: 'STRING', description: 'Exact existing phrase, line, or value to replace.' },
+                  replaceText: { type: 'STRING', description: 'New replacement text.' }
+                },
+                required: ['findText', 'replaceText']
+              }
+            },
+            subject: { type: 'STRING', description: 'Optional updated subject line.' }
+          },
+          required: ['edits']
+        }
+      },
+      {
+        name: 'outlook_update_draft',
+        description: 'Replaces the entire draft body (preserving any quoted reply thread below) or writes a fresh draft in Outlook Compose mode. Do NOT use this for small edits — use outlook_patch_draft_text instead.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            bodyText: { type: 'STRING', description: 'Complete email draft body text.' },
+            subject: { type: 'STRING', description: 'Optional subject line.' },
+            mode: { type: 'STRING', description: '"ReplaceDraftBody" (default — cleanly replaces your draft without duplicating it), "ReplaceSelection", or "Prepend".' }
+          },
+          required: ['bodyText']
+        }
+      },
+      {
+        name: 'outlook_open_reply',
+        description: 'READ MODE REPLY: Opens a native Outlook Reply or Reply-All compose window pre-filled with the drafted response to the currently open email.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            bodyText: { type: 'STRING', description: 'Drafted reply body text.' },
+            replyAll: { type: 'BOOLEAN', description: 'Set true for Reply All, false (default) for Reply.' }
           },
           required: ['bodyText']
         }
@@ -2252,11 +2464,15 @@
       const p = String(userPrompt || '').toLowerCase();
       const needsWeb = /(web|search|online|gstin|internet|url|http|verify|lookup|news|rate|price|act|section|circular)/i.test(p);
       const needsExternal = /@|external|other workbook|attached|gstr|reconcil|cross.?workbook/i.test(p) || Object.keys(appState.externalWorkbooks || {}).length > 0;
+      const needsImage = /(image|picture|photo|visual|illustrat|diagram|infographic|banner|cover|graphic|artwork|draw|icon|slide|report|presentation|deck)/i.test(p)
+        || appState.officeHost === 'Word'
+        || appState.officeHost === 'PowerPoint';
 
       const filterShared = (decls) => decls.filter(d => {
         if (d.name === 'ask_user_clarification') return true;
         if ((d.name === 'google_web_search' || d.name === 'fetch_web_page_or_api') && !needsWeb) return false;
         if ((d.name === 'list_connected_workbooks' || d.name === 'read_external_workbook') && !needsExternal) return false;
+        if (d.name === 'generate_and_insert_image' && !needsImage) return false;
         return SHARED_OFFICE_TOOL_NAMES.has(d.name);
       });
 
@@ -2275,6 +2491,7 @@
       const coreExcel = new Set([
         'ask_user_clarification',
         'audit_workbook',
+        'read_multiple_sheets_compact',
         'read_excel_range',
         'write_excel_range_or_formula',
         'batch_write_excel_ranges',
@@ -2291,6 +2508,9 @@
       if (needsWeb) {
         coreExcel.add('google_web_search');
         coreExcel.add('fetch_web_page_or_api');
+      }
+      if (needsImage) {
+        coreExcel.add('generate_and_insert_image');
       }
       if (needsExternal) {
         coreExcel.add('list_connected_workbooks');
@@ -2494,8 +2714,241 @@
       }
     }
 
+    async function generateGeminiImageBase64(promptText, aspectRatio = '16:9') {
+      const apiKey = document.getElementById('apiKeyInput') ? document.getElementById('apiKeyInput').value.trim() : '';
+      if (!apiKey) {
+        throw new Error('Enter your Gemini API key in Settings to generate images.');
+      }
+      const allowedRatios = new Set(['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16']);
+      const safeRatio = allowedRatios.has(aspectRatio) ? aspectRatio : '16:9';
+      // Cost-first native Gemini image model chain (Nano Banana 2 Lite first, then Flash Image fallbacks)
+      const imageModelChain = [
+        'gemini-3.1-flash-lite-image',
+        'gemini-3.1-flash-image-preview',
+        'gemini-2.5-flash-image'
+      ];
+      let lastErr = null;
+      for (const imgModel of imageModelChain) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(imgModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const body = {
+          contents: [{ parts: [{ text: String(promptText || '') }] }],
+          generationConfig: {
+            responseModalities: ['IMAGE'],
+            imageConfig: { aspectRatio: safeRatio }
+          }
+        };
+        try {
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!resp.ok) {
+            const errTxt = await resp.text().catch(() => '');
+            lastErr = new Error(`${imgModel} HTTP ${resp.status}: ${errTxt.slice(0, 160)}`);
+            if (resp.status === 404 || resp.status === 400 || resp.status === 429 || resp.status === 503) continue;
+            throw lastErr;
+          }
+          const data = await resp.json();
+          const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+          const imgPart = parts.find(p => p.inlineData && p.inlineData.data);
+          if (!imgPart) {
+            lastErr = new Error(`${imgModel} returned no image payload.`);
+            continue;
+          }
+          const costInfo = data.usageMetadata ? recordTokenUsage(data.usageMetadata, imgModel) : null;
+          return {
+            base64: imgPart.inlineData.data,
+            mimeType: imgPart.inlineData.mimeType || 'image/png',
+            modelUsed: imgModel,
+            aspectRatio: safeRatio,
+            costInr: costInfo ? Number(costInfo.inrCost.toFixed(4)) : null
+          };
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error('Image generation failed across available Gemini image models.');
+    }
+
+    function appendGeneratedImagePreviewCard({ base64, mimeType, caption, placementNote, modelUsed, costInr }) {
+      const chatLog = document.getElementById('chatLog');
+      if (!chatLog) return;
+      const dataUrl = `data:${mimeType || 'image/png'};base64,${base64}`;
+      const card = document.createElement('div');
+      card.className = 'p-2.5 rounded-xl bg-obsidian-900/90 border border-obsidian-700 space-y-2';
+      const costStr = costInr !== null && costInr !== undefined ? ` • ₹${costInr.toFixed(2)}` : '';
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-400">
+          <span class="text-emerald-300 font-semibold truncate">🖼️ ${escapeHtml(placementNote || 'Generated Image')}</span>
+          <span class="shrink-0">${escapeHtml(formatShortModelName(modelUsed || 'image'))}${escapeHtml(costStr)}</span>
+        </div>
+        <img src="${dataUrl}" alt="${escapeHtml(caption || 'Generated visual')}" class="w-full rounded-lg border border-obsidian-700 object-contain max-h-56 bg-obsidian-950" />
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[11px] text-slate-300 truncate">${escapeHtml(caption || '')}</span>
+          <a href="${dataUrl}" download="office-visual-${Date.now()}.png" class="px-2 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-[10px] font-mono text-neon-cyan shrink-0 transition">⬇ Download PNG</a>
+        </div>
+      `;
+      chatLog.appendChild(card);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
     async function executeExcelTool(functionCall) {
       const { name, args = {} } = functionCall;
+
+      // ---------- UNIVERSAL CONTEXT-AWARE IMAGE GENERATION & INSERTION ----------
+      if (name === 'generate_and_insert_image') {
+        try {
+          updateThinkingPhase('Generating image...', String(args.prompt || '').slice(0, 70));
+          const generated = await generateGeminiImageBase64(args.prompt, args.aspectRatio || '16:9');
+          const base64 = generated.base64;
+          const mimeType = generated.mimeType;
+          const caption = String(args.caption || '').trim();
+          const host = appState.officeHost || 'Preview';
+          let placementResult = 'Displayed in chat preview (open inside Word, PowerPoint, Excel, or Outlook to auto-insert)';
+
+          if (host === 'Word' && window.Word && typeof window.Word.run === 'function') {
+            placementResult = await window.Word.run(async (context) => {
+              const body = context.document.body;
+              const widthPts = Number(args.widthPx) || 460;
+              const placement = args.placement || (args.targetParagraphText ? 'AfterParagraph' : 'End');
+              let pic = null;
+              let locationLabel = placement;
+
+              if (placement === 'AfterParagraph' && args.targetParagraphText) {
+                const phrase = String(args.targetParagraphText).trim().slice(0, 120);
+                const results = body.search(phrase, { matchCase: false, ignorePunct: true });
+                results.load('items');
+                await context.sync();
+                if (results.items && results.items.length > 0) {
+                  const targetPara = results.items[0].paragraphs.getFirst();
+                  const imgPara = targetPara.insertParagraph('', window.Word.InsertLocation.after);
+                  pic = imgPara.insertInlinePictureFromBase64(base64, window.Word.InsertLocation.start);
+                  imgPara.alignment = window.Word.Alignment.centered;
+                  if (caption) {
+                    const capPara = imgPara.insertParagraph(caption, window.Word.InsertLocation.after);
+                    capPara.alignment = window.Word.Alignment.centered;
+                    capPara.font.italic = true;
+                    capPara.font.size = 9.5;
+                    capPara.font.color = '#555555';
+                  }
+                  locationLabel = `Inserted after paragraph "${phrase.slice(0, 40)}"`;
+                }
+              }
+
+              if (!pic && placement === 'AtCursor') {
+                const sel = context.document.getSelection();
+                pic = sel.insertInlinePictureFromBase64(base64, window.Word.InsertLocation.after);
+                locationLabel = 'Inserted at cursor in Word';
+              }
+
+              if (!pic) {
+                const loc = placement === 'Start' ? window.Word.InsertLocation.start : window.Word.InsertLocation.end;
+                const imgPara = body.insertParagraph('', loc);
+                pic = imgPara.insertInlinePictureFromBase64(base64, window.Word.InsertLocation.start);
+                imgPara.alignment = window.Word.Alignment.centered;
+                if (caption) {
+                  const capPara = imgPara.insertParagraph(caption, window.Word.InsertLocation.after);
+                  capPara.alignment = window.Word.Alignment.centered;
+                  capPara.font.italic = true;
+                  capPara.font.size = 9.5;
+                  capPara.font.color = '#555555';
+                }
+                locationLabel = placement === 'Start' ? 'Inserted at top of Word document' : 'Inserted into Word document';
+              }
+
+              if (pic) {
+                pic.lockAspectRatio = true;
+                pic.width = widthPts;
+              }
+              await context.sync();
+              return locationLabel;
+            });
+          } else if (host === 'PowerPoint' && window.Office && window.Office.context && window.Office.context.document) {
+            const placement = args.placement || 'ActiveSlide';
+            const widthPts = Number(args.widthPx) || 380;
+            if (placement === 'NewSlide' && window.PowerPoint && typeof window.PowerPoint.run === 'function') {
+              await window.PowerPoint.run(async (context) => {
+                context.presentation.slides.add();
+                await context.sync();
+                if (args.slideTitle) {
+                  const slides = context.presentation.slides;
+                  slides.load('items');
+                  await context.sync();
+                  const newSlide = slides.items[slides.items.length - 1];
+                  if (newSlide && newSlide.shapes && typeof newSlide.shapes.addTextBox === 'function') {
+                    newSlide.shapes.addTextBox(String(args.slideTitle), { left: 48, top: 28, width: 620, height: 56 });
+                    await context.sync();
+                  }
+                }
+              });
+            }
+            placementResult = await new Promise((resolve) => {
+              window.Office.context.document.setSelectedDataAsync(
+                base64,
+                {
+                  coercionType: window.Office.CoercionType.Image,
+                  imageLeft: placement === 'NewSlide' ? 160 : 340,
+                  imageTop: placement === 'NewSlide' ? 105 : 120,
+                  imageWidth: widthPts
+                },
+                (res) => {
+                  if (res.status === window.Office.AsyncResultStatus.Succeeded) {
+                    resolve(placement === 'NewSlide' ? 'Inserted on new PowerPoint slide' : 'Inserted on active PowerPoint slide');
+                  } else {
+                    resolve(`Generated in chat (PowerPoint insert note: ${res.error?.message || 'select slide first'})`);
+                  }
+                }
+              );
+            });
+          } else if (host === 'Excel' && window.Excel && typeof window.Excel.run === 'function') {
+            placementResult = await window.Excel.run(async (context) => {
+              const sheet = context.workbook.worksheets.getActiveWorksheet();
+              const imgShape = sheet.shapes.addImage(base64);
+              imgShape.lockAspectRatio = true;
+              imgShape.width = Number(args.widthPx) || 420;
+              imgShape.left = 32;
+              imgShape.top = 32;
+              await context.sync();
+              return 'Inserted on active Excel worksheet';
+            });
+          } else if (host === 'Outlook' && window.Office && window.Office.context && window.Office.context.mailbox && window.Office.context.mailbox.item) {
+            const item = window.Office.context.mailbox.item;
+            if (typeof item.body.setSelectedDataAsync === 'function' || typeof item.body.prependAsync === 'function') {
+              const widthPx = Number(args.widthPx) || 460;
+              const imgHtml = `<div style="margin:12px 0;text-align:center;"><img src="data:${mimeType};base64,${base64}" style="max-width:100%;width:${widthPx}px;border-radius:6px;" />${caption ? `<div style="font-size:10pt;color:#555555;font-style:italic;margin-top:4px;">${escapeHtml(caption)}</div>` : ''}</div>`;
+              placementResult = await new Promise((resolve) => {
+                const fn = item.body.setSelectedDataAsync ? item.body.setSelectedDataAsync.bind(item.body) : item.body.prependAsync.bind(item.body);
+                fn(imgHtml, { coercionType: window.Office.CoercionType.Html }, (r) => {
+                  resolve(r.status === window.Office.AsyncResultStatus.Succeeded
+                    ? 'Inserted into active Outlook draft'
+                    : `Generated in chat (Outlook note: ${r.error?.message || 'switch to Compose mode'})`);
+                });
+              });
+            }
+          }
+
+          appendGeneratedImagePreviewCard({
+            base64,
+            mimeType,
+            caption,
+            placementNote: placementResult,
+            modelUsed: generated.modelUsed,
+            costInr: generated.costInr
+          });
+
+          return {
+            status: 'image_generated_and_inserted',
+            host,
+            placementResult,
+            modelUsed: generated.modelUsed,
+            aspectRatio: generated.aspectRatio,
+            costInr: generated.costInr
+          };
+        } catch (imgErr) {
+          return { status: 'error', message: imgErr.message || 'Image generation failed.' };
+        }
+      }
 
       // ---------- MICROSOFT WORD TOOLS (Word.run) ----------
       if (name.startsWith('word_') || name === 'execute_custom_wordjs') {
@@ -2680,10 +3133,26 @@
           return { status: 'error', message: 'Open this add-in inside Microsoft Outlook on an email message.' };
         }
         if (name === 'outlook_read_email') {
+          const isCompose = typeof item.body.setAsync === 'function';
           const subjectVal = await new Promise((resolve) => {
             if (typeof item.subject === 'string') resolve(item.subject);
             else if (item.subject && typeof item.subject.getAsync === 'function') {
               item.subject.getAsync(r => resolve(r.value || ''));
+            } else resolve('');
+          });
+          const formatRecips = (arr) => Array.isArray(arr)
+            ? arr.map(x => `${x.displayName || ''} <${x.emailAddress || ''}>`.trim()).join(', ')
+            : '';
+          const toVal = await new Promise((resolve) => {
+            if (Array.isArray(item.to)) resolve(formatRecips(item.to));
+            else if (item.to && typeof item.to.getAsync === 'function') {
+              item.to.getAsync(r => resolve(formatRecips(r.value)));
+            } else resolve('');
+          });
+          const ccVal = await new Promise((resolve) => {
+            if (Array.isArray(item.cc)) resolve(formatRecips(item.cc));
+            else if (item.cc && typeof item.cc.getAsync === 'function') {
+              item.cc.getAsync(r => resolve(formatRecips(r.value)));
             } else resolve('');
           });
           const bodyVal = await new Promise((resolve) => {
@@ -2691,28 +3160,145 @@
           });
           return {
             host: 'Outlook',
+            mode: isCompose ? 'Compose' : 'Read',
             subject: subjectVal,
             from: item.from ? `${item.from.displayName || ''} <${item.from.emailAddress || ''}>` : '',
-            bodyPreview: String(bodyVal || '').slice(0, 3200)
+            to: toVal,
+            cc: ccVal,
+            bodyText: String(bodyVal || '').slice(0, 4200),
+            hint: isCompose
+              ? 'Compose mode active: use outlook_patch_draft_text for targeted edits, or outlook_update_draft(mode="ReplaceDraftBody") for full draft rewrite.'
+              : 'Read mode active: use outlook_open_reply to open a native Reply / Reply-All compose window.'
           };
         }
-        if (name === 'outlook_insert_reply_or_draft') {
-          if (args.subject && item.subject && typeof item.subject.setAsync === 'function') {
-            await new Promise((resolve) => item.subject.setAsync(args.subject, () => resolve()));
+
+        const plainTextToOutlookHtml = (txt) => {
+          const escaped = escapeHtml(String(txt || '')).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+          return `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.45;">${escaped}</div>`;
+        };
+
+        if (name === 'outlook_patch_draft_text') {
+          if (typeof item.body.setAsync !== 'function') {
+            return { status: 'error', message: 'Active email is in Read Mode. Use outlook_open_reply to draft a reply.' };
           }
-          const result = await new Promise((resolve) => {
-            const fn = args.mode === 'ReplaceSelection' && item.body.setSelectedDataAsync
-              ? item.body.setSelectedDataAsync.bind(item.body)
-              : item.body.prependAsync.bind(item.body);
-            fn(String(args.bodyText || ''), { coercionType: window.Office.CoercionType.Text }, (r) => {
-              if (r.status === window.Office.AsyncResultStatus.Succeeded) {
-                resolve({ status: 'outlook_draft_inserted' });
+          if (args.subject && item.subject && typeof item.subject.setAsync === 'function') {
+            await new Promise((resolve) => item.subject.setAsync(String(args.subject), () => resolve()));
+          }
+          const currentHtml = await new Promise((resolve) => {
+            item.body.getAsync(window.Office.CoercionType.Html, (r) => resolve(r.value || ''));
+          });
+          const edits = Array.isArray(args.edits) ? args.edits : [];
+          let updatedHtml = String(currentHtml || '');
+          let appliedCount = 0;
+          const notFound = [];
+
+          for (const ed of edits) {
+            const findRaw = String(ed.findText || '');
+            const replHtml = escapeHtml(String(ed.replaceText ?? '')).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+            if (!findRaw) continue;
+            const findEsc = escapeHtml(findRaw);
+            if (updatedHtml.includes(findEsc)) {
+              updatedHtml = updatedHtml.replace(findEsc, replHtml);
+              appliedCount++;
+            } else if (updatedHtml.includes(findRaw)) {
+              updatedHtml = updatedHtml.replace(findRaw, replHtml);
+              appliedCount++;
+            } else {
+              // Whitespace / inline HTML tag tolerant match for Outlook Word-HTML quirks
+              const tokens = findEsc.trim().split(/\s+/).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+              const flexRegex = new RegExp(tokens.join('(?:\\s|&nbsp;|<[^>]+>)+'), 'i');
+              if (tokens.length > 0 && flexRegex.test(updatedHtml)) {
+                updatedHtml = updatedHtml.replace(flexRegex, replHtml);
+                appliedCount++;
               } else {
-                resolve({ status: 'error', message: r.error?.message || 'Switch to Reply/Compose mode to insert text.' });
+                notFound.push(findRaw.slice(0, 80));
+              }
+            }
+          }
+
+          if (appliedCount === 0 && !args.subject) {
+            return { status: 'no_match', appliedCount: 0, notFound, message: 'None of the findText strings matched the current draft. Read the draft again or check exact wording.' };
+          }
+
+          const writeRes = await new Promise((resolve) => {
+            item.body.setAsync(updatedHtml, { coercionType: window.Office.CoercionType.Html }, (r) => {
+              if (r.status === window.Office.AsyncResultStatus.Succeeded) {
+                resolve({ status: 'outlook_draft_patched', appliedCount, notFound });
+              } else {
+                resolve({ status: 'error', message: r.error?.message || 'Failed to update Outlook draft.' });
               }
             });
           });
-          return result;
+          return writeRes;
+        }
+
+        if (name === 'outlook_update_draft' || name === 'outlook_insert_reply_or_draft') {
+          if (typeof item.body.setAsync !== 'function') {
+            return { status: 'error', message: 'Active email is in Read Mode. Call outlook_open_reply instead to open a Reply window.' };
+          }
+          if (args.subject && item.subject && typeof item.subject.setAsync === 'function') {
+            await new Promise((resolve) => item.subject.setAsync(String(args.subject), () => resolve()));
+          }
+          const mode = args.mode || 'ReplaceDraftBody';
+          const newHtml = plainTextToOutlookHtml(args.bodyText || '');
+
+          if (mode === 'ReplaceSelection' && item.body.setSelectedDataAsync) {
+            return await new Promise((resolve) => {
+              item.body.setSelectedDataAsync(newHtml, { coercionType: window.Office.CoercionType.Html }, (r) => {
+                resolve(r.status === window.Office.AsyncResultStatus.Succeeded
+                  ? { status: 'outlook_selection_replaced' }
+                  : { status: 'error', message: r.error?.message || 'Failed to replace selection.' });
+              });
+            });
+          }
+          if (mode === 'Prepend') {
+            return await new Promise((resolve) => {
+              item.body.prependAsync(newHtml, { coercionType: window.Office.CoercionType.Html }, (r) => {
+                resolve(r.status === window.Office.AsyncResultStatus.Succeeded
+                  ? { status: 'outlook_draft_prepended' }
+                  : { status: 'error', message: r.error?.message || 'Failed to prepend text.' });
+              });
+            });
+          }
+
+          // Default: ReplaceDraftBody — cleanly replaces user draft while preserving any quoted reply/forward thread!
+          const existingHtml = await new Promise((resolve) => {
+            item.body.getAsync(window.Office.CoercionType.Html, (r) => resolve(r.value || ''));
+          });
+          let preservedThreadHtml = '';
+          const threadMarkers = ['<div id="divRplyFwdMsg"', '<div id="appendonsend"', '<hr '];
+          for (const marker of threadMarkers) {
+            const idx = existingHtml.indexOf(marker);
+            if (idx !== -1) {
+              preservedThreadHtml = '<br>' + existingHtml.slice(idx);
+              break;
+            }
+          }
+          const finalHtml = newHtml + preservedThreadHtml;
+          return await new Promise((resolve) => {
+            item.body.setAsync(finalHtml, { coercionType: window.Office.CoercionType.Html }, (r) => {
+              resolve(r.status === window.Office.AsyncResultStatus.Succeeded
+                ? { status: 'outlook_draft_replaced_cleanly', preservedQuotedThread: Boolean(preservedThreadHtml) }
+                : { status: 'error', message: r.error?.message || 'Failed to update Outlook draft.' });
+            });
+          });
+        }
+
+        if (name === 'outlook_open_reply') {
+          const replyHtml = plainTextToOutlookHtml(args.bodyText || '');
+          try {
+            if (args.replyAll && typeof item.displayReplyAllForm === 'function') {
+              item.displayReplyAllForm(replyHtml);
+              return { status: 'outlook_reply_all_window_opened' };
+            }
+            if (typeof item.displayReplyForm === 'function') {
+              item.displayReplyForm(replyHtml);
+              return { status: 'outlook_reply_window_opened' };
+            }
+            return { status: 'error', message: 'Active item is already in Compose mode. Use outlook_patch_draft_text or outlook_update_draft instead.' };
+          } catch (replyErr) {
+            return { status: 'error', message: replyErr.message || 'Could not open Outlook reply window.' };
+          }
         }
       }
 
@@ -2935,17 +3521,47 @@
           );
 
           const activeSheetObj = sheets.getActiveWorksheet();
-          let candidateSheet = parsedAddr.sheetName
-            ? sheets.getItemOrNullObject(parsedAddr.sheetName)
-            : activeSheetObj;
+          const targetSheet = await resolveWorksheetInExcel(context, sheets, parsedAddr.sheetName, activeSheetObj);
 
-          if (parsedAddr.sheetName) {
-            candidateSheet.load('isNullObject');
+          // Native 1-shot multi-sheet compact reader (eliminates 10+ separate scripts & preserves 90% prefix cache!)
+          if (name === 'read_multiple_sheets_compact') {
+            const reqNames = Array.isArray(args.sheetNames) ? args.sheetNames : [];
+            const maxRows = Math.min(250, Math.max(20, Number(args.maxRowsPerSheet || 120)));
+            const resolvedList = [];
+            for (const rn of reqNames.slice(0, 10)) {
+              const sObj = await resolveWorksheetInExcel(context, sheets, rn, null);
+              if (sObj) {
+                sObj.load('name');
+                const ur = sObj.getUsedRangeOrNullObject();
+                ur.load(['isNullObject', 'address', 'rowIndex', 'columnIndex', 'values', 'formulas', 'rowCount']);
+                resolvedList.push({ req: rn, sObj, ur });
+              }
+            }
             await context.sync();
+            const sheetsOut = {};
+            for (const item of resolvedList) {
+              if (item.ur.isNullObject) {
+                sheetsOut[item.sObj.name] = { empty: true };
+              } else {
+                sheetsOut[item.sObj.name] = {
+                  address: item.ur.address,
+                  totalRows: item.ur.rowCount,
+                  rows: buildCompactSheetRowsRepresentation(
+                    item.ur.values,
+                    item.ur.formulas,
+                    maxRows,
+                    (item.ur.rowIndex || 0) + 1,
+                    item.ur.columnIndex || 0
+                  )
+                };
+              }
+            }
+            return {
+              status: 'multi_sheet_read_complete',
+              sheetsRead: Object.keys(sheetsOut),
+              data: sheetsOut
+            };
           }
-          const targetSheet = (parsedAddr.sheetName && !candidateSheet.isNullObject)
-            ? candidateSheet
-            : activeSheetObj;
 
           // TOKEN-FRUGAL AUDIT_WORKBOOK: By default reads ONLY the Active Sheet's data (saving 70-90% tokens!), and only lists other tab names!
           if (name === 'audit_workbook') {
@@ -4177,13 +4793,6 @@
     /*************************************************************************
      * 8. CONTINUOUS THINKING TELEMETRY, SELECTABLE CARDS & COPY/EXPORT BUTTONS
      *************************************************************************/
-    const THINKING_MESSAGES = [
-      'Inspecting active sheet in Token-Saver mode...',
-      'Streaming compact cell map to Gemini API...',
-      'Evaluating checklist rows, formulas & coordinates...',
-      'Synthesizing structured Excel actions & final response...'
-    ];
-
     function startContinuousThinkingFeedback(phaseTitle, initialSubText) {
       const banner = document.getElementById('liveThinkingBanner');
       const titleEl = document.getElementById('thinkingPhaseTitle');
@@ -4195,20 +4804,13 @@
       }
 
       banner.classList.remove('hidden');
-      titleEl.textContent = phaseTitle || 'Thinking...';
-      subEl.textContent = initialSubText || THINKING_MESSAGES[0];
+      titleEl.textContent = phaseTitle || 'Working...';
+      subEl.textContent = initialSubText || 'Connecting to model...';
 
       const startedAt = Date.now();
-      let msgIdx = 0;
-
       appState.thinkingInterval = setInterval(() => {
         const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
         timerEl.textContent = `${elapsedSec}s`;
-        const step = Math.floor((Date.now() - startedAt) / 2200);
-        if (step !== msgIdx && step > 0) {
-          msgIdx = step;
-          subEl.textContent = THINKING_MESSAGES[step % THINKING_MESSAGES.length];
-        }
       }, 100);
     }
 
@@ -4332,6 +4934,7 @@
       appState.currentSessionTitle = 'New conversation';
       appState.conversationHistory = [];
       appState.renderedCards = [];
+      Object.values(appState.attachedDocuments || {}).forEach(d => { d.sentToModel = false; });
       appState.sessionAutoApproveEdits = false;
 
       const chatLog = document.getElementById('chatLog');
@@ -4539,7 +5142,113 @@
       };
     }
 
-    async function fetchGeminiWithResilience({ apiKey, initialModelId, payload, signal }) {
+    // Real-time SSE Streaming client for Gemini (:streamGenerateContent?alt=sse)
+    // Emits actual live thought summaries, tool call intent, and streaming response text as tokens arrive!
+    async function streamGeminiGenerateContent({ apiKey, modelId, payload, signal, onThought, onTextChunk, onToolIntent }) {
+      const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(streamUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal
+      });
+      if (!response.ok || !response.body) {
+        return { ok: false, response };
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      const mergedParts = [];
+      let latestUsageMetadata = null;
+      let finishReason = null;
+      let thoughtAccum = '';
+      let textAccum = '';
+
+      const mergeChunk = (chunkObj) => {
+        if (chunkObj.usageMetadata) latestUsageMetadata = chunkObj.usageMetadata;
+        const cand = chunkObj.candidates && chunkObj.candidates[0];
+        if (!cand) return;
+        if (cand.finishReason) finishReason = cand.finishReason;
+        const cParts = cand.content && Array.isArray(cand.content.parts) ? cand.content.parts : [];
+        for (const p of cParts) {
+          if (p.thought && typeof p.text === 'string') {
+            thoughtAccum += p.text;
+            const lastMeaningful = thoughtAccum
+              .split(/\n+/)
+              .map(s => s.replace(/^[*#\s-]+/, '').trim())
+              .filter(Boolean)
+              .slice(-1)[0];
+            if (lastMeaningful && onThought) {
+              onThought(lastMeaningful.slice(0, 120));
+            }
+            const prev = mergedParts[mergedParts.length - 1];
+            if (prev && prev.thought && typeof prev.text === 'string') {
+              prev.text += p.text;
+              if (p.thoughtSignature) prev.thoughtSignature = p.thoughtSignature;
+            } else {
+              mergedParts.push({ ...p });
+            }
+          } else if (p.functionCall) {
+            if (onToolIntent) {
+              const desc = p.functionCall.args?.description || p.functionCall.args?.sheetName || (Array.isArray(p.functionCall.args?.sheetNames) ? p.functionCall.args.sheetNames.join(', ') : '') || p.functionCall.name;
+              onToolIntent(p.functionCall.name, String(desc).slice(0, 95));
+            }
+            mergedParts.push({ ...p });
+          } else if (typeof p.text === 'string') {
+            textAccum += p.text;
+            if (onTextChunk) onTextChunk(textAccum);
+            const prev = mergedParts[mergedParts.length - 1];
+            if (prev && !prev.thought && !prev.functionCall && typeof prev.text === 'string') {
+              prev.text += p.text;
+              if (p.thoughtSignature) prev.thoughtSignature = p.thoughtSignature;
+            } else {
+              mergedParts.push({ ...p });
+            }
+          } else {
+            mergedParts.push({ ...p });
+          }
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() || '';
+        for (const evt of events) {
+          const dataLines = evt
+            .split(/\r?\n/)
+            .filter(l => l.startsWith('data:'))
+            .map(l => l.slice(5).trim())
+            .filter(Boolean);
+          if (!dataLines.length) continue;
+          const jsonStr = dataLines.join('\n');
+          if (jsonStr === '[DONE]') continue;
+          try {
+            mergeChunk(JSON.parse(jsonStr));
+          } catch (_) {
+            // Ignore partial JSON frame
+          }
+        }
+      }
+      if (buffer.trim().startsWith('data:')) {
+        try {
+          mergeChunk(JSON.parse(buffer.trim().slice(5).trim()));
+        } catch (_) {}
+      }
+
+      return {
+        ok: true,
+        data: {
+          candidates: [{ content: { role: 'model', parts: mergedParts }, finishReason }],
+          usageMetadata: latestUsageMetadata
+        }
+      };
+    }
+
+    async function fetchGeminiWithResilience({ apiKey, initialModelId, payload, signal, onThought, onTextChunk, onToolIntent }) {
       const autoFallback = document.getElementById('autoFallback429Checkbox').checked;
       const safeInitial = NON_AGENT_MODEL_REGEX.test(initialModelId) && autoFallback
         ? (buildFallbackCandidateOrder(initialModelId)[1] || 'gemini-3.5-flash-lite')
@@ -4555,16 +5264,34 @@
         for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt++) {
           const activePayload = mIdx === 0 ? payload : sanitizePayloadForCrossModelHandoff(payload);
           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(activePayload),
-            signal
-          });
 
-          if (response.ok) {
-            const data = await response.json();
-            return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+          // Prefer real-time SSE streaming so user sees live thinking & token-by-token responses!
+          let response = null;
+          if (onThought || onTextChunk || onToolIntent) {
+            const streamed = await streamGeminiGenerateContent({
+              apiKey,
+              modelId: candidateModel,
+              payload: activePayload,
+              signal,
+              onThought,
+              onTextChunk,
+              onToolIntent
+            });
+            if (streamed.ok) {
+              return { data: streamed.data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+            }
+            response = streamed.response;
+          } else {
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(activePayload),
+              signal
+            });
+            if (response.ok) {
+              const data = await response.json();
+              return { data, usedModelId: candidateModel, switchedModel: candidateModel !== initialModelId };
+            }
           }
 
           const errJson = await response.json().catch(() => ({}));
@@ -4683,7 +5410,11 @@
       'execute_custom_wordjs',
       'ppt_add_slide',
       'ppt_insert_text_on_slide',
-      'outlook_insert_reply_or_draft'
+      'outlook_patch_draft_text',
+      'outlook_update_draft',
+      'outlook_open_reply',
+      'outlook_insert_reply_or_draft',
+      'generate_and_insert_image'
     ]);
 
     function describePlannedEdit(fc) {
@@ -4742,8 +5473,19 @@
       if (fc.name === 'ppt_insert_text_on_slide') {
         return 'Insert text onto the active PowerPoint slide.';
       }
-      if (fc.name === 'outlook_insert_reply_or_draft') {
-        return 'Insert drafted email text into the active Outlook message.';
+      if (fc.name === 'outlook_patch_draft_text') {
+        const cnt = Array.isArray(a.edits) ? a.edits.length : 0;
+        return `Apply ${cnt} targeted in-place edit${cnt === 1 ? '' : 's'} to the active Outlook draft.`;
+      }
+      if (fc.name === 'outlook_update_draft' || fc.name === 'outlook_insert_reply_or_draft') {
+        return `Update Outlook draft (${a.mode || 'ReplaceDraftBody'}).`;
+      }
+      if (fc.name === 'outlook_open_reply') {
+        return a.replyAll ? 'Open a pre-filled Outlook Reply All window.' : 'Open a pre-filled Outlook Reply window.';
+      }
+      if (fc.name === 'generate_and_insert_image') {
+        const loc = a.targetParagraphText ? ` after "${String(a.targetParagraphText).slice(0, 36)}"` : (a.placement ? ` (${a.placement})` : '');
+        return `Generate image ("${String(a.prompt || '').slice(0, 65)}...") and insert${loc}.`;
       }
       return `Modify active Office file via ${fc.name}.`;
     }
@@ -5350,9 +6092,23 @@
       const historyCheckpoint = JSON.parse(JSON.stringify(appState.conversationHistory));
       const connectedNames = Object.keys(appState.externalWorkbooks);
 
+      const userTurnParts = [{ text: userPrompt }];
+      const pendingDocs = Object.values(appState.attachedDocuments || {}).filter(d => !d.sentToModel);
+      for (const doc of pendingDocs) {
+        if ((doc.kind === 'pdf' || doc.kind === 'image') && doc.base64Data) {
+          userTurnParts.push({ text: `[Attached ${doc.kind.toUpperCase()} document: ${doc.name}]` });
+          userTurnParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.base64Data } });
+        } else if (doc.extractedText) {
+          userTurnParts.push({
+            text: `[Attached ${doc.kind.toUpperCase()} file: ${doc.name}]\n--- BEGIN FILE ---\n${doc.extractedText}\n--- END FILE ---`
+          });
+        }
+        doc.sentToModel = true;
+      }
+
       appState.conversationHistory.push({
         role: 'user',
-        parts: [{ text: userPrompt }]
+        parts: userTurnParts
       });
 
       const MAX_AGENT_TURNS = 20;
@@ -5365,10 +6121,7 @@
       try {
         while (turn < MAX_AGENT_TURNS) {
           turn++;
-          // Keep last 4 tool turns in-loop so multi-sheet audits NEVER lose sheets they just read!
-          if (turn > 4) {
-            pruneHeavyToolDumpsInHistory(4);
-          }
+          // Preserve immutable prefix during the active run so Google's automatic context cache hits ~85-90% discount!
 
           const isFinalForcedSynthesisTurn = turn === MAX_AGENT_TURNS;
           const remainingToolTurns = MAX_AGENT_TURNS - turn;
@@ -5388,7 +6141,9 @@
             temperature: isThinkingModel ? 0.7 : 0.2
           };
           if (isThinkingModel && Number.isFinite(configuredThinkBudget) && configuredThinkBudget >= 0) {
-            genConfig.thinkingConfig = { thinkingBudget: configuredThinkBudget };
+            genConfig.thinkingConfig = configuredThinkBudget > 0
+              ? { thinkingBudget: configuredThinkBudget, includeThoughts: true }
+              : { thinkingBudget: 0 };
           }
 
           const payload = {
@@ -5399,27 +6154,29 @@
                     `You are a formal, token-frugal Microsoft ${appState.officeHost === 'Preview' ? 'Office' : appState.officeHost} Assistant operating inside an Office.js Task Pane.\n` +
                     (appState.officeHost === 'Word'
                       ? 'MICROSOFT WORD OPERATING RULES:\n' +
-                        '1. WRITE DIRECTLY INTO WORD: Use `word_insert_formatted_html` with clean inline CSS (centered bold headings, justified body paragraphs, crisp spacing, signature blocks) to insert resolutions, letters, memos, and reports directly into the active Word document.\n' +
-                        '2. PULLING DATA FROM @workbook[sheetname]: When the user references `@WorkbookName[SheetName]`, call `read_external_workbook(workbookName, sheetName)` to pull live data from that open Excel workbook and insert it into Word.\n' +
-                        '3. READ ONLY WHEN NEEDED: Call `word_read_document` if you need to review or edit existing text in the document.\n' +
-                        '4. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing, call `ask_user_clarification` with clear options.\n' +
-                        '5. FORMAL TONE: Use clear, formal, professional language.'
+                        '1. SURGICAL IN-PLACE EDITS FIRST: When the user asks to change a specific clause, date, name, amount, or sentence in an existing document, ALWAYS use `word_find_and_replace` in-place. NEVER delete or rewrite the whole document unless explicitly asked.\n' +
+                        '2. WRITE NEW DOCUMENTS CLEANLY: For brand-new resolutions, letters, or reports, use `word_insert_formatted_html` with clean inline CSS (centered bold headings, justified body, crisp spacing).\n' +
+                        '3. PULLING DATA FROM @workbook[sheetname] & ATTACHED FILES: Call `read_external_workbook(workbookName, sheetName)` for Excel data; read any attached PDF/Word/Image/Text files directly from the conversation.\n' +
+                        '4. CONTEXT-AWARE IMAGES: When asked to add an image, illustration, or diagram to a report, FIRST read the surrounding section via `word_read_document`, then call `generate_and_insert_image` with a prompt tailored to that exact paragraph context and `placement="AfterParagraph"` + `targetParagraphText` so it lands right beneath the relevant paragraph.\n' +
+                        '5. HANDLE AMBIGUITY INTERACTIVELY: If key details are ambiguous or missing, call `ask_user_clarification` with clear options.'
                       : appState.officeHost === 'PowerPoint'
                       ? 'MICROSOFT POWERPOINT OPERATING RULES:\n' +
-                        '1. Use `ppt_read_presentation`, `ppt_add_slide`, and `ppt_insert_text_on_slide` to read and edit slides directly.\n' +
-                        '2. Call `ask_user_clarification` when slide structure or content choices are ambiguous.\n' +
-                        '3. Use formal, concise business language.'
+                        '1. SURGICAL EDITS: Update only the specific slide or text requested via `ppt_read_presentation`, `ppt_insert_text_on_slide`, or `ppt_add_slide`.\n' +
+                        '2. CONTEXT-AWARE SLIDE IMAGES: When asked to generate or add an image/visual for a slide, FIRST call `ppt_read_presentation` to read that slide\'s exact title and bullets, then call `generate_and_insert_image` with a clean executive visual prompt (`aspectRatio="16:9"` or `"4:3"`) and `placement="ActiveSlide"` (or `"NewSlide"` if creating a new slide).\n' +
+                        '3. Call `ask_user_clarification` when slide structure or content choices are ambiguous.'
                       : appState.officeHost === 'Outlook'
                       ? 'MICROSOFT OUTLOOK OPERATING RULES:\n' +
-                        '1. Use `outlook_read_email` to read the active message and `outlook_insert_reply_or_draft` to insert drafted replies directly into Outlook.\n' +
-                        '2. Call `ask_user_clarification` if tone or reply direction is ambiguous.\n' +
-                        '3. Use formal, clear business language.'
+                        '1. ALWAYS READ FIRST: Call `outlook_read_email` first to inspect `mode` ("Compose" vs "Read") and the existing email/draft text.\n' +
+                        '2. SURGICAL DRAFT EDITS (Compose Mode): When the user asks to tweak, fix, or update part of an existing draft (dates, tone, numbers, a paragraph, or subject), ALWAYS call `outlook_patch_draft_text` with exact find/replace edits. NEVER prepend a second copy of the draft!\n' +
+                        '3. FULL DRAFT WRITE (Compose Mode): Use `outlook_update_draft(mode="ReplaceDraftBody")` ONLY when writing a fresh draft or completely rewriting an email — it cleanly replaces your draft while preserving any quoted reply thread below.\n' +
+                        '4. REPLYING FROM READ MODE: When `mode` is "Read", call `outlook_open_reply(bodyText, replyAll)` to open a native pre-filled Outlook Reply / Reply-All window.\n' +
+                        '5. HANDLE AMBIGUITY: Call `ask_user_clarification` if tone or direction is unclear.'
                       : 'EXCEL OPERATING RULES:\n' +
-                        '1. @workbook[sheetname] REFERENCES: For another open/attached workbook call `read_external_workbook(workbookName, sheetName)`; for the current workbook call `read_excel_range(sheetName, rangeAddress)`. Otherwise call `audit_workbook` (includeAllSheetsData: false) once.\n' +
-                        '2. BATCH READS & WRITES: When reviewing multiple sheets (e.g., Balance Sheet, P&L, Notes, Ratios), read them in parallel in ONE turn, do NOT re-read sheets you already read, and create/populate any output comment sheet in 1–2 batched writes (using `=HYPERLINK("#\x27SheetName\x27!A1","SheetName!A1")` for cell links).\n' +
-                        '3. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-), call `reconcile_itc_books_vs_2b` directly.\n' +
-                        '4. COMPACT SCRIPT OUTPUTS: Never dump giant raw arrays from `execute_custom_officejs`; aggregate or write inside JS and return compact summaries.\n' +
-                        '5. ALWAYS FINISH WITH A CLEAR CONCLUSION: After completing sheet writes, provide a concise executive summary of findings in chat.')
+                        '1. SURGICAL IN-PLACE EDITS FIRST: When the user asks to fix or change a specific formula, cell, header, or comment, update ONLY those exact target cells using `write_excel_range_or_formula` or `batch_write_excel_ranges`. NEVER delete/recreate the worksheet or rewrite unchanged rows.\n' +
+                        '2. @workbook[sheetname] & ATTACHED FILES: For another open/attached workbook call `read_external_workbook(workbookName, sheetName)`; for the current workbook call `read_excel_range(sheetName, rangeAddress)`. Otherwise call `audit_workbook` (includeAllSheetsData: false) once. Any attached PDF/Word/Image/Text files are provided directly in the conversation.\n' +
+                        '3. BATCH READS & WRITES: When reviewing multiple sheets, call `read_multiple_sheets_compact(sheetNames=[...])` in ONE turn, never re-read sheets already in context, and write any new output sheet in 1 call (using `=HYPERLINK("#\x27SheetName\x27!A1","SheetName!A1")` for cell links).\n' +
+                        '4. LOCAL ITC RECONCILIATION: For GST ITC Books (+) vs GSTR-2B (-), call `reconcile_itc_books_vs_2b` directly.\n' +
+                        '5. COMPACT SCRIPT OUTPUTS & CLEAR CONCLUSION: Never dump giant raw arrays from `execute_custom_officejs`; finish with a concise executive summary in chat.')
                 }
               ]
             },
@@ -5434,13 +6191,49 @@
             payload.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
           }
 
+          let liveStreamCard = null;
+          let liveStreamBodyEl = null;
+          const chatLogEl = document.getElementById('chatLog');
+
           const { data, usedModelId, switchedModel } = await fetchGeminiWithResilience({
             apiKey,
             initialModelId: modelId,
             payload,
-            signal: appState.abortController.signal
+            signal: appState.abortController.signal,
+            onThought: (liveThoughtLine) => {
+              updateThinkingPhase('Thinking...', liveThoughtLine);
+            },
+            onToolIntent: (toolName, detailText) => {
+              updateThinkingPhase(`Preparing ${toolName}`, detailText);
+            },
+            onTextChunk: (accumulatedText) => {
+              updateThinkingPhase('Writing response...', `${accumulatedText.length} characters received`);
+              if (!liveStreamCard && chatLogEl) {
+                const starter = document.getElementById('welcomeStarterCard');
+                if (starter) starter.remove();
+                liveStreamCard = document.createElement('div');
+                liveStreamCard.className = 'p-3 rounded-xl bg-obsidian-900/95 border border-obsidian-700 space-y-1.5 selectable-text';
+                liveStreamCard.innerHTML = `
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-semibold text-neon-cyan">${escapeHtml(formatShortModelName(modelId))}</span>
+                    <span class="text-[10px] font-mono text-amber-300">Streaming...</span>
+                  </div>
+                  <div class="live-stream-body text-xs text-slate-200 whitespace-pre-wrap leading-relaxed selectable-text"></div>
+                `;
+                chatLogEl.appendChild(liveStreamCard);
+                liveStreamBodyEl = liveStreamCard.querySelector('.live-stream-body');
+              }
+              if (liveStreamBodyEl) {
+                liveStreamBodyEl.textContent = accumulatedText;
+                chatLogEl.scrollTop = chatLogEl.scrollHeight;
+              }
+            }
           });
           lastUsedModelId = usedModelId;
+          if (liveStreamCard) {
+            liveStreamCard.remove();
+            liveStreamCard = null;
+          }
 
           if (switchedModel) {
             const prevShort = formatShortModelName(modelId);
@@ -5460,7 +6253,7 @@
 
           const costSnap = recordTokenUsage(data.usageMetadata, usedModelId);
           const costBadge = costSnap
-            ? `₹${costSnap.inrCost.toFixed(4)} • ${costSnap.promptTokens}→${costSnap.candidateTokens}${costSnap.thoughtsTokens ? `+${costSnap.thoughtsTokens}🧠` : ''} tok`
+            ? `₹${costSnap.inrCost.toFixed(4)} • ${costSnap.promptTokens}→${costSnap.candidateTokens}${costSnap.thoughtsTokens ? `+${costSnap.thoughtsTokens}🧠` : ''}${costSnap.cachedTokens ? ` (${Math.round(costSnap.cachedTokens / Math.max(1, costSnap.promptTokens + costSnap.cachedTokens) * 100)}% cached)` : ''} tok`
             : 'Logged';
 
           const candidate = data.candidates && data.candidates[0];
