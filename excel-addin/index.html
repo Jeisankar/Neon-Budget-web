@@ -610,6 +610,49 @@
             <option value="16384">High (16,384)</option>
           </select>
         </div>
+
+        <!-- Integrated Auto-Router Tier Allocation (Lite / Medium / High) -->
+        <div class="pt-2 border-t border-obsidian-800 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-neon-cyan">Integrated Auto-Router Tiers</span>
+            <span class="info-tip-wrap">
+              <button type="button" class="w-4 h-4 rounded-full bg-obsidian-800 border border-obsidian-600 text-[10px] text-slate-400 hover:text-neon-cyan flex items-center justify-center">i</button>
+              <span class="info-tip-bubble">When "Auto (Integrated)" is selected, tasks route automatically to Lite (quick edits), Medium (reports/slides/reconciliation), or High (full statutory audits).</span>
+            </span>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5">
+            <div>
+              <label for="routerLiteModelSelect" class="block text-[9px] text-slate-400 mb-0.5">Lite (Fast)</label>
+              <select id="routerLiteModelSelect" class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded px-1.5 py-1 text-[10px] text-slate-100 outline-none">
+                <option value="gemini-3.5-flash-lite">3.5 Flash-Lite</option>
+                <option value="gemini-3.1-flash-lite">3.1 Flash-Lite</option>
+                <option value="gemini-2.5-flash-lite">2.5 Flash-Lite</option>
+              </select>
+            </div>
+            <div>
+              <label for="routerMediumModelSelect" class="block text-[9px] text-slate-400 mb-0.5">Medium (Std)</label>
+              <select id="routerMediumModelSelect" class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded px-1.5 py-1 text-[10px] text-slate-100 outline-none">
+                <option value="gemini-3.8-flash">3.8 Flash</option>
+                <option value="gemini-4-hydrogen">Hydrogen</option>
+                <option value="gemini-3.7-flash">3.7 Flash</option>
+                <option value="gemini-3.5-flash">3.5 Flash</option>
+              </select>
+            </div>
+            <div>
+              <label for="routerHighModelSelect" class="block text-[9px] text-slate-400 mb-0.5">High (Deep)</label>
+              <select id="routerHighModelSelect" class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-neon-cyan rounded px-1.5 py-1 text-[10px] text-slate-100 outline-none">
+                <option value="gemini-4-neon">Neon</option>
+                <option value="gemini-4-carbon">Carbon</option>
+                <option value="gemini-3.1-pro-preview">3.1 Pro</option>
+                <option value="gemini-4-argon">Argon</option>
+              </select>
+            </div>
+          </div>
+          <label class="flex items-center justify-between gap-2 pt-1 cursor-pointer">
+            <span class="text-[10px] text-slate-300">Lite-Scout pre-digest before High tier</span>
+            <input id="routerLiteScoutCheckbox" type="checkbox" checked class="accent-teal-400 rounded" />
+          </label>
+        </div>
       </div>
 
       <div id="modelMetadataBar" class="pt-2 border-t border-obsidian-800 flex items-center justify-between gap-2 text-[10px] text-slate-400">
@@ -908,10 +951,21 @@
       PROMPT_LIBRARY: 'neon_excel_prompt_library_v1',
       CONFIRM_EDITS: 'neon_excel_confirm_edits_v1',
       CHAT_SESSIONS: 'neon_excel_chat_sessions_v1',
-      CROSS_WORKBOOK_BRIDGE: 'neon_excel_cross_workbook_bridge_v1'
+      CROSS_WORKBOOK_BRIDGE: 'neon_excel_cross_workbook_bridge_v1',
+      ROUTER_TIERS: 'neon_office_router_tiers_v1'
+    };
+
+    const DEFAULT_ROUTER_TIERS = {
+      liteModel: 'gemini-3.5-flash-lite',
+      mediumModel: 'gemini-3.8-flash',
+      highModel: 'gemini-4-neon',
+      liteImageModel: 'gemini-3.1-flash-lite-image',
+      highImageModel: 'gemini-3.1-flash-image-preview',
+      liteScoutPreDigest: true
     };
 
     const DEFAULT_FAVORITE_MODELS = [
+      'auto-integrated-gemini',
       'gemini-3.5-flash-lite',
       'gemini-3.1-flash-lite',
       'gemini-3.8-flash',
@@ -1056,6 +1110,8 @@
         searchQueries: 0,
         turnBreakdown: []
       },
+      routerTiers: { ...DEFAULT_ROUTER_TIERS, ...(safeStorageGet(STORAGE_KEYS.ROUTER_TIERS, {}) || {}) },
+      activeTurnTier: null,
       externalWorkbooks: {},
       attachedDocuments: {},
       undoStack: [],
@@ -2722,11 +2778,15 @@
       const allowedRatios = new Set(['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16']);
       const safeRatio = allowedRatios.has(aspectRatio) ? aspectRatio : '16:9';
       // Cost-first native Gemini image model chain (Nano Banana 2 Lite first, then Flash Image fallbacks)
-      const imageModelChain = [
+      const preferredImgModel = appState.activeTurnTier && appState.activeTurnTier.imageModel
+        ? appState.activeTurnTier.imageModel
+        : 'gemini-3.1-flash-lite-image';
+      const imageModelChain = Array.from(new Set([
+        preferredImgModel,
         'gemini-3.1-flash-lite-image',
         'gemini-3.1-flash-image-preview',
         'gemini-2.5-flash-image'
-      ];
+      ]));
       let lastErr = null;
       for (const imgModel of imageModelChain) {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(imgModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -4323,6 +4383,7 @@
       const id = String(modelId).replace(/^models\//, '').trim();
       const lower = id.toLowerCase();
       const exactMap = {
+        'auto-integrated-gemini': 'Auto (Integrated)',
         'gemini-3.5-flash-lite': '3.5 Flash-Lite',
         'gemini-3.1-flash-lite': '3.1 Flash-Lite',
         'gemini-3.1-flash-lite-preview': '3.1 Flash-Lite',
@@ -4369,15 +4430,76 @@
       const capEl = document.getElementById('modelHoverThinkingCap');
       const activeId = appState.selectedModel || 'gemini-3.5-flash-lite';
       const capVal = Number(appState.pricing.thinkingBudget ?? 0);
-      if (fullEl) fullEl.textContent = activeId;
-      if (capEl) capEl.textContent = `Thinking Cap: ${getThinkingCapLabel(capVal)}`;
+      if (activeId === 'auto-integrated-gemini') {
+        const rt = appState.routerTiers || DEFAULT_ROUTER_TIERS;
+        if (fullEl) fullEl.textContent = `Integrated Router: Lite (${formatShortModelName(rt.liteModel)}) • Med (${formatShortModelName(rt.mediumModel)}) • High (${formatShortModelName(rt.highModel)})`;
+        if (capEl) capEl.textContent = 'Thinking Cap: Auto (NIL / Low / Med by tier)';
+      } else {
+        if (fullEl) fullEl.textContent = activeId;
+        if (capEl) capEl.textContent = `Thinking Cap: ${getThinkingCapLabel(capVal)}`;
+      }
+    }
+
+    // Zero-cost local complexity router for "Auto (Integrated)" mode (Lite / Medium / High)
+    function resolveIntegratedRouterDecision(userPrompt, hostName = 'Excel') {
+      const rt = appState.routerTiers || DEFAULT_ROUTER_TIERS;
+      const p = String(userPrompt || '').trim();
+      const lower = p.toLowerCase();
+      const docCount = Object.keys(appState.attachedDocuments || {}).length;
+      const wbCount = Object.keys(appState.externalWorkbooks || {}).filter(
+        k => appState.externalWorkbooks[k] && String(appState.externalWorkbooks[k].source || '').startsWith('Attached ')
+      ).length;
+
+      // Explicit user overrides in prompt (e.g. "use high model", "use lite")
+      if (/\b(high\s*tier|high\s*model|deep\s*audit|use\s*neon|use\s*carbon|end\s*to\s*end|end-to-end)\b/i.test(lower)) {
+        return {
+          tier: 'High',
+          modelId: rt.highModel || DEFAULT_ROUTER_TIERS.highModel,
+          thinkingBudget: 4096,
+          imageModel: rt.highImageModel || DEFAULT_ROUTER_TIERS.highImageModel,
+          reason: 'Deep analysis / end-to-end compliance'
+        };
+      }
+
+      // HIGH TIER: Statutory audits, multi-act compliance, Schedule III, AS/Ind AS, FEMA, deep multi-file analysis
+      const highPatterns = /(statutory\s*audit|schedule\s*iii|companies\s*act|income\s*tax\s*act|gst\s*act|fema|ind\s*as|accounting\s*standard|disclosure\s*requirement|full\s*compliance|ready\s*for\s*signing|financials?\s*review|tax\s*audit|3cd|transfer\s*pricing|comprehensive\s*review|legal\s*analysis)/i;
+      if (highPatterns.test(lower) || (docCount >= 2 && p.length > 180) || (wbCount >= 2 && /reconcil|audit|compare/i.test(lower))) {
+        return {
+          tier: 'High',
+          modelId: rt.highModel || DEFAULT_ROUTER_TIERS.highModel,
+          thinkingBudget: 4096,
+          imageModel: rt.highImageModel || DEFAULT_ROUTER_TIERS.highImageModel,
+          reason: 'Statutory / deep multi-factor reasoning'
+        };
+      }
+
+      // MEDIUM TIER: Reports, decks/slides, image generation, reconciliation, PDF/Word attachments, cross-workbook @refs, board resolutions
+      const mediumPatterns = /(generate\s*.*image|add\s*.*image|visual|illustrat|diagram|infographic|powerpoint|presentation|deck|slides?|board\s*resolution|draft\s*a?\s*report|memo|agreement|policy|reconcil|gstr|2b|pivot|chart|graph|compare|analy[sz]e|variance|cash\s*flow|forecast|@\S+\[)/i;
+      if (mediumPatterns.test(lower) || docCount >= 1 || wbCount >= 1 || hostName === 'PowerPoint' || p.length > 260) {
+        return {
+          tier: 'Medium',
+          modelId: rt.mediumModel || DEFAULT_ROUTER_TIERS.mediumModel,
+          thinkingBudget: 1024,
+          imageModel: rt.liteImageModel || DEFAULT_ROUTER_TIERS.liteImageModel,
+          reason: docCount > 0 ? 'Attached document / multimodal task' : 'Drafting, visuals, or multi-step workflow'
+        };
+      }
+
+      // LITE TIER: Quick formula fixes, surgical Outlook/Word edits, formatting, lookups, short summaries
+      return {
+        tier: 'Lite',
+        modelId: rt.liteModel || DEFAULT_ROUTER_TIERS.liteModel,
+        thinkingBudget: 0,
+        imageModel: rt.liteImageModel || DEFAULT_ROUTER_TIERS.liteImageModel,
+        reason: 'Fast, low-cost execution'
+      };
     }
 
     function getFavoriteModelIds() {
       const favs = Array.isArray(appState.favoriteModels) && appState.favoriteModels.length
         ? appState.favoriteModels
         : DEFAULT_FAVORITE_MODELS;
-      return favs;
+      return favs.includes('auto-integrated-gemini') ? favs : ['auto-integrated-gemini', ...favs];
     }
 
     function toggleFavoriteModel(modelId) {
@@ -6052,6 +6174,96 @@
       }
     }
 
+    // STAGE 1 (Lite-Scout Pre-Digest): Uses Lite model (NIL thinking) to read all sheets/docs/attachments
+    // and compress them into a compact Data Digest with exact cell refs before Stage 2 (High tier) runs!
+    async function runLiteScoutPreDigest({ apiKey, userPrompt, userTurnParts, activeHostTools, signal }) {
+      const rt = appState.routerTiers || DEFAULT_ROUTER_TIERS;
+      const liteModelId = rt.liteModel || DEFAULT_ROUTER_TIERS.liteModel;
+      const allDecls = (activeHostTools && activeHostTools[0] && activeHostTools[0].functionDeclarations) || [];
+      const readOnlyDecls = allDecls.filter(d => !MUTATING_EXCEL_TOOLS.has(d.name) && d.name !== 'ask_user_clarification');
+      if (readOnlyDecls.length === 0) return null;
+
+      const scoutHistory = [{ role: 'user', parts: JSON.parse(JSON.stringify(userTurnParts)) }];
+      const MAX_SCOUT_STEPS = 6;
+      let scoutInr = 0;
+      let scoutReads = 0;
+      let digestText = '';
+
+      const scoutSystemText =
+        `You are STAGE 1 (LITE DATA SCOUT) for a two-stage Microsoft ${appState.officeHost || 'Office'} pipeline.\n` +
+        'YOUR ONLY JOB: Gather all required data using read-only tools in the FEWEST calls possible, then output a compact, structured DATA DIGEST for the Stage 2 High-tier specialist.\n' +
+        'RULES:\n' +
+        '1. Prefer `read_multiple_sheets_compact(sheetNames=[...])` in ONE call (after 1 quick `audit_workbook(includeAllSheetsData: false)` if sheet names are unknown).\n' +
+        '2. NEVER write, modify, or create sheets/documents — Stage 2 handles all writing and compliance analysis.\n' +
+        '3. In your final DATA DIGEST, preserve EVERY material figure, account total, ratio, note disclosure, date, and exact cell reference (e.g., `\x27BS \x27!E12`) so Stage 2 does NOT need to re-read any sheet.\n' +
+        '4. Be dense and structured (bullet tables / key-value lines), zero filler.';
+
+      for (let step = 1; step <= MAX_SCOUT_STEPS; step++) {
+        const isLastScoutStep = step === MAX_SCOUT_STEPS;
+        startContinuousThinkingFeedback(
+          `Stage 1: Lite Scout (${step}/${MAX_SCOUT_STEPS})`,
+          `Gathering & compressing data with ${formatShortModelName(liteModelId)}...`
+        );
+
+        const scoutPayload = {
+          systemInstruction: { parts: [{ text: scoutSystemText }] },
+          contents: scoutHistory,
+          tools: [{ functionDeclarations: readOnlyDecls }],
+          generationConfig: {
+            temperature: 0.1,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
+        };
+        if (isLastScoutStep) {
+          scoutPayload.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
+        }
+
+        const { data, usedModelId } = await fetchGeminiWithResilience({
+          apiKey,
+          initialModelId: liteModelId,
+          payload: scoutPayload,
+          signal
+        });
+
+        const stepCost = data.usageMetadata ? recordTokenUsage(data.usageMetadata, usedModelId) : null;
+        if (stepCost && Number.isFinite(stepCost.inrCost)) scoutInr += stepCost.inrCost;
+
+        const candidate = data.candidates && data.candidates[0];
+        if (!candidate || !candidate.content || !Array.isArray(candidate.content.parts)) break;
+        const parts = candidate.content.parts;
+        scoutHistory.push({ role: 'model', parts });
+
+        const functionCalls = parts.filter(p => p.functionCall).map(p => p.functionCall);
+        if (functionCalls.length > 0 && !isLastScoutStep) {
+          const responseParts = [];
+          for (const fc of functionCalls) {
+            scoutReads++;
+            let res;
+            try {
+              res = await executeExcelTool(fc);
+            } catch (e) {
+              res = { status: 'error', message: e.message };
+            }
+            responseParts.push({
+              functionResponse: { name: fc.name, response: { result: res } }
+            });
+          }
+          scoutHistory.push({ role: 'user', parts: responseParts });
+        } else {
+          digestText = parts.filter(p => p.text && !p.thought).map(p => p.text).join('\n').trim();
+          break;
+        }
+      }
+
+      if (!digestText) return null;
+      return {
+        digestText: digestText.slice(0, 28000),
+        liteModelId,
+        scoutInr,
+        scoutReads
+      };
+    }
+
     async function runAgenticTurnLoop(userPrompt, isRetry = false) {
       if (appState.officeHost === 'Preview') applyDetectedOfficeHost(null);
       const statusInd = document.getElementById('agentStatusIndicator');
@@ -6075,7 +6287,23 @@
       }
 
       const apiKey = document.getElementById('apiKeyInput').value.trim();
-      let modelId = document.getElementById('modelSelect').value.trim();
+      let selectedModelRaw = document.getElementById('modelSelect').value.trim();
+      let modelId = selectedModelRaw;
+      let autoRouterDecision = null;
+
+      if (selectedModelRaw === 'auto-integrated-gemini') {
+        autoRouterDecision = resolveIntegratedRouterDecision(userPrompt, appState.officeHost || 'Excel');
+        modelId = autoRouterDecision.modelId;
+        appState.activeTurnTier = autoRouterDecision;
+        // If prior turn used a different tier model, sanitize thoughtSignatures cleanly before sending
+        if (appState.lastRoutedModelId && appState.lastRoutedModelId !== modelId && appState.conversationHistory.length > 0) {
+          appState.conversationHistory = sanitizePayloadForCrossModelHandoff({ contents: appState.conversationHistory }).contents;
+        }
+        appState.lastRoutedModelId = modelId;
+      } else {
+        appState.activeTurnTier = null;
+        appState.lastRoutedModelId = modelId;
+      }
 
       if (!apiKey || !modelId) {
         startContinuousThinkingFeedback('Simulating Multi-Turn Audit...', 'Executing deterministic Office.js tool calls...');
@@ -6106,17 +6334,68 @@
         doc.sentToModel = true;
       }
 
-      appState.conversationHistory.push({
-        role: 'user',
-        parts: userTurnParts
-      });
-
       const MAX_AGENT_TURNS = 20;
       const activeHostTools = getToolsForCurrentHost(userPrompt);
       let turn = 0;
       let lastTurnHadFinalText = false;
       let lastUsedModelId = modelId;
       appState.abortController = new AbortController();
+
+      // TWO-STAGE COST OPTIMIZER: When Auto (Integrated) picks High tier, let Lite Scout gather & compress
+      // all raw sheets/docs first so High tier runs on a clean compact digest (saving ~70-85% input cost)
+      // and caches cleanly on High tier for follow-up questions!
+      let finalUserPartsForStage2 = userTurnParts;
+      const liteScoutOn = appState.routerTiers ? appState.routerTiers.liteScoutPreDigest !== false : true;
+      const shouldRunLiteScout = Boolean(
+        autoRouterDecision
+        && autoRouterDecision.tier === 'High'
+        && liteScoutOn
+        && appState.officeHost !== 'Outlook'
+        && appState.officeHost !== 'Preview'
+      );
+
+      if (shouldRunLiteScout) {
+        try {
+          const scoutResult = await runLiteScoutPreDigest({
+            apiKey,
+            userPrompt,
+            userTurnParts,
+            activeHostTools,
+            signal: appState.abortController.signal
+          });
+          if (scoutResult && scoutResult.digestText) {
+            appendLogCard({
+              role: 'tool',
+              title: `⚡ Stage 1 (Lite Scout • ${formatShortModelName(scoutResult.liteModelId)}) — ₹${scoutResult.scoutInr.toFixed(2)}`,
+              bodyHtml: `Gathered &amp; compressed data across ${scoutResult.scoutReads} read${scoutResult.scoutReads === 1 ? '' : 's'} (${scoutResult.digestText.length.toLocaleString('en-IN')} chars) → handing off to <b>Stage 2 (${formatShortModelName(modelId)})</b>.`,
+              badgeText: 'Cost Saver',
+              badgeColor: 'text-emerald-400'
+            });
+            // Strip heavy binary inlineData already digested by Lite Scout so High tier is not billed for raw PDFs
+            finalUserPartsForStage2 = [
+              {
+                text:
+                  `${userPrompt}\n\n` +
+                  `[STAGE 1 PRE-EXTRACTED DATA DIGEST BY LITE SCOUT — USE THESE EXACT FIGURES & CELL REFS; DO NOT RE-READ ALREADY COVERED SHEETS UNLESS SPECIFICALLY MISSING]:\n` +
+                  `${scoutResult.digestText}`
+              }
+            ];
+          }
+        } catch (scoutErr) {
+          if (scoutErr && scoutErr.name === 'AbortError') {
+            stopContinuousThinkingFeedback();
+            statusInd.textContent = 'Stopped';
+            sendBtn.disabled = false;
+            return;
+          }
+          // Non-fatal: fall through directly to Stage 2 with original userTurnParts
+        }
+      }
+
+      appState.conversationHistory.push({
+        role: 'user',
+        parts: finalUserPartsForStage2
+      });
 
       try {
         while (turn < MAX_AGENT_TURNS) {
@@ -6126,17 +6405,22 @@
           const isFinalForcedSynthesisTurn = turn === MAX_AGENT_TURNS;
           const remainingToolTurns = MAX_AGENT_TURNS - turn;
           statusInd.textContent = `Step ${turn}/${MAX_AGENT_TURNS}`;
+          const modelBadgeSub = autoRouterDecision
+            ? `Auto → ${autoRouterDecision.tier} (${formatShortModelName(modelId)}) • ${autoRouterDecision.reason}`
+            : `Model: ${formatShortModelName(modelId)}`;
           startContinuousThinkingFeedback(
             isFinalForcedSynthesisTurn ? 'Finalizing Conclusion...' : `Working (Step ${turn})`,
-            `Model: ${formatShortModelName(modelId)}`
+            modelBadgeSub
           );
 
           const isThinkingModel = /argon|carbon|hydrogen|neon|pro|3\.|4\./i.test(modelId);
           const headerThinkEl = document.getElementById('headerThinkingCapSelect');
           const thinkSel = document.getElementById('thinkingBudgetSelect');
-          const configuredThinkBudget = headerThinkEl
-            ? Number(headerThinkEl.value)
-            : (thinkSel ? Number(thinkSel.value) : Number(appState.pricing.thinkingBudget ?? 0));
+          const configuredThinkBudget = autoRouterDecision
+            ? Number(autoRouterDecision.thinkingBudget)
+            : (headerThinkEl
+                ? Number(headerThinkEl.value)
+                : (thinkSel ? Number(thinkSel.value) : Number(appState.pricing.thinkingBudget ?? 0)));
           const genConfig = {
             temperature: isThinkingModel ? 0.7 : 0.2
           };
@@ -6940,6 +7224,39 @@
       document.getElementById('clearChatBtn').addEventListener('click', () => {
         startNewChatSession();
       });
+
+      // Initialize & persist Integrated Auto-Router Tier dropdowns
+      const rtLiteSel = document.getElementById('routerLiteModelSelect');
+      const rtMedSel = document.getElementById('routerMediumModelSelect');
+      const rtHighSel = document.getElementById('routerHighModelSelect');
+      const rtScoutBox = document.getElementById('routerLiteScoutCheckbox');
+      const saveRouterTiersFromUI = () => {
+        appState.routerTiers = {
+          ...(appState.routerTiers || DEFAULT_ROUTER_TIERS),
+          liteModel: rtLiteSel ? rtLiteSel.value : DEFAULT_ROUTER_TIERS.liteModel,
+          mediumModel: rtMedSel ? rtMedSel.value : DEFAULT_ROUTER_TIERS.mediumModel,
+          highModel: rtHighSel ? rtHighSel.value : DEFAULT_ROUTER_TIERS.highModel,
+          liteScoutPreDigest: rtScoutBox ? rtScoutBox.checked : true
+        };
+        safeStorageSet(STORAGE_KEYS.ROUTER_TIERS, appState.routerTiers);
+        updateModelHoverTooltip();
+      };
+      if (rtScoutBox) {
+        rtScoutBox.checked = appState.routerTiers ? appState.routerTiers.liteScoutPreDigest !== false : true;
+        rtScoutBox.addEventListener('change', saveRouterTiersFromUI);
+      }
+      if (rtLiteSel) {
+        rtLiteSel.value = (appState.routerTiers && appState.routerTiers.liteModel) || DEFAULT_ROUTER_TIERS.liteModel;
+        rtLiteSel.addEventListener('change', saveRouterTiersFromUI);
+      }
+      if (rtMedSel) {
+        rtMedSel.value = (appState.routerTiers && appState.routerTiers.mediumModel) || DEFAULT_ROUTER_TIERS.mediumModel;
+        rtMedSel.addEventListener('change', saveRouterTiersFromUI);
+      }
+      if (rtHighSel) {
+        rtHighSel.value = (appState.routerTiers && appState.routerTiers.highModel) || DEFAULT_ROUTER_TIERS.highModel;
+        rtHighSel.addEventListener('change', saveRouterTiersFromUI);
+      }
 
       document.getElementById('syncFxBtn').addEventListener('click', fetchLiveUsdInrRate);
       document.getElementById('savePricingBtn').addEventListener('click', () => {
